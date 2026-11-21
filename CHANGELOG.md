@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [4.0.0] - 2025-07-11
+## [4.0.0] - 2026-07-11
 
 ### Added
 
@@ -72,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [3.1.0] - 2025-07-09
+## [3.1.0] - 2026-07-09
 
 ### Added
 
@@ -114,7 +114,7 @@ database automatically:
 
 ---
 
-## [3.0.0] - 2025-07-09
+## [3.0.0] - 2026-07-09
 
 ### Added
 
@@ -153,7 +153,7 @@ database automatically:
 
 ---
 
-## [2.2.0] - 2025-07-09
+## [2.2.0] - 2026-07-09
 
 ### Added
 
@@ -180,7 +180,7 @@ database automatically:
 
 ---
 
-## [2.1.0] - 2025-07-08
+## [2.1.0] - 2026-07-08
 
 ### Added
 
@@ -212,7 +212,7 @@ database automatically:
 
 ---
 
-## [2.0.0] - 2025-07-02
+## [2.0.0] - 2026-07-02
 
 ### Added
 
@@ -311,7 +311,7 @@ database automatically:
 
 ---
 
-## [1.0.0] - 2025-06-07
+## [1.0.0] - 2026-06-07
 
 ### Added
 

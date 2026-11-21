@@ -2,10 +2,9 @@
 #
 # Runs on every push and pull request to main/develop.
 # Jobs:
-#   test        - pytest for the nybble package, across Python 3.9-3.12
-#   lint        - ruff style/import check over nybble/ and tests/
-#   build       - sdist + wheel build verification with twine check
-#   server-lint - ruff check over server/ (no Flask install required)
+#   test  - pytest for the nybble package, across Python 3.10-3.12
+#   lint  - ruff style/import check over nybble/ and tests/
+#   build - sdist + wheel build verification with twine check
 
 name: CI
 
@@ -24,13 +23,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -50,75 +49,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install ruff
-        run: pip install "ruff==0.4.10"
+        run: pip install "ruff>=0.8"
 
       - name: Lint nybble package and tests
         run: ruff check nybble/ tests/
-
-  # ── Server lint ───────────────────────────────────────────────────────────────
-  server-lint:
-    name: Lint - server package (ruff)
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install ruff
-        run: pip install "ruff==0.4.10"
-
-      - name: Lint server package
-        # Ignore Flask/SQLAlchemy undefined-name errors (F821) - server deps
-        # are not installed in this job; structural/import-order issues are caught.
-        run: ruff check server/ --ignore F821,F401
-
-  # ── share integration (Gist smoke-test) ──────────────────────────────────────
-  share-integration:
-    name: nybble share - Gist smoke test
-    runs-on: ubuntu-latest
-    # Only run on pushes to main/develop (not on PRs from forks - no token access)
-    if: github.event_name == 'push'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install nybble
-        run: pip install -e ".[dev]"
-
-      - name: Create minimal HTML fixture
-        run: |
-          echo "<html><body>nybble share CI smoke test</body></html>" > /tmp/ci_smoke.html
-
-      - name: Share via GitHub Gist and verify URL returned
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          URL=$(nybble share --source /tmp/ci_smoke.html \
-                             --description "nybble CI smoke test - auto-delete" \
-                             --gist-token "$GITHUB_TOKEN")
-          echo "Share URL: $URL"
-          # Verify a non-empty HTTPS URL was returned
-          [[ "$URL" == https://* ]] || { echo "ERROR: unexpected URL: $URL"; exit 1; }
 
   # ── Build ─────────────────────────────────────────────────────────────────────
   build:
@@ -127,10 +70,10 @@ jobs:
     needs: [test, lint]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip

@@ -10,7 +10,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/datajoins/nybble?style=social)](https://github.com/datajoins/nybble)
 
-**[datajoins.com](https://datajoins.com) · [PyPI](https://pypi.org/project/datajoins-nybble/) · [Changelog](CHANGELOG.md) · [Documentation](website/documentation.html) · [Docs](docs/) · [Issues](https://github.com/datajoins/nybble/issues)**
+**[datajoins.com](https://datajoins.com) · [PyPI](https://pypi.org/project/datajoins-nybble/) · [Changelog](CHANGELOG.md) · [Documentation](https://nybble.datajoins.com/documentation.html) · [Issues](https://github.com/datajoins/nybble/issues)**
 
 </div>
 
@@ -451,14 +451,7 @@ nybble/                          ← repository root
 │   ├── cli.py                   ← `nybble` CLI entry point
 │   └── templates/               ← self-contained Jinja2 HTML templates
 │
-├── server/                      ← Flask/nginx server (Docker deployable)
-│   ├── app/                     ← Flask application + HTML templates
-│   ├── ingestion/               ← format extraction + import pipeline
-│   ├── pipeline/                ← orchestrator + ERD renderer
-│   └── kg/                      ← server-side Knowledge Graph subsystem
-│
 ├── deploy/                      ← Dockerfile, docker-compose.yml, nginx.conf
-├── docs/                        ← ROADMAP.md, COMPETITION.md, research/
 ├── tests/                       ← pytest suite
 │
 ├── nybble.yaml.example          ← fully annotated workspace config reference
@@ -609,6 +602,6 @@ Visit [datajoins.com](https://datajoins.com) for the full ecosystem.
 
 ## License
 
-Apache License 2.0 - Copyright © 2025 [DataJoinsNow](https://datajoins.com)
+Apache License 2.0 - Copyright © 2026 [DataJoins](https://datajoins.com)
 
 See [LICENSE](LICENSE) for the full text.
