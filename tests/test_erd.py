@@ -272,14 +272,18 @@ class TestErdDisplayNameMismatch:
     def _reset(self):
         import nybble.resolver as r
         if r._SESSION is not None:
-            try: r._SESSION.close()
-            except Exception: pass
+            try:
+                r._SESSION.close()
+            except Exception:
+                pass
             r._SESSION = None
         r._REGISTERED.clear()
         yield
         if r._SESSION is not None:
-            try: r._SESSION.close()
-            except Exception: pass
+            try:
+                r._SESSION.close()
+            except Exception:
+                pass
             r._SESSION = None
         r._REGISTERED.clear()
 

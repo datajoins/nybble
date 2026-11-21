@@ -25,7 +25,10 @@ import json as _json
 import socket
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from nybble.resolver import Relation
 
 import click
 from rich.console import Console
