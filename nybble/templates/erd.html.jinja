@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ source_name }} - ERD - Nybble</title>
+<style>
+:root {
+  --bg: #141618; --surface: #1c1f20; --surface2: #232526;
+  --surface-page: #141618; --surface-card: #1c1f20; --surface-inset: #0d0f10;
+  --border: #2e3234; --border2: #3a3d3e;
+  --text: #e2e6f0; --text-muted: rgba(255,255,255,0.45);
+  --text-dim: rgba(255,255,255,0.25); --text-faint: rgba(255,255,255,0.15);
+  --accent: #a78bfa; --accent-bg: rgba(167,139,250,0.12);
+  --accent-border: rgba(167,139,250,0.30);
+  --green: #1ded83; --r-sm: 4px; --r-md: 6px;
+  --section-label-size: 10px; --section-label-spacing: 0.06em;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100vh; font-family: -apple-system,"Segoe UI",Arial,sans-serif;
+  background: var(--bg); color: var(--text); overflow: hidden; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.26); }
+
+/* ── Layout ── */
+#app { display: flex; flex-direction: column; height: 100vh; }
+#topbar {
+  height: 40px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; padding: 0 10px; z-index: 30;
+}
+.tb-logo { display: flex; align-items: center; gap: 8px; padding: 0 6px; flex-shrink: 0; }
+.tb-title { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.tb-stats { font-size: 11px; color: var(--text-dim); white-space: nowrap; padding: 0 8px; flex-shrink: 0; }
+.tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; flex-shrink: 0; }
+.tb-spacer { flex: 1; }
+.tbtn {
+  height: 30px; padding: 0 10px; background: none; border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; border-radius: var(--r-sm);
+  display: flex; align-items: center; gap: 5px; font-size: 11px;
+  transition: background .12s, color .12s; flex-shrink: 0; white-space: nowrap;
+}
+.tbtn:hover { background: rgba(255,255,255,0.08); color: var(--text); border-color: rgba(255,255,255,0.2); }
+.tbtn.on { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+#canvas-toolbar { display: flex; align-items: center; gap: 0; }
+#canvas-toolbar .tbtn { width: 32px; height: 32px; padding: 0; border: none; justify-content: center; }
+#canvas-toolbar .tbtn.on { border: none; }
+#main { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+
+/* ── Sidebar ── */
+#sidebar {
+  width: 220px; flex-shrink: 0; background: var(--surface-card);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#sidebar-hdr {
+  padding: 7px 10px 7px 12px; display: flex; align-items: center; gap: 6px;
+  font-size: var(--section-label-size); font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--section-label-spacing); color: var(--text-dim);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#sidebar-hdr .sh-label { flex: 1; }
+.sh-btn {
+  background: none; border: 1px solid var(--border2); border-radius: 3px;
+  color: var(--text-dim); font-size: 9px; padding: 1px 5px; cursor: pointer;
+}
+.sh-btn:hover { border-color: var(--accent); color: var(--accent); }
+#search-wrap {
+  padding: 7px 10px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+#nav-search {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 12px; caret-color: var(--accent); min-width: 0;
+}
+#nav-search::placeholder { color: var(--text-faint); }
+#table-list { flex: 1; overflow-y: auto; }
+.tbl-item {
+  display: flex; align-items: center; padding: 6px 8px 6px 10px; gap: 6px;
+  cursor: pointer; border-left: 2px solid transparent;
+  transition: background .1s;
+}
+.tbl-item:hover { background: rgba(255,255,255,0.04); }
+.tbl-item.active { background: var(--accent-bg); border-left-color: var(--accent); }
+.tbl-item.tbl-hidden { opacity: .35; }
+.tbl-item .n { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.tbl-item .tbl-name { font-size: 12px; color: rgba(255,255,255,0.85); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbl-item .tbl-meta { font-size: 10px; color: rgba(255,255,255,0.3); }
+.tbl-eye {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.2); padding: 0 2px; display: flex; align-items: center;
+}
+.tbl-eye:hover { color: rgba(255,255,255,0.7); }
+#sb-mode-row { padding: 8px 10px; border-top: 1px solid var(--border); flex-shrink: 0; }
+#sb-mode-row label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); display: block; margin-bottom: 5px; }
+.pill-group { display: flex; gap: 0; }
+.pill {
+  flex: 1; padding: 4px 0; font-size: 11px; color: var(--text-muted);
+  background: var(--bg); border: 1px solid var(--border); cursor: pointer;
+  transition: all .15s; text-align: center;
+}
+.pill:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.pill:last-child  { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.pill:not(:first-child) { border-left: none; }
+.pill.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+.pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+#sb-stats { padding: 8px 12px; border-top: 1px solid var(--border); flex-shrink: 0; font-size: 11px; color: rgba(255,255,255,0.35); }
+
+/* ── Canvas area ── */
+#canvas-wrap {
+  flex: 1; position: relative; overflow: hidden; background: var(--surface-page);
+}
+#canvas-wrap::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+#cy        { position: absolute; inset: 0; z-index: 1; }
+#bbox-svg  { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: visible; }
+#overlay   { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+#edge-anim { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+
+/* ── Bounding-box groups ── */
+.bbox-rect {
+  fill-opacity: 0.08; stroke-width: 1.5; stroke-dasharray: 5 3;
+  rx: 6; pointer-events: none;
+}
+.bbox-label-strip { cursor: grab; pointer-events: all; }
+.bbox-label-strip:active { cursor: grabbing; }
+.bbox-label-bg { fill-opacity: 0.85; }
+.bbox-label-text { font-family: -apple-system,"Segoe UI",Arial,sans-serif; font-size: 11px; font-weight: 600; pointer-events: none; }
+#loading {
+  position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  background: var(--surface-page); color: rgba(255,255,255,0.4); font-size: 13px;
+}
+#loading.hidden { display: none; }
+.spinner {
+  width: 30px; height: 30px; border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#minimap {
+  position: absolute; bottom: 16px; right: 16px; z-index: 10;
+  width: 160px; height: 120px;
+  background: var(--surface-card); border: 1px solid #2e3234; border-radius: 6px;
+  overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+#minimap.hidden { display: none; }
+#minimap canvas { width: 100%; height: 100%; display: block; }
+
+/* ── Detail panel ── */
+#detail {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 280px; z-index: 15;
+  background: var(--surface-card); border-left: 1px solid #2e3234;
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .25s ease;
+}
+#detail.open { transform: translateX(0); }
+#detail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid #2e3234; flex-shrink: 0;
+}
+#detail-title  { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#detail-close  { background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; font-size: 18px; }
+#detail-close:hover { color: #fff; }
+#detail-body   { flex: 1; overflow-y: auto; padding: 10px 0; }
+.dcol {
+  display: flex; align-items: center; gap: 8px; padding: 5px 14px;
+  font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.dcol .dname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e6f0; }
+.dcol .dtype { font-family: Consolas,monospace; font-size: 10px; color: rgba(255,255,255,0.4); }
+.badge { font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; flex-shrink: 0; }
+.badge-pk { background: rgba(167,139,250,0.2); color: #a78bfa; }
+.badge-fk { background: rgba(167,139,250,0.1); color: #c4b5fd; }
+.dsec { padding: 8px 14px 4px; font-size: var(--section-label-size); font-weight: 700; text-transform: uppercase; letter-spacing: var(--section-label-spacing); color: var(--text-dim); }
+.dfk { display: flex; align-items: center; gap: 6px; padding: 5px 14px; font-size: 11px; color: rgba(255,255,255,0.55); cursor: pointer; }
+.dfk:hover { color: var(--accent); }
+.detail-sql { margin: 8px 14px; background: #0d0f10; border: 1px solid #2e3234; border-radius: 4px; font-family: Consolas,monospace; font-size: 10px; color: #79c0ff; padding: 7px 9px; word-break: break-all; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Topbar ── -->
+  <div id="topbar">
+    <div class="tb-logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      <span class="tb-title">Nybble ERD</span>
+    </div>
+    <span class="tb-stats">{{ table_count }} tables &middot; {{ edge_count }} relationships</span>
+    <div class="tb-sep"></div>
+    <!-- Focus mode chip - hidden until double-click activates focus mode -->
+    <div id="focus-chip" style="display:none;align-items:center;gap:5px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3);border-radius:4px;padding:0 8px;height:24px;font-size:11px;color:#c4b5fd;margin:0 6px;flex-shrink:0;">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      <span id="focus-chip-label" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Focus</span>
+      <button id="focus-chip-exit" title="Exit focus mode (Esc)" style="background:none;border:none;color:rgba(167,139,250,0.7);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;">&#x2715;</button>
+    </div>
+    <div class="tb-spacer"></div>
+    <div id="canvas-toolbar">
+      <button class="tbtn" id="btn-zoomin" title="Zoom in (+)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/>
+        </svg>
+      </button>
+      <button class="tbtn" id="btn-zoomout" title="Zoom out (-)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M8 11h6"/>
+        </svg>
+      </button>
+      <button class="tbtn" id="btn-fit" title="Fit to screen (F)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+        </svg>
+      </button>
+      <div class="tb-sep"></div>
+      <button class="tbtn on" id="btn-minimap" title="Toggle minimap (M)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+          <line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Main ── -->
+  <div id="main">
+
+    <!-- ── Sidebar ── -->
+    <div id="sidebar">
+      <div id="sidebar-hdr">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.45">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        <span class="sh-label">Tables</span>
+        <button class="sh-btn" onclick="showAllTables()" title="Show all">All</button>
+        <button class="sh-btn" onclick="hideAllTables()" title="Hide all">Hide</button>
+      </div>
+      <div id="search-wrap">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-dim);flex-shrink:0;">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input id="nav-search" type="search" placeholder="Search tables &amp; columns…" autocomplete="off" spellcheck="false"/>
+      </div>
+      <div id="table-list"></div>
+      <div id="sb-mode-row">
+        <label>Show mode</label>
+        <div class="pill-group">
+          <button class="pill active" data-mode="ALL" onclick="setShowMode('ALL')">All</button>
+          <button class="pill"        data-mode="KEYS" onclick="setShowMode('KEYS')">Keys</button>
+          <button class="pill"        data-mode="NAME" onclick="setShowMode('NAME')">Name</button>
+        </div>
+      </div>
+      <div id="sb-stats"></div>
+    </div>
+
+    <!-- ── Canvas ── -->
+    <div id="canvas-wrap">
+      <div id="cy"></div>
+      <svg id="bbox-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <canvas id="overlay"></canvas>
+      <canvas id="edge-anim"></canvas>
+      <div id="loading"><div class="spinner"></div><span>Calculating layout&hellip;</span></div>
+      <div id="minimap"><canvas id="minimap-canvas"></canvas></div>
+      <aside id="detail">
+        <div id="detail-header">
+          <span id="detail-title">Table</span>
+          <button id="detail-close" title="Close">&times;</button>
+        </div>
+        <div id="detail-body"></div>
+      </aside>
+    </div>
+
+  </div>
+</div>
+
+<!-- CDN: Cytoscape + ELK -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.29.2/cytoscape.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.10.0/lib/elk.bundled.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-elk@2.2.0/dist/cytoscape-elk.js" crossorigin="anonymous"></script>
+
+<script>
+// ── Schema data ────────────────────────────────────────────────────────────────
+const SCHEMA = {{ schema_json }};
+
+// ── Row counts embedded at generation time ─────────────────────────────────────
+const ROW_COUNTS = {};
+SCHEMA.forEach(t => { if (t.row_count != null) ROW_COUNTS[t.name] = t.row_count; });
+
+// ── Design tokens (mirrors _base_styles.html for canvas drawing) ──────────────
+const T = {
+  bg: '#141618', headerBg: '#232526',
+  border: 'rgba(255,255,255,0.15)', borderHL: '#a78bfa',
+  text: '#ffffff', textMuted: 'rgba(255,255,255,0.55)', textType: 'rgba(255,255,255,0.40)',
+  pkColor: '#a78bfa', fkColor: '#c4b5fd',
+  rowBorder: '#2e3234', fkRowBg: 'rgba(167,139,250,0.06)',
+  font: '-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif',
+  fontMono: 'Consolas,"Courier New",monospace',
+  radius: 6, hdrH: 36, rowH: 28, minW: 200,
+  entityTable: '#a78bfa', entityView: '#2dd4bf', entityMV: '#fbbf24',
+  entityExternal: 'rgba(255,255,255,0.35)',
+};
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let cy, overlayCanvas, overlayCtx, minimapCanvas, minimapCtx, animCanvas, animCtx;
+let showMode = 'ALL';
+let hlIds = new Set(), focalIds = new Set();
+let hiddenTables = new Set();
+let activeId = null;
+// Bounding-box groups state
+let _bboxGroups = [], _groupsEnabled = true;
+// Inline constants (mirrors ERD_CONST from _erd_features_constants.html)
+const BBOX_PADDING = 18, BBOX_LABEL_HEIGHT = 20, BBOX_RADIUS = 6;
+const BBOX_OPACITY = 0.08;
+const BBOX_COLLAPSE_PREFIX = 'erd_bbox_collapsed_';
+const PARTICLE_COLOR = 'rgba(167,139,250,0.75)';
+const PARTICLE_RADIUS = 3, PARTICLE_SPEED = 90;
+let animEdges = [], animFrameId = null, lastAnimTime = null, hoveredEdgeId = null;
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtRows(n) {
+  if (n == null) return '-';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(n>=10000?0:1)+'k';
+  return String(n);
+}
+const _EYE_ON  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const _EYE_OFF = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+// ── Node dimensions (same as Docker UI) ───────────────────────────────────────
+function nodeW(t) {
+  const nw = t.name.length * 8.5 + 52;
+  const cw = t.columns.length
+    ? Math.max(...t.columns.map(c => (c.name||'').length*7.5 + (c.type||'').length*6.5 + 56))
+    : 0;
+  return Math.ceil(Math.max(T.minW, nw, cw));
+}
+function nodeH(t, mode) {
+  if (mode === 'NAME') return T.hdrH;
+  const n = mode === 'KEYS'
+    ? t.columns.filter(c => c.pk || c.fk).length
+    : t.columns.length;
+  return Math.ceil(T.hdrH + Math.max(1, n) * T.rowH);
+}
+function visibleCols(t, mode) {
+  if (mode === 'NAME')  return [];
+  if (mode === 'KEYS')  return t.columns.filter(c => c.pk || c.fk);
+  return t.columns;
+}
+
+// ── Canvas drawing (exact copy of Docker UI drawNode) ─────────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r); ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h,x+w-r,y+h,r); ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r); ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r); ctx.closePath();
+}
+function clip(ctx, text, maxW) {
+  if (!maxW || maxW <= 0) return '';
+  if (ctx.measureText(text).width <= maxW) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) {
+    const m = (lo+hi+1)>>1;
+    ctx.measureText(text.slice(0,m)+'…').width <= maxW ? lo=m : hi=m-1;
+  }
+  return text.slice(0,lo)+'…';
+}
+function drawNode(ctx, table, w, h, rx, ry, zoom, highlighted) {
+  const rw = w*zoom, rh = h*zoom, r = T.radius*zoom;
+  roundRect(ctx, rx, ry, rw, rh, r);
+  ctx.fillStyle = T.bg; ctx.fill();
+  ctx.strokeStyle = highlighted ? T.borderHL : T.border;
+  ctx.lineWidth   = highlighted ? 2 : 1;
+  if (highlighted) { ctx.shadowColor = T.borderHL; ctx.shadowBlur = 10*zoom; }
+  ctx.stroke(); ctx.shadowBlur = 0;
+  // Entity left-border strip
+  const stripW = Math.max(3, 3*zoom);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(rx+r,ry+1); ctx.lineTo(rx+stripW,ry+1);
+  ctx.lineTo(rx+stripW,ry+rh-1); ctx.lineTo(rx+r,ry+rh-1);
+  ctx.arcTo(rx,ry+rh-1,rx,ry+rh-1-r,r); ctx.lineTo(rx,ry+r);
+  ctx.arcTo(rx,ry+1,rx+r,ry+1,r); ctx.closePath();
+  ctx.fillStyle = T.entityTable; ctx.globalAlpha = 0.55; ctx.fill();
+  ctx.globalAlpha = 1; ctx.restore();
+  // Header background
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(rx+r,ry); ctx.lineTo(rx+rw-r,ry);
+  ctx.arcTo(rx+rw,ry,rx+rw,ry+r,r); ctx.lineTo(rx+rw,ry+T.hdrH*zoom);
+  ctx.lineTo(rx,ry+T.hdrH*zoom); ctx.lineTo(rx,ry+r);
+  ctx.arcTo(rx,ry,rx+r,ry,r); ctx.closePath();
+  ctx.fillStyle = T.headerBg; ctx.fill(); ctx.restore();
+  // Header icon
+  const isz = 12*zoom, ix = rx+10*zoom, iy = ry+(T.hdrH*zoom-isz)/2;
+  ctx.save();
+  ctx.strokeStyle = T.textMuted; ctx.lineWidth = 1.2;
+  ctx.strokeRect(ix+isz*0.15, iy+isz*0.15, isz*0.7, isz*0.7);
+  ctx.beginPath();
+  ctx.moveTo(ix+isz*0.15,iy+isz*0.5); ctx.lineTo(ix+isz*0.85,iy+isz*0.5);
+  ctx.moveTo(ix+isz*0.5,iy+isz*0.15); ctx.lineTo(ix+isz*0.5,iy+isz*0.85);
+  ctx.stroke(); ctx.restore();
+  // Header title
+  const nfsz = Math.max(9, Math.round(13*zoom));
+  ctx.font = `600 ${nfsz}px ${T.font}`;
+  ctx.fillStyle = highlighted ? '#ffffff' : T.textMuted;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(clip(ctx, table.name, rw-56*zoom), rx+28*zoom, ry+T.hdrH*zoom/2);
+  // Row count badge
+  const rc = ROW_COUNTS[table.name];
+  if (rc != null) {
+    const rcStr = rc >= 1e6 ? (rc/1e6).toFixed(1)+'M' : rc >= 1e3 ? (rc/1e3).toFixed(rc>=10000?0:1)+'k' : String(rc);
+    const rcFsz = Math.max(7, Math.round(9*zoom));
+    ctx.font = `400 ${rcFsz}px ${T.fontMono}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.textAlign = 'right';
+    ctx.fillText(rcStr, rx+rw-8*zoom, ry+T.hdrH*zoom/2);
+  }
+  // Column rows
+  const cols = visibleCols(table, showMode);
+  const cfsz = Math.max(8, Math.round(11*zoom));
+  const tfsz = Math.max(7, Math.round(9.5*zoom));
+  cols.forEach((col, i) => {
+    const rowTop = ry + (T.hdrH + i*T.rowH)*zoom;
+    const rowH   = T.rowH*zoom;
+    if (col.fk) { ctx.fillStyle = T.fkRowBg; ctx.fillRect(rx, rowTop, rw, rowH); }
+    if (i < cols.length-1) {
+      ctx.strokeStyle = T.rowBorder; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(rx,rowTop+rowH); ctx.lineTo(rx+rw,rowTop+rowH); ctx.stroke();
+    }
+    const csz = Math.max(8, Math.round(11*zoom));
+    const cx0 = rx+10*zoom, cy0 = rowTop+(rowH-csz)/2;
+    if (col.pk) {
+      ctx.strokeStyle = T.pkColor; ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(cx0+csz*0.32, cy0+csz*0.68, csz*0.22, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx0+csz*0.5,cy0+csz*0.5); ctx.lineTo(cx0+csz*0.95,cy0+csz*0.08);
+      ctx.moveTo(cx0+csz*0.8,cy0+csz*0.22); ctx.lineTo(cx0+csz*0.95,cy0+csz*0.37);
+      ctx.stroke();
+    } else if (col.fk) {
+      ctx.strokeStyle = T.fkColor; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(cx0+csz*0.32,cy0+csz*0.5,csz*0.22,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx0+csz*0.68,cy0+csz*0.5,csz*0.22,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx0+csz*0.54,cy0+csz*0.5); ctx.lineTo(cx0+csz*0.46,cy0+csz*0.5);
+      ctx.strokeStyle = T.fkColor; ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx0+csz/2, cy0+csz/2, csz*0.25, 0, Math.PI*2);
+      ctx.strokeStyle = col.not_null ? 'rgba(255,255,255,0.4)' : T.rowBorder;
+      ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.font = `400 ${cfsz}px ${T.font}`;
+    ctx.fillStyle = T.text; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    const tw = (col.type||'').length*5.8*zoom + 8*zoom;
+    ctx.fillText(clip(ctx, col.name, rw-30*zoom-tw), rx+26*zoom, rowTop+rowH/2);
+    ctx.font = `400 ${tfsz}px ${T.fontMono}`;
+    ctx.fillStyle = T.textType; ctx.textAlign = 'right';
+    ctx.fillText(col.type||'', rx+rw-8*zoom, rowTop+rowH/2);
+  });
+}
+
+// ── Overlay + minimap ──────────────────────────────────────────────────────────
+function drawOverlay() {
+  if (!cy || !overlayCtx) return;
+  const c = overlayCanvas;
+  const dpr = window.devicePixelRatio || 1;
+  overlayCtx.clearRect(0,0,c.width,c.height);
+  overlayCtx.save(); overlayCtx.scale(dpr,dpr);
+  const zoom = cy.zoom(), pan = cy.pan();
+  cy.nodes().forEach(n => {
+    if (hiddenTables.has(n.id()) || n.style('display') === 'none') return;
+    const pos = n.position(), w = n.data('w'), h = n.data('h');
+    drawNode(overlayCtx, n.data('table'), w, h, pos.x*zoom+pan.x-w*zoom/2, pos.y*zoom+pan.y-h*zoom/2, zoom, hlIds.has(n.id()));
+  });
+  overlayCtx.restore();
+}
+function drawMinimap() {
+  if (!cy || !minimapCtx) return;
+  const c = minimapCanvas, W = c.offsetWidth, H = c.offsetHeight;
+  if (!W || !H) return;
+  c.width = W; c.height = H;
+  const bb = cy.elements().boundingBox();
+  if (!bb.w || !bb.h) return;
+  const sc = Math.min((W-16)/(bb.w||1), (H-16)/(bb.h||1));
+  const ox = (W-bb.w*sc)/2 - bb.x1*sc, oy = (H-bb.h*sc)/2 - bb.y1*sc;
+  minimapCtx.clearRect(0,0,W,H);
+  cy.nodes().forEach(n => {
+    if (hiddenTables.has(n.id())) return;
+    const p = n.position(), nw = n.data('w'), nh = n.data('h');
+    const x = p.x*sc+ox-nw*sc/2, y = p.y*sc+oy-nh*sc/2;
+    minimapCtx.fillStyle   = hlIds.has(n.id()) ? 'rgba(167,139,250,0.25)' : '#232526';
+    minimapCtx.strokeStyle = hlIds.has(n.id()) ? '#a78bfa' : '#383a3b';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.beginPath();
+    if (minimapCtx.roundRect) minimapCtx.roundRect(x,y,Math.max(nw*sc,3),Math.max(nh*sc,4),2);
+    else minimapCtx.rect(x,y,Math.max(nw*sc,3),Math.max(nh*sc,4));
+    minimapCtx.fill(); minimapCtx.stroke();
+  });
+  const pan=cy.pan(), zoom=cy.zoom(), el=cy.container();
+  const vx=(-pan.x/zoom)*sc+ox, vy=(-pan.y/zoom)*sc+oy;
+  minimapCtx.strokeStyle='rgba(167,139,250,0.5)'; minimapCtx.lineWidth=1.5;
+  minimapCtx.strokeRect(vx,vy,(el.clientWidth/zoom)*sc,(el.clientHeight/zoom)*sc);
+}
+
+// ── Edge animation ─────────────────────────────────────────────────────────────
+function cyToCanvas(pt) { const z=cy.zoom(),p=cy.pan(); return {x:pt.x*z+p.x, y:pt.y*z+p.y}; }
+function bezier(p0,p1,p2,p3,t) {
+  const mt=1-t;
+  return {x:mt*mt*mt*p0.x+3*mt*mt*t*p1.x+3*mt*t*t*p2.x+t*t*t*p3.x,
+          y:mt*mt*mt*p0.y+3*mt*mt*t*p1.y+3*mt*t*t*p2.y+t*t*t*p3.y};
+}
+function bezierLen(p0,p1,p2,p3,steps) {
+  steps=steps||20; let len=0, prev=p0;
+  for (let i=1;i<=steps;i++){const cur=bezier(p0,p1,p2,p3,i/steps);const dx=cur.x-prev.x,dy=cur.y-prev.y;len+=Math.sqrt(dx*dx+dy*dy);prev=cur;}
+  return len;
+}
+function getEdgePath(edge) {
+  let srcPt,tgtPt,ctrlPts;
+  try { srcPt=edge.sourceEndpoint(); tgtPt=edge.targetEndpoint(); ctrlPts=edge.controlPoints(); } catch(e){srcPt=null;}
+  if (srcPt&&tgtPt) {
+    const src=cyToCanvas(srcPt), tgt=cyToCanvas(tgtPt);
+    if (ctrlPts&&ctrlPts.length>=1) {
+      const cp1=cyToCanvas(ctrlPts[0]),cp2=ctrlPts.length>=2?cyToCanvas(ctrlPts[1]):cp1;
+      return {src,cp1,cp2,tgt};
+    }
+    return {src,cp1:src,cp2:tgt,tgt};
+  }
+  const srcC=cyToCanvas(edge.source().position()),tgtC=cyToCanvas(edge.target().position());
+  const dx=tgtC.x-srcC.x,dy=tgtC.y-srcC.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+  const px=-dy/len,py=dx/len,mx=srcC.x+dx*0.5,my=srcC.y+dy*0.5;
+  const cp={x:mx+px*60,y:my+py*60};
+  return {src:srcC,cp1:cp,cp2:cp,tgt:tgtC};
+}
+function resizeAnimCanvas() {
+  const wrap=document.getElementById('canvas-wrap'),w=wrap.clientWidth,h=wrap.clientHeight;
+  if (!w||!h) return;
+  const dpr=window.devicePixelRatio||1;
+  animCanvas.width=w*dpr; animCanvas.height=h*dpr;
+  animCanvas.style.width=w+'px'; animCanvas.style.height=h+'px';
+}
+function refreshAnimEdges() {
+  if (!cy) return;
+  animEdges=[];
+  if (!hlIds.size) { cancelAnim(); clearAnimCanvas(); return; }
+  cy.edges().forEach(edge => {
+    const src=edge.source().id(),tgt=edge.target().id();
+    if (!hlIds.has(src)||!hlIds.has(tgt)) return;
+    if (focalIds.size&&!focalIds.has(src)&&!focalIds.has(tgt)) return;
+    const path=getEdgePath(edge),totalLen=bezierLen(path.src,path.cp1,path.cp2,path.tgt);
+    if (totalLen<10) return;
+    const count=Math.max(1,Math.round(totalLen/80));
+    const particles=Array.from({length:count},(_,i)=>({t:i/count,speed:PARTICLE_SPEED/totalLen}));
+    animEdges.push({id:edge.id(),path,particles,len:totalLen});
+  });
+  if (animEdges.length) startAnim(); else {cancelAnim();clearAnimCanvas();}
+}
+function clearAnimCanvas(){if(!animCtx)return;animCtx.clearRect(0,0,animCanvas.width,animCanvas.height);}
+function startAnim(){if(animFrameId)return;lastAnimTime=null;animFrameId=requestAnimationFrame(animFrame);}
+function cancelAnim(){if(animFrameId){cancelAnimationFrame(animFrameId);animFrameId=null;}}
+function animFrame(now) {
+  animFrameId=null;
+  if (!animEdges.length){clearAnimCanvas();return;}
+  const dt=lastAnimTime?Math.min((now-lastAnimTime)/1000,0.05):0;
+  lastAnimTime=now;
+  const dpr=window.devicePixelRatio||1;
+  animCtx.clearRect(0,0,animCanvas.width,animCanvas.height);
+  animCtx.save(); animCtx.scale(dpr,dpr);
+  animEdges.forEach(ae => {
+    const {path,particles}=ae;
+    particles.forEach(p => {
+      p.t+=p.speed*dt; if(p.t>1)p.t-=1;
+      const pt=bezier(path.src,path.cp1,path.cp2,path.tgt,p.t);
+      const tailLen=0.12, t0=Math.max(0,p.t-tailLen);
+      animCtx.save(); animCtx.beginPath();
+      for(let i=0;i<=8;i++){const ti=t0+(p.t-t0)*(i/8);const tp=bezier(path.src,path.cp1,path.cp2,path.tgt,ti);i===0?animCtx.moveTo(tp.x,tp.y):animCtx.lineTo(tp.x,tp.y);}
+      const grad=animCtx.createLinearGradient(bezier(path.src,path.cp1,path.cp2,path.tgt,t0).x,bezier(path.src,path.cp1,path.cp2,path.tgt,t0).y,pt.x,pt.y);
+      grad.addColorStop(0,'rgba(167,139,250,0)'); grad.addColorStop(1,'rgba(167,139,250,0.55)');
+      animCtx.strokeStyle=grad; animCtx.lineWidth=1.5; animCtx.shadowColor='#a78bfa'; animCtx.shadowBlur=4;
+      animCtx.stroke(); animCtx.restore();
+      animCtx.save(); animCtx.beginPath();
+      animCtx.arc(pt.x,pt.y,PARTICLE_RADIUS,0,Math.PI*2);
+      animCtx.fillStyle=PARTICLE_COLOR; animCtx.shadowColor='#a78bfa'; animCtx.shadowBlur=7;
+      animCtx.fill(); animCtx.restore();
+    });
+  });
+  animCtx.restore();
+  animFrameId=requestAnimationFrame(animFrame);
+}
+function syncAnimPaths() {
+  if(!cy||!animEdges.length)return;
+  animEdges.forEach(ae=>{const edge=cy.$('#'+CSS.escape(ae.id));if(!edge.length)return;ae.path=getEdgePath(edge);});
+}
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+function resizeOverlay() {
+  const wrap=document.getElementById('canvas-wrap'),w=wrap.clientWidth,h=wrap.clientHeight;
+  if(!w||!h)return;
+  const dpr=window.devicePixelRatio||1;
+  overlayCanvas.width=w*dpr; overlayCanvas.height=h*dpr;
+  overlayCanvas.style.width=w+'px'; overlayCanvas.style.height=h+'px';
+  resizeAnimCanvas(); drawOverlay();
+}
+
+// ── Highlight ─────────────────────────────────────────────────────────────────
+function setHL(ids, focal) {
+  hlIds=new Set(ids); focalIds=focal?new Set(focal):new Set(ids);
+  cy.edges().removeClass('hl');
+  if(!ids.size){focalIds=new Set();drawOverlay();drawMinimap();cancelAnim();clearAnimCanvas();return;}
+  cy.nodes().forEach(n=>{if(ids.has(n.id()))n.connectedEdges().addClass('hl');});
+  drawOverlay(); drawMinimap(); refreshAnimEdges();
+}
+function selectNode(id) {
+  activeId=id;
+  const n=cy.$('#'+CSS.escape(id));
+  const ids=new Set([id]);
+  n.connectedEdges().connectedNodes().forEach(x=>ids.add(x.id()));
+  setHL(ids,new Set([id]));
+}
+function clearSel() {
+  activeId=null; setHL(new Set());
+  document.getElementById('detail').classList.remove('open');
+  document.querySelectorAll('.tbl-item.active').forEach(el=>el.classList.remove('active'));
+}
+
+// ── Detail panel ──────────────────────────────────────────────────────────────
+function openDetail(table) {
+  document.getElementById('detail-title').textContent = table.name;
+  const body = document.getElementById('detail-body');
+  const fks  = table.columns.filter(c => c.fk && c.fk_target);
+  const viewName = table.view_name || table.name;
+  const sql = `SELECT *\nFROM "${viewName}"\nLIMIT 100;`;
+  body.innerHTML = `
+    <div class="dsec">Columns (${table.columns.length})</div>
+    ${table.columns.map(c=>`
+      <div class="dcol">
+        ${c.pk?'<span class="badge badge-pk">PK</span>':c.fk?'<span class="badge badge-fk">FK</span>':''}
+        <span class="dname">${esc(c.name)}</span>
+        <span class="dtype">${esc(c.type)}</span>
+      </div>`).join('')}
+    ${fks.length?`<div class="dsec">Foreign Keys</div>
+      ${fks.map(c=>`<div class="dfk" data-fk="${esc(c.fk_target||'')}">&#8599; ${esc(c.name)} &rarr; ${esc(c.fk_target||'')}</div>`).join('')}`:'' }
+    <div class="dsec" style="margin-top:6px;">Quick query</div>
+    <div class="detail-sql">${esc(sql)}</div>`;
+  body.querySelectorAll('.dfk[data-fk]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const ft=el.dataset.fk, lastDot=ft.lastIndexOf('.');
+      const target=lastDot>=0?ft.slice(0,lastDot):ft;
+      focusTable(target);
+    });
+  });
+  document.getElementById('detail').classList.add('open');
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function buildSidebar(tables) {
+  const list = document.getElementById('table-list');
+  list.innerHTML = tables.map(t=>`
+    <div class="tbl-item" data-name="${esc(t.name)}">
+      <span class="n">
+        <span class="tbl-name">${esc(t.name)}</span>
+        <span class="tbl-meta">${t.columns.length} cols${ROW_COUNTS[t.name]!=null?' · '+fmtRows(ROW_COUNTS[t.name])+' rows':''}</span>
+      </span>
+      <button class="tbl-eye" title="Hide/show" data-eye="${esc(t.name)}">${_EYE_ON}</button>
+    </div>`).join('');
+  list.querySelectorAll('.tbl-item').forEach(el=>{
+    el.addEventListener('click',e=>{if(e.target.closest('.tbl-eye'))return;focusTable(el.dataset.name);});
+  });
+  list.querySelectorAll('.tbl-eye').forEach(btn=>{
+    btn.addEventListener('click',e=>{e.stopPropagation();toggleTableVisibility(btn.dataset.eye);});
+  });
+  const totalFks = tables.reduce((s,t)=>s+t.columns.filter(c=>c.fk).length,0);
+  const totalCols = tables.reduce((s,t)=>s+t.columns.length,0);
+  document.getElementById('sb-stats').textContent = `${tables.length} tables · ${totalCols} cols · ${totalFks} FKs`;
+}
+function toggleTableVisibility(name) {
+  if(!cy)return;
+  if(hiddenTables.has(name)){hiddenTables.delete(name);cy.$('#'+CSS.escape(name)).style('display','');}
+  else{hiddenTables.add(name);cy.$('#'+CSS.escape(name)).style('display','none');}
+  const row=document.querySelector(`.tbl-item[data-name="${CSS.escape(name)}"]`);
+  const btn=document.querySelector(`.tbl-eye[data-eye="${CSS.escape(name)}"]`);
+  if(row)row.classList.toggle('tbl-hidden',hiddenTables.has(name));
+  if(btn)btn.innerHTML=hiddenTables.has(name)?_EYE_OFF:_EYE_ON;
+  drawOverlay(); drawMinimap(); cancelAnim(); clearAnimCanvas();
+}
+function showAllTables() {
+  if(!cy)return; hiddenTables.clear(); cy.nodes().style('display','');
+  document.querySelectorAll('.tbl-item').forEach(el=>el.classList.remove('tbl-hidden'));
+  document.querySelectorAll('.tbl-eye').forEach(btn=>btn.innerHTML=_EYE_ON);
+  drawOverlay(); drawMinimap();
+}
+function hideAllTables() {
+  if(!cy)return; cy.nodes().forEach(n=>{hiddenTables.add(n.id());n.style('display','none');});
+  document.querySelectorAll('.tbl-item').forEach(el=>el.classList.add('tbl-hidden'));
+  document.querySelectorAll('.tbl-eye').forEach(btn=>btn.innerHTML=_EYE_OFF);
+  drawOverlay(); drawMinimap(); cancelAnim(); clearAnimCanvas();
+}
+function highlightSidebarItem(name) {
+  document.querySelectorAll('.tbl-item').forEach(el=>el.classList.toggle('active',el.dataset.name===name));
+}
+function focusTable(name) {
+  if(!cy)return;
+  const n=cy.$('#'+CSS.escape(name)); if(!n.length)return;
+  cy.animate({center:{eles:n},zoom:Math.min(1.5,2.5)},{duration:300});
+  selectNode(name); highlightSidebarItem(name);
+  const t=SCHEMA.find(x=>x.name===name); if(t)openDetail(t);
+  const input=document.getElementById('nav-search'); if(input&&input.value){input.value='';filterSidebar('');}
+}
+function filterSidebar(q) {
+  const lo=q.toLowerCase();
+  document.querySelectorAll('.tbl-item').forEach(el=>{
+    const name=el.dataset.name, t=SCHEMA.find(x=>x.name===name);
+    const hit=!q||name.toLowerCase().includes(lo)||(t&&t.columns.some(c=>c.name.toLowerCase().includes(lo)));
+    el.style.display=hit?'':'none';
+  });
+  if(q&&cy) {
+    const hits=new Set(SCHEMA.filter(t=>t.name.toLowerCase().includes(lo)||t.columns.some(c=>c.name.toLowerCase().includes(lo))).map(t=>t.name));
+    setHL(hits);
+  } else if(!q&&!activeId) setHL(new Set());
+}
+
+// ── Show mode ─────────────────────────────────────────────────────────────────
+function setShowMode(mode) {
+  showMode=mode;
+  document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('active',p.dataset.mode===mode));
+  if(!cy)return;
+  cy.nodes().forEach(n=>{
+    const t=n.data('table'),w=nodeW(t),h=nodeH(t,mode);
+    n.data({w,h});
+  });
+  drawOverlay(); drawMinimap();
+}
+
+// ── Topological fallback layout ───────────────────────────────────────────────
+function computeTopoLayout(tables) {
+  const W=document.getElementById('canvas-wrap').clientWidth||1200;
+  const outEdges={},inDegree={};
+  tables.forEach(t=>{outEdges[t.name]=new Set();inDegree[t.name]=0;});
+  tables.forEach(t=>{
+    const referenced=new Set(t.columns.filter(c=>c.fk&&c.fk_target).map(c=>c.fk_target.slice(0,c.fk_target.lastIndexOf('.'))));
+    referenced.forEach(parent=>{if(outEdges[parent]!==undefined&&parent!==t.name){outEdges[parent].add(t.name);inDegree[t.name]=(inDegree[t.name]||0)+1;}});
+  });
+  const depth={},queue=[];
+  tables.forEach(t=>{depth[t.name]=0;if(!inDegree[t.name])queue.push(t.name);});
+  while(queue.length){const cur=queue.shift();outEdges[cur].forEach(nxt=>{depth[nxt]=Math.max(depth[nxt]||0,depth[cur]+1);inDegree[nxt]--;if(inDegree[nxt]===0)queue.push(nxt);});}
+  const cols={};
+  tables.forEach(t=>{const d=depth[t.name]||0;(cols[d]=cols[d]||[]).push(t.name);});
+  const numCols=Math.max(...Object.keys(cols).map(Number))+1;
+  const COL_GAP=Math.max(280,Math.round(W/numCols)),ROW_GAP=80;
+  const positions={};
+  Object.entries(cols).forEach(([d,names])=>{
+    const colX=Number(d)*COL_GAP+COL_GAP/2,totalH=names.length*ROW_GAP;
+    names.forEach((name,i)=>{positions[name]={x:colX,y:i*ROW_GAP-totalH/2+ROW_GAP/2};});
+  });
+  return positions;
+}
+
+// ── Build Cytoscape ───────────────────────────────────────────────────────────
+function buildCy() {
+  if (window.cytoscapeElk) cytoscape.use(window.cytoscapeElk);
+  const nodes = SCHEMA.map(t=>({group:'nodes',data:{id:t.name,table:t,w:nodeW(t),h:nodeH(t,showMode)}}));
+  // Deduplicate at the table-pair level (one visual edge per ordered pair) so
+  // that multiple FK columns from the same source → same target collapse into
+  // one rendered edge.  Using t.name→referenced (not the column) is intentional
+  // and matches the Docker UI: the edge represents the relationship between two
+  // tables, not each individual FK column.  Tier-3/4 noise is already stripped
+  // upstream by _erd_bundle_to_schema() so bidirectional pairs no longer appear.
+  const seenEdges=new Set(), edges=[];
+  SCHEMA.forEach(t=>{
+    t.columns.filter(c=>c.fk&&c.fk_target).forEach(c=>{
+      const lastDot=c.fk_target.lastIndexOf('.');
+      const referenced=lastDot>=0?c.fk_target.slice(0,lastDot):c.fk_target;
+      const refCol=lastDot>=0?c.fk_target.slice(lastDot+1):'';
+      // Guard: referenced table must exist in SCHEMA
+      if(!SCHEMA.find(x=>x.name===referenced))return;
+      const key=`${t.name}→${referenced}`;
+      if(seenEdges.has(key))return;
+      seenEdges.add(key);
+      // Direction: referenced (parent/foundation) → referencing (child) - matches Docker UI.
+      // ELK layered algorithm places parents LEFT, children RIGHT.
+      edges.push({group:'edges',data:{
+        id:`${t.name}__${c.name}__${referenced}`,
+        source:referenced,  // parent table → LEFT in ELK layered
+        target:t.name,      // child table  → RIGHT in ELK layered
+        srcCol:refCol,
+        tgtCol:c.name,
+        fkOwner:t.name,
+      }});
+    });
+  });
+  cy=cytoscape({
+    container:document.getElementById('cy'),
+    elements:[...nodes,...edges],
+    style:[
+      {selector:'node',style:{'shape':'rectangle','width':'data(w)','height':'data(h)','background-opacity':0,'border-width':0,'label':'','padding':0}},
+      {selector:'edge',style:{'width':1.5,'line-color':'#3a3d3e','target-arrow-color':'#3a3d3e','curve-style':'unbundled-bezier','control-point-distances':[60],'control-point-weights':[0.5],'target-arrow-shape':'vee','source-arrow-shape':'none','arrow-scale':1.2,'opacity':0.6,'transition-property':'line-color,opacity,width','transition-duration':'200ms'}},
+      {selector:'edge.hl',style:{'line-color':'rgba(167,139,250,0.55)','target-arrow-color':'rgba(167,139,250,0.55)','opacity':1,'width':1.8}},
+    ],
+    minZoom:0.05,maxZoom:3,wheelSensitivity:0.15,layout:{name:'preset'},pixelRatio:window.devicePixelRatio||1,
+  });
+  overlayCanvas=document.getElementById('overlay'); overlayCtx=overlayCanvas.getContext('2d');
+  minimapCanvas=document.getElementById('minimap-canvas'); minimapCtx=minimapCanvas.getContext('2d');
+  animCanvas=document.getElementById('edge-anim'); animCtx=animCanvas.getContext('2d');
+  const ro=new ResizeObserver(()=>{resizeOverlay();resizeAnimCanvas();syncAnimPaths();});
+  ro.observe(document.getElementById('canvas-wrap'));
+  cy.on('render',()=>{drawOverlay();drawBBoxGroups();drawMinimap();syncAnimPaths();});
+  cy.on('tap','node',e=>{const t=e.target.data('table');selectNode(t.name);highlightSidebarItem(t.name);openDetail(t);});
+  cy.on('tap',e=>{if(e.target===cy)clearSel();});
+  cy.on('dbltap','node',e=>{enterFocusMode(e.target.data('table').name,2);});
+  cy.on('mouseover','node',e=>{document.getElementById('cy').style.cursor='pointer';const id=e.target.id();if(!activeId){const ids=new Set([id]);e.target.connectedEdges().connectedNodes().forEach(x=>ids.add(x.id()));setHL(ids,new Set([id]));}});
+  cy.on('mouseout','node',()=>{document.getElementById('cy').style.cursor='';if(!activeId)setHL(new Set());else selectNode(activeId);});
+  cy.on('mouseover','edge',e=>{hoveredEdgeId=e.target.id();if(!activeId){const ids=new Set([e.target.source().id(),e.target.target().id()]);setHL(ids);}document.getElementById('cy').style.cursor='pointer';});
+  cy.on('mouseout','edge',()=>{hoveredEdgeId=null;if(!activeId)setHL(new Set());else selectNode(activeId);document.getElementById('cy').style.cursor='';});
+  return runLayout();
+}
+
+function runLayout() {
+  const visibleEles=cy.elements(':visible');
+  if (window.cytoscapeElk) {
+    const elkOpts={name:'elk',eles:visibleEles,elk:{algorithm:'layered','elk.direction':'RIGHT','elk.layered.spacing.nodeNodeBetweenLayers':'100','elk.spacing.nodeNode':'48','elk.layered.spacing.edgeEdgeBetweenLayers':'20','elk.layered.spacing.edgeNodeBetweenLayers':'20','elk.layered.nodePlacement.strategy':'BRANDES_KOEPF','elk.layered.crossingMinimization.strategy':'LAYER_SWEEP','elk.edgeRouting':'ORTHOGONAL','elk.layered.mergeEdges':'true'},animate:false,fit:true,padding:64};
+    return new Promise(resolve=>{const l=cy.layout(elkOpts);l.on('layoutstop',resolve);l.run();});
+  }
+  const visNodes=visibleEles.nodes();
+  const visSchema=SCHEMA.filter(t=>visNodes.some(n=>n.id()===t.name));
+  const positions=computeTopoLayout(visSchema.length?visSchema:SCHEMA);
+  cy.nodes().forEach(n=>{const pos=positions[n.id()];if(pos)n.position(pos);});
+  cy.fit(visibleEles.nodes().length?visibleEles.nodes():undefined,64);
+  return Promise.resolve();
+}
+
+// ── Bounding-box groups ───────────────────────────────────────────────────────
+/**
+ * Detect groups from SCHEMA by shared underscore-prefix patterns.
+ * Only creates a group when 2+ tables share the same first segment.
+ * @returns {Array<{id,label,color,tableNames,collapsed}>}
+ */
+function detectBBoxGroups() {
+  const prefixMap = {};
+  SCHEMA.forEach(t=>{
+    const parts=t.name.split('_');
+    if(parts.length>=2){
+      const prefix=parts[0];
+      if(!prefixMap[prefix])prefixMap[prefix]=[];
+      prefixMap[prefix].push(t.name);
+    }
+  });
+  const palette=['#a78bfa','#1ded83','#60a5fa','#fbbf24','#f87171',
+                 '#34d399','#fb923c','#e879f9','#38bdf8','#a3e635'];
+  let ci=0;
+  const groups=[];
+  Object.entries(prefixMap).forEach(([prefix,tables])=>{
+    if(tables.length<2)return;
+    const collapsed=localStorage.getItem(BBOX_COLLAPSE_PREFIX+prefix)==='1';
+    groups.push({id:prefix,label:prefix,color:palette[ci++%palette.length],tableNames:tables,collapsed});
+  });
+  return groups;
+}
+
+/**
+ * Draw all bounding-box group overlays on the #bbox-svg element.
+ * Called on every Cytoscape render event (pan/zoom) and after layout.
+ */
+function drawBBoxGroups() {
+  if(!cy)return;
+  const svg=document.getElementById('bbox-svg');
+  if(!svg)return;
+  svg.innerHTML='';
+  if(!_groupsEnabled||!_bboxGroups.length)return;
+  const zoom=cy.zoom(), pan=cy.pan();
+  const PAD=BBOX_PADDING, LH=BBOX_LABEL_HEIGHT, R=BBOX_RADIUS;
+  _bboxGroups.forEach(grp=>{
+    if(grp.collapsed)return;
+    const nodes=grp.tableNames
+      .map(n=>cy.$('#'+CSS.escape(n)))
+      .filter(n=>n.length&&!hiddenTables.has(n.id())&&n.style('display')!=='none');
+    if(!nodes.length)return;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    nodes.forEach(n=>{
+      const p=n.position(), nw=n.data('w'), nh=n.data('h');
+      const rx=p.x*zoom+pan.x-nw*zoom/2, ry=p.y*zoom+pan.y-nh*zoom/2;
+      minX=Math.min(minX,rx); minY=Math.min(minY,ry);
+      maxX=Math.max(maxX,rx+nw*zoom); maxY=Math.max(maxY,ry+nh*zoom);
+    });
+    const bx=minX-PAD, by=minY-PAD-LH;
+    const bw=maxX-minX+PAD*2, bh=maxY-minY+PAD*2+LH;
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','bbox-group'); g.dataset.groupId=grp.id;
+    // Background rect
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('class','bbox-rect');
+    rect.setAttribute('x',String(bx)); rect.setAttribute('y',String(by));
+    rect.setAttribute('width',String(bw)); rect.setAttribute('height',String(bh));
+    rect.setAttribute('rx',String(R));
+    rect.setAttribute('fill',grp.color); rect.setAttribute('stroke',grp.color);
+    g.appendChild(rect);
+    // Label strip (grab handle + double-click to focus group)
+    const labelG=document.createElementNS('http://www.w3.org/2000/svg','g');
+    labelG.setAttribute('class','bbox-label-strip');
+    labelG.setAttribute('role','button'); labelG.setAttribute('tabindex','0');
+    const lbg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    lbg.setAttribute('class','bbox-label-bg');
+    lbg.setAttribute('x',String(bx+4)); lbg.setAttribute('y',String(by+3));
+    lbg.setAttribute('width',String(Math.min(160,bw-8))); lbg.setAttribute('height',String(LH-4));
+    lbg.setAttribute('rx','3'); lbg.setAttribute('fill',grp.color);
+    labelG.appendChild(lbg);
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('class','bbox-label-text');
+    txt.setAttribute('x',String(bx+10)); txt.setAttribute('y',String(by+LH-6));
+    txt.setAttribute('fill','#fff'); txt.textContent='\u283f '+grp.label;
+    labelG.appendChild(txt);
+    // Double-click: focus all tables in group
+    labelG.addEventListener('dblclick',e=>{
+      e.stopPropagation();
+      const ids=new Set(grp.tableNames.filter(n=>cy.$('#'+CSS.escape(n)).length));
+      if(ids.size)setHL(ids);
+    });
+    // Mousedown drag: move all group member nodes together
+    labelG.addEventListener('mousedown',e=>{
+      if(e.button!==0)return;
+      e.stopPropagation();
+      const startX=e.clientX, startY=e.clientY;
+      const curZoom=cy.zoom();
+      let lastX=startX, lastY=startY, dragging=false;
+      const onMove=ev=>{
+        const totalDx=ev.clientX-startX, totalDy=ev.clientY-startY;
+        if(!dragging&&Math.sqrt(totalDx*totalDx+totalDy*totalDy)<4)return;
+        if(!dragging){dragging=true;document.body.style.cursor='grabbing';}
+        const dx=(ev.clientX-lastX)/curZoom, dy=(ev.clientY-lastY)/curZoom;
+        lastX=ev.clientX; lastY=ev.clientY;
+        grp.tableNames.forEach(n=>{
+          const nd=cy.$('#'+CSS.escape(n));
+          if(nd.length){const p=nd.position();nd.position({x:p.x+dx,y:p.y+dy});}
+        });
+      };
+      const onUp=()=>{
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        document.body.style.cursor='';
+        if(dragging)drawBBoxGroups();
+      };
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+    g.appendChild(labelG);
+    svg.appendChild(g);
+  });
+}
+
+/**
+ * Initialise bounding-box groups after layout is complete.
+ * Detects groups, sizes the SVG to match the canvas, and wires into render.
+ */
+function initBBoxGroups() {
+  _bboxGroups=detectBBoxGroups();
+  if(!_bboxGroups.length)return;
+  // Size the SVG overlay to match the canvas-wrap element
+  const wrap=document.getElementById('canvas-wrap');
+  const bsvg=document.getElementById('bbox-svg');
+  if(bsvg&&wrap){bsvg.setAttribute('width',wrap.clientWidth);bsvg.setAttribute('height',wrap.clientHeight);}
+  drawBBoxGroups();
+}
+
+// ── Focus mode ────────────────────────────────────────────────────────────────
+let focusActive=false, _focusHidNodes=false;
+function _showFocusChip(label) {
+  const chip=document.getElementById('focus-chip');
+  if(!chip)return;
+  document.getElementById('focus-chip-label').textContent=label;
+  chip.style.display='flex';
+}
+function _hideFocusChip() {
+  const chip=document.getElementById('focus-chip');
+  if(chip)chip.style.display='none';
+}
+async function enterFocusMode(tableName,hops) {
+  if(!cy)return; hops=hops||2;
+  const root=cy.$('#'+CSS.escape(tableName)); if(!root.length)return;
+  let neighbourhood=root,frontier=root;
+  for(let i=0;i<hops;i++){const next=frontier.connectedEdges().connectedNodes();neighbourhood=neighbourhood.union(next).union(frontier.connectedEdges());frontier=next.difference(neighbourhood.nodes());}
+  neighbourhood=neighbourhood.union(cy.edges().filter(e=>neighbourhood.has(e.source())&&neighbourhood.has(e.target())));
+  cy.elements().difference(neighbourhood).style('display','none');
+  drawOverlay(); drawMinimap();
+  document.getElementById('loading').classList.remove('hidden');
+  await runLayout();
+  document.getElementById('loading').classList.add('hidden');
+  focusActive=true; _focusHidNodes=true;
+  _showFocusChip(`${tableName} \xb12`);
+  selectNode(tableName); highlightSidebarItem(tableName);
+  cy.fit(neighbourhood.nodes(),64);
+}
+async function exitFocusMode() {
+  if(!cy)return;
+  if(_focusHidNodes){
+    cy.elements().style('display','');
+    document.getElementById('loading').classList.remove('hidden');
+    await runLayout();
+    document.getElementById('loading').classList.add('hidden');
+    _focusHidNodes=false;
+  }
+  focusActive=false;
+  _hideFocusChip();
+  if(activeId)selectNode(activeId);
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.key === 'Escape') {
+    if (focusActive) exitFocusMode();
+    else clearSel();
+  }
+  if (e.key === 'f' || e.key === 'F') { if(cy)cy.fit(undefined,64); }
+  if (e.key === '+' || e.key === '=') { if(cy)cy.zoom({level:cy.zoom()*1.2,renderedPosition:{x:cy.container().clientWidth/2,y:cy.container().clientHeight/2}}); }
+  if (e.key === '-') { if(cy)cy.zoom({level:cy.zoom()*0.83,renderedPosition:{x:cy.container().clientWidth/2,y:cy.container().clientHeight/2}}); }
+  if (e.key === '/') { e.preventDefault(); document.getElementById('nav-search').focus(); }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.getElementById('detail-close').addEventListener('click', clearSel);
+document.getElementById('btn-fit').addEventListener('click', ()=>cy&&cy.fit(undefined,64));
+document.getElementById('btn-zoomin').addEventListener('click', ()=>cy&&cy.zoom({level:cy.zoom()*1.2,renderedPosition:{x:cy.container().clientWidth/2,y:cy.container().clientHeight/2}}));
+document.getElementById('btn-zoomout').addEventListener('click', ()=>cy&&cy.zoom({level:cy.zoom()*0.83,renderedPosition:{x:cy.container().clientWidth/2,y:cy.container().clientHeight/2}}));
+document.getElementById('btn-minimap').addEventListener('click', function(){
+  const m=document.getElementById('minimap');
+  m.classList.toggle('hidden'); this.classList.toggle('on',!m.classList.contains('hidden'));
+});
+document.getElementById('nav-search').addEventListener('input', e=>filterSidebar(e.target.value));
+document.getElementById('focus-chip-exit').addEventListener('click', exitFocusMode);
+
+buildSidebar(SCHEMA);
+buildCy().then(() => {
+  document.getElementById('loading').classList.add('hidden');
+  initBBoxGroups();
+  const sp = new URLSearchParams(location.search);
+  const tbl = sp.get('table') || sp.get('highlight');
+  if (tbl) { setTimeout(()=>focusTable(tbl), 100); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+# ── Python artefacts ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ── Test artefacts ────────────────────────────────────────────────────────────
+test_output/
+tests/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Runtime output (not needed in the image) ──────────────────────────────────
+erd/
+uploads/
+output/
+
+# ── pip package - exclude CLI layer, but keep nybble/core/ (shared library) ──
+# nybble/core/ must be present in the build context so the Dockerfile can COPY
+# it into the server image (server/ingestion/ and server/kg/ import from it).
+nybble/
+!nybble/core/
+!nybble/core/__init__.py
+!nybble/core/schema.py
+!nybble/core/infer_fk.py
+!nybble/core/erd_data.py
+!nybble/core/kg_builder.py
+pyproject.toml
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+README.md
+CHANGELOG.md
+LICENSE
+docs/
+
+# ── Research / analysis artefacts ─────────────────────────────────────────────
+# Root-level HTML artefacts (docs / research) — NOT server templates
+*.html
+!server/**/*.html
+*.md
+*.png
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log

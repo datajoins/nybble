@@ -1,0 +1,109 @@
+# nybble.yaml - Nybble Workspace Configuration
+#
+# This file declares all data sources for a Nybble workspace.
+# Place it in your project directory and run any nybble command -
+# sources are loaded automatically without --source flags.
+#
+# Usage:
+#   nybble erd                          # reads nybble.yaml in cwd automatically
+#   nybble kg --config ./nybble.yaml    # explicit path
+#   nybble query "SELECT * FROM users"  # all sources from config are pre-loaded
+#
+# Environment variable interpolation: use ${VAR_NAME} anywhere in string values.
+# Nybble will raise an error if a referenced variable is not set.
+
+version: "1.0"
+
+workspace:
+  name: "my-workspace"
+  environment: "local"   # informational only (local | staging | production)
+
+
+# ── Database connections ───────────────────────────────────────────────────────
+# Supported types: postgresql, mysql, sqlite, duckdb
+#
+# 'id' becomes the DuckDB virtual table name (used in SQL queries).
+# 'tables' is documented but not yet used - the loader reads the first table
+# or the schema listing. Full multi-table support is roadmap item P2.
+
+databases:
+  # Example: PostgreSQL with environment variable credentials
+  # - id: "production-postgres"
+  #   type: "postgresql"
+  #   connection_string: "postgresql://${DB_USER}:${DB_PASS}@localhost:5432/analytics"
+
+  # Example: local SQLite file
+  # - id: "local-db"
+  #   type: "sqlite"
+  #   connection_string: "sqlite:///./data/warehouse.db"
+
+
+# ── Local files ────────────────────────────────────────────────────────────────
+# Supported types: csv, tsv, parquet, json, jsonl, xlsx, xls, feather, arrow
+#
+# 'id' becomes the DuckDB virtual table name.
+# 'sheet' is documented for xlsx/xls but uses the default sheet (polars default).
+# Full sheet-selection support is roadmap item P2.
+
+files:
+  # Example: CSV file
+  # - id: "customers"
+  #   type: "csv"
+  #   path: "./data/customers.csv"
+
+  # Example: Parquet file
+  # - id: "orders"
+  #   type: "parquet"
+  #   path: "./data/orders.parquet"
+
+  # Example: Excel spreadsheet
+  # - id: "q4-report"
+  #   type: "xlsx"
+  #   path: "./data/q4_metrics.xlsx"
+  #   sheet: "Consolidated_Sales"   # documented; uses default sheet currently
+
+
+# ── HTTP API streams ───────────────────────────────────────────────────────────
+# Fetches paginated JSON from a URL and registers it as a virtual table.
+# Supports common pagination cursor keys (next, nextPage, @odata.nextLink, etc.)
+#
+# 'method' must be GET (the only supported method).
+# 'headers' are injected into each request. Use ${ENV_VAR} for secrets.
+# 'format' must be "json" (the only supported format).
+
+streams:
+  # Example: GitHub API (requires a personal access token)
+  # - id: "github-issues"
+  #   type: "api"
+  #   url: "https://api.github.com/repos/datajoins/nybble/issues"
+  #   method: "GET"
+  #   headers:
+  #     Authorization: "Bearer ${GITHUB_TOKEN}"
+  #     Accept: "application/vnd.github+json"
+  #   format: "json"
+
+  # Example: public JSON API (no auth)
+  # - id: "public-data"
+  #   type: "api"
+  #   url: "https://jsonplaceholder.typicode.com/posts"
+  #   format: "json"
+
+
+# ── Graph engine settings ──────────────────────────────────────────────────────
+# Controls ERD inference and Knowledge Graph export behaviour.
+
+graph_engine:
+  # auto_infer_erd: always true - Nybble Sense runs on every erd() call
+  auto_infer_erd: true
+
+  # export_format controls which KG exports are written by `nybble kg`.
+  # Options: graphml | jsonld | html | all (default: all)
+  # Aliases accepted: "triples" → jsonld, "cypher" → graphml, "pgq" → graphml
+  export_format: "all"
+
+  # semantic_layer: sentence-transformers integration - roadmap item P2-3.
+  # Set enabled: true here once `pip install "datajoins-nybble[semantic]"` ships.
+  # Until then, this block is parsed but ignored with a warning.
+  semantic_layer:
+    enabled: false
+    embedding_model: "sentence-transformers/all-MiniLM-L6-v2"

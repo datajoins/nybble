@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Graph - Nybble</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0d1117; color: #c9d1d9; font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; font-size: 13px; }
+
+  /* Topbar */
+  #topbar { display: flex; align-items: center; gap: 14px; padding: 8px 16px; background: #161b22; border-bottom: 1px solid #30363d; position: relative; z-index: 100; }
+  #topbar h1 { font-size: 14px; font-weight: 600; color: #58a6ff; }
+  .stats { color: #8b949e; font-size: 12px; }
+  .tip { color: #8b949e; font-size: 11px; margin-left: auto; }
+
+  /* Canvas */
+  #kg-canvas { position: absolute; top: 41px; left: 0; right: 0; bottom: 0; }
+
+  /* Search */
+  #search-bar { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; align-items: center; gap: 6px; }
+  #search-input { background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; padding: 6px 12px; font-size: 13px; width: 260px; outline: none; }
+  #search-input:focus { border-color: #58a6ff; }
+  #search-input::placeholder { color: #8b949e; }
+  #search-count { color: #8b949e; font-size: 11px; white-space: nowrap; }
+
+  /* Detail panel */
+  #detail { position: fixed; top: 52px; right: 0; width: 280px; background: #161b22; border-left: 1px solid #30363d; height: calc(100% - 52px); overflow-y: auto; padding: 14px; transform: translateX(100%); transition: transform .2s; z-index: 50; }
+  #detail.open { transform: translateX(0); }
+  #detail h2 { font-size: 13px; font-weight: 600; color: #e6edf3; margin-bottom: 10px; }
+  .dr { margin-bottom: 8px; font-size: 11px; }
+  .dl { color: #8b949e; margin-bottom: 2px; }
+  .dv { color: #c9d1d9; word-break: break-word; }
+  #dc { position: absolute; top: 10px; right: 10px; background: none; border: none; color: #8b949e; cursor: pointer; font-size: 15px; }
+  #dc:hover { color: #e6edf3; }
+  .conn-list { margin-top: 6px; max-height: 200px; overflow-y: auto; }
+  .conn-item { padding: 3px 0; border-bottom: 1px solid #21262d; display: flex; align-items: center; gap: 5px; }
+  .conn-arrow { color: #8b949e; font-size: 10px; }
+  .conn-name { color: #c9d1d9; font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conn-type { color: #8b949e; font-size: 9px; }
+
+  /* Legend - dynamically populated */
+  #legend { position: fixed; bottom: 16px; left: 16px; background: #161b22cc; border: 1px solid #30363d; border-radius: 6px; padding: 8px 12px; font-size: 11px; max-width: 200px; }
+  .li { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; color: #8b949e; }
+  .lc { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  #legend-divider { border: none; border-top: 1px solid #30363d; margin: 4px 0; }
+
+  /* Degree badge on nodes */
+  .node-degree { font-size: 7px; fill: #8b949e; pointer-events: none; }
+
+  /* Tooltip */
+  #tooltip { position: fixed; background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #c9d1d9; pointer-events: none; z-index: 300; display: none; max-width: 220px; word-break: break-word; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>🍱 Nybble KG</h1>
+  <span class="stats">{{ node_count }} nodes · {{ edge_count }} edges</span>
+  <span class="tip">Drag nodes · Scroll to zoom · Click node for detail · / to search</span>
+  <span class="tip" style="margin-left:0;border-left:1px solid #30363d;padding-left:12px;color:#d29922;">
+    Static export — run <code style="background:#21262d;padding:1px 5px;border-radius:3px;">nybble serve</code>
+    for the full interactive UI
+  </span>
+</div>
+
+<div id="search-bar">
+  <input id="search-input" type="text" placeholder="Search nodes… (/)" />
+  <span id="search-count"></span>
+</div>
+
+<svg id="kg-canvas"></svg>
+
+<div id="detail">
+  <button id="dc" onclick="closeDetail()">✕</button>
+  <div id="detail-content"></div>
+</div>
+
+<div id="legend" id="kg-legend">
+  <div id="legend-type-items"></div>
+  <hr id="legend-divider">
+  <div class="li"><div class="lc" style="background:#30363d;"></div> FK relationship</div>
+  <div class="li"><div class="lc" style="background:#8b949e;opacity:.5;"></div> Co-occurrence</div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+// ── KG Data ───────────────────────────────────────────────────────────────────
+const KG_NODES = {{ kg_nodes_json }};
+const KG_EDGES = {{ kg_edges_json }};
+
+// ── Helpers (declared first so everything below can use them) ─────────────────
+function esc(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function escText(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── Color palette for entity types ───────────────────────────────────────────
+const TYPE_COLORS = ["#58a6ff","#3fb950","#d29922","#f0883e","#bc8cff","#e34c26","#79c0ff"];
+const entityTypes = [...new Set(KG_NODES.map(n => n.entity_type))].sort();
+const typeColor = {};
+entityTypes.forEach((t, i) => { typeColor[t] = TYPE_COLORS[i % TYPE_COLORS.length]; });
+
+// ── Dynamic legend: one swatch per entity type ────────────────────────────────
+(function buildLegend() {
+  const container = document.getElementById("legend-type-items");
+  entityTypes.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "li";
+    row.innerHTML = `<div class="lc" style="background:${typeColor[t]};"></div>${escText(t)}`;
+    container.appendChild(row);
+  });
+})();
+
+// ── Force simulation (pure JS, no CDN) ───────────────────────────────────────
+// Repulsion uses a spatial grid to avoid the O(n²) all-pairs loop.
+// Grid cell size = repulsion radius. Each node only repels neighbours in the
+// same and immediately adjacent cells → O(n) average repulsion cost.
+class ForceSimulation {
+  constructor(nodes, links) {
+    this.nodes = nodes.map(n => ({
+      ...n,
+      x: Math.random() * 800 + 100,
+      y: Math.random() * 500 + 50,
+      vx: 0, vy: 0,
+      id: n.id,
+    }));
+    this.nodeMap = Object.fromEntries(this.nodes.map(n => [n.id, n]));
+    this.links = links.map(e => ({
+      source: this.nodeMap[e.source] || this.nodes[0],
+      target: this.nodeMap[e.target] || this.nodes[0],
+      ...e,
+    }));
+    this.alpha = 1.0;
+    this.alphaDecay = 0.02;
+    this.running = false;
+  }
+
+  _buildGrid(cellSize) {
+    // Bin nodes into a hash grid keyed by "gx,gy"
+    const grid = new Map();
+    for (const n of this.nodes) {
+      const gx = Math.floor(n.x / cellSize);
+      const gy = Math.floor(n.y / cellSize);
+      const key = `${gx},${gy}`;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(n);
+    }
+    return grid;
+  }
+
+  step() {
+    if (this.alpha < 0.001) { this.running = false; return; }
+    this.alpha *= (1 - this.alphaDecay);
+
+    // Center gravity
+    const cx = 500, cy = 300, gravK = 0.03;
+    for (const n of this.nodes) {
+      n.vx += (cx - n.x) * gravK * this.alpha;
+      n.vy += (cy - n.y) * gravK * this.alpha;
+    }
+
+    // Link force
+    for (const l of this.links) {
+      if (!l.source || !l.target) continue;
+      const dx = l.target.x - l.source.x;
+      const dy = l.target.y - l.source.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+      const strength = (dist - 120) / dist * 0.4 * this.alpha;
+      const fx = dx * strength, fy = dy * strength;
+      l.source.vx += fx; l.source.vy += fy;
+      l.target.vx -= fx; l.target.vy -= fy;
+    }
+
+    // Grid-accelerated repulsion — O(n) instead of O(n²)
+    const repK = 3000, cellSize = 80;
+    const grid = this._buildGrid(cellSize);
+    for (const n of this.nodes) {
+      const gx = Math.floor(n.x / cellSize);
+      const gy = Math.floor(n.y / cellSize);
+      // Check 3×3 neighbourhood of cells
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const neighbours = grid.get(`${gx+dx},${gy+dy}`);
+          if (!neighbours) continue;
+          for (const b of neighbours) {
+            if (b === n) continue;
+            const ddx = b.x - n.x || 0.1, ddy = b.y - n.y || 0.1;
+            const dist2 = ddx*ddx + ddy*ddy;
+            if (dist2 > cellSize * cellSize * 9) continue; // beyond influence radius
+            const force = repK / dist2;
+            const d = Math.sqrt(dist2);
+            n.vx -= ddx / d * force * this.alpha;
+            n.vy -= ddy / d * force * this.alpha;
+          }
+        }
+      }
+    }
+
+    // Integrate
+    for (const n of this.nodes) {
+      if (n.fixed) continue;
+      n.vx *= 0.6; n.vy *= 0.6;
+      n.x += n.vx; n.y += n.vy;
+    }
+  }
+
+  run(onTick, steps = 300) {
+    this.running = true;
+    let i = 0;
+    const tick = () => {
+      this.step();
+      onTick();
+      i++;
+      if (this.running && i < steps) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+}
+
+// ── SVG setup ─────────────────────────────────────────────────────────────────
+const svg = document.getElementById("kg-canvas");
+let svgW = window.innerWidth, svgH = window.innerHeight - 41;
+svg.setAttribute("width", svgW);
+svg.setAttribute("height", svgH);
+svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+
+// Zoom/pan state
+let vb = { x: 0, y: 0, w: svgW, h: svgH };
+let panning = false, lastPan = {};
+
+// ── Build simulation ──────────────────────────────────────────────────────────
+// Node/edge selection is handled by _select_display_nodes() in Python.
+// KG_NODES contains the degree-sorted, entity-spread subset chosen there.
+const displayNodes = KG_NODES;
+const displayNodeIds = new Set(displayNodes.map(n => n.id));
+const displayEdges = KG_EDGES;
+
+// Degree map from displayed edges
+const degreeMap = {};
+displayNodes.forEach(n => { degreeMap[n.id] = 0; });
+displayEdges.forEach(e => {
+  if (degreeMap[e.source] !== undefined) degreeMap[e.source]++;
+  if (degreeMap[e.target] !== undefined) degreeMap[e.target]++;
+});
+
+// Edge adjacency index: node_id → [{dir, neighbourId, rel}]
+// Built once here so showNodeDetail and applyNodeHighlight are O(degree)
+// instead of scanning all edges on every click.
+const edgeIndex = {};
+displayNodes.forEach(n => { edgeIndex[n.id] = []; });
+displayEdges.forEach(e => {
+  const s = typeof e.source === "object" ? e.source.id : e.source;
+  const t = typeof e.target === "object" ? e.target.id : e.target;
+  if (edgeIndex[s] !== undefined) edgeIndex[s].push({ dir: "→", neighbourId: t, rel: e.relation || "" });
+  if (edgeIndex[t] !== undefined) edgeIndex[t].push({ dir: "←", neighbourId: s, rel: e.relation || "" });
+});
+
+const sim = new ForceSimulation(displayNodes, displayEdges);
+
+// ── SVG elements ──────────────────────────────────────────────────────────────
+const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+defs.innerHTML = `<marker id="arr" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3z" fill="#30363d"/></marker>`;
+svg.appendChild(defs);
+
+const edgeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+svg.appendChild(edgeGroup);
+const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+svg.appendChild(nodeGroup);
+
+// Create edge elements
+const edgeEls = displayEdges.map(e => {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  const isFK = e.relation && e.relation.startsWith("FK");
+  el.setAttribute("stroke", isFK ? "#30363d" : "#21262d");
+  el.setAttribute("stroke-width", isFK ? "1.5" : "1");
+  el.setAttribute("stroke-opacity", "0.6");
+  el.setAttribute("marker-end", "url(#arr)");
+  el.dataset.source = typeof e.source === "object" ? e.source.id : e.source;
+  el.dataset.target = typeof e.target === "object" ? e.target.id : e.target;
+  edgeGroup.appendChild(el);
+  return { el, data: e };
+});
+
+// Node element map for O(1) lookup during highlight
+const nodeElMap = {};
+
+// Create node elements
+const nodeEls = sim.nodes.map(n => {
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("cursor", "pointer");
+  g.dataset.nid = n.id;
+
+  const deg = degreeMap[n.id] || n.degree || 0;
+  const r = Math.max(6, Math.min(18, 4 + deg * 0.8));
+
+  const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  circle.setAttribute("r", r);
+  circle.setAttribute("fill", typeColor[n.entity_type] || "#58a6ff");
+  circle.setAttribute("stroke", "#0d1117");
+  circle.setAttribute("stroke-width", "2");
+
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  text.setAttribute("dy", "4");
+  text.setAttribute("text-anchor", "middle");
+  text.setAttribute("font-size", "9");
+  text.setAttribute("fill", "#e6edf3");
+  text.setAttribute("pointer-events", "none");
+  text.textContent = (n.label || n.id).slice(0, 12);
+
+  const degLabel = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  degLabel.setAttribute("class", "node-degree");
+  degLabel.setAttribute("dy", r + 10);
+  degLabel.setAttribute("text-anchor", "middle");
+  degLabel.setAttribute("pointer-events", "none");
+  degLabel.textContent = deg > 1 ? String(deg) : "";
+
+  g.appendChild(circle);
+  g.appendChild(text);
+  g.appendChild(degLabel);
+
+  // Drag
+  let isDragging = false;
+  g.addEventListener("mousedown", ev => {
+    isDragging = true;
+    n.fixed = true;
+    ev.stopPropagation();
+    const move = ev2 => {
+      if (!isDragging) return;
+      const pt = svgPoint(ev2);
+      n.x = pt.x; n.y = pt.y;
+      redraw();
+    };
+    const up = () => { isDragging = false; n.fixed = false; window.removeEventListener("mousemove", move); };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up, { once: true });
+  });
+  g.addEventListener("click", ev => { if (!isDragging) showNodeDetail(n); });
+
+  // Tooltip
+  g.addEventListener("mouseenter", ev => {
+    const tt = document.getElementById("tooltip");
+    tt.textContent = `${n.entity_type}: ${n.label || n.id}${deg > 0 ? " (" + deg + " conn.)" : ""}`;
+    tt.style.display = "block";
+    tt.style.left = (ev.clientX + 12) + "px";
+    tt.style.top = (ev.clientY + 12) + "px";
+  });
+  g.addEventListener("mousemove", ev => {
+    const tt = document.getElementById("tooltip");
+    tt.style.left = (ev.clientX + 12) + "px";
+    tt.style.top = (ev.clientY + 12) + "px";
+  });
+  g.addEventListener("mouseleave", () => { document.getElementById("tooltip").style.display = "none"; });
+
+  nodeGroup.appendChild(g);
+  const entry = { el: g, circle, text, degLabel, data: n };
+  nodeElMap[n.id] = entry;
+  return entry;
+});
+
+// ── Tick: update positions ─────────────────────────────────────────────────────
+// Batch all position updates into a single rAF; avoid repeated getAttribute calls.
+function redraw() {
+  for (const { el, data } of edgeEls) {
+    const src = sim.nodeMap[data.source?.id || data.source];
+    const tgt = sim.nodeMap[data.target?.id || data.target];
+    if (!src || !tgt) continue;
+    el.setAttribute("x1", src.x); el.setAttribute("y1", src.y);
+    el.setAttribute("x2", tgt.x); el.setAttribute("y2", tgt.y);
+  }
+  for (const { el, data } of nodeEls) {
+    el.setAttribute("transform", `translate(${data.x},${data.y})`);
+  }
+}
+
+sim.run(redraw);
+
+// ── Zoom & Pan ────────────────────────────────────────────────────────────────
+function svgPoint(ev) {
+  const rect = svg.getBoundingClientRect();
+  return {
+    x: vb.x + (ev.clientX - rect.left) * vb.w / svgW,
+    y: vb.y + (ev.clientY - rect.top) * vb.h / svgH,
+  };
+}
+
+svg.addEventListener("wheel", ev => {
+  ev.preventDefault();
+  const factor = ev.deltaY > 0 ? 1.15 : 0.87;
+  const pt = svgPoint(ev);
+  vb.x = pt.x - (pt.x - vb.x) * factor;
+  vb.y = pt.y - (pt.y - vb.y) * factor;
+  vb.w *= factor; vb.h *= factor;
+  svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+}, { passive: false });
+
+svg.addEventListener("mousedown", ev => {
+  if (ev.target.closest("g")) return;
+  panning = true; lastPan = { x: ev.clientX, y: ev.clientY };
+  svg.style.cursor = "grabbing";
+});
+window.addEventListener("mousemove", ev => {
+  if (!panning) return;
+  const dx = (lastPan.x - ev.clientX) * vb.w / svgW;
+  const dy = (lastPan.y - ev.clientY) * vb.h / svgH;
+  vb.x += dx; vb.y += dy;
+  lastPan = { x: ev.clientX, y: ev.clientY };
+  svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+});
+window.addEventListener("mouseup", () => { panning = false; svg.style.cursor = ""; });
+
+// ── Detail panel ──────────────────────────────────────────────────────────────
+let selectedNodeId = null;
+
+function showNodeDetail(node) {
+  selectedNodeId = node.id;
+  const deg = degreeMap[node.id] || node.degree || 0;
+
+  // Use edge index (O(degree)) instead of scanning all edges
+  const neighbours = (edgeIndex[node.id] || []).map(entry => ({
+    dir: entry.dir,
+    n: sim.nodeMap[entry.neighbourId],
+    rel: entry.rel,
+  })).filter(c => c.n);
+
+  const connHtml = neighbours.length === 0
+    ? "<span style='color:#8b949e'>No connections in view</span>"
+    : `<div class="conn-list">${neighbours.slice(0, 50).map(c =>
+        `<div class="conn-item">
+          <span class="conn-arrow">${esc(c.dir)}</span>
+          <span class="conn-name" title="${esc(c.n.label || c.n.id)}">${esc(c.n.label || c.n.id)}</span>
+          <span class="conn-type">${esc(c.rel)}</span>
+        </div>`).join("")}
+      ${neighbours.length > 50 ? `<div style='color:#8b949e;font-size:10px;padding:3px 0'>+ ${neighbours.length - 50} more</div>` : ""}
+      </div>`;
+
+  document.getElementById("detail-content").innerHTML = `
+    <h2>${esc(node.label || node.id)}</h2>
+    <div class="dr"><div class="dl">Entity type</div>
+      <div class="dv" style="display:flex;align-items:center;gap:6px;">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${typeColor[node.entity_type] || '#58a6ff'}"></span>
+        ${esc(node.entity_type)}
+      </div></div>
+    <div class="dr"><div class="dl">Node ID</div><div class="dv" style="font-family:monospace;font-size:10px;">${esc(node.id)}</div></div>
+    <div class="dr"><div class="dl">Connections (${deg})</div>${connHtml}</div>`;
+  document.getElementById("detail").classList.add("open");
+
+  applyNodeHighlight(node.id);
+}
+
+function closeDetail() {
+  document.getElementById("detail").classList.remove("open");
+  selectedNodeId = null;
+  clearNodeHighlight();
+}
+
+function applyNodeHighlight(nodeId) {
+  // Build connected set from index (O(degree)), not from scanning all edges
+  const connected = new Set([nodeId]);
+  for (const entry of (edgeIndex[nodeId] || [])) connected.add(entry.neighbourId);
+
+  // Use nodeElMap for O(1) access; walk nodeEls only for the dim-all pass
+  for (const { circle, text, degLabel, data } of nodeEls) {
+    const inPath = connected.has(data.id);
+    circle.setAttribute("opacity", inPath ? "1" : "0.15");
+    text.setAttribute("opacity", inPath ? "1" : "0");
+    degLabel.setAttribute("opacity", inPath ? "1" : "0");
+  }
+
+  for (const { el, data } of edgeEls) {
+    const s = data.source?.id || data.source;
+    const t = data.target?.id || data.target;
+    el.setAttribute("stroke-opacity", (connected.has(s) && connected.has(t)) ? "0.9" : "0.05");
+  }
+}
+
+function clearNodeHighlight() {
+  for (const { circle, text, degLabel } of nodeEls) {
+    circle.setAttribute("opacity", "1");
+    text.setAttribute("opacity", "1");
+    degLabel.setAttribute("opacity", "1");
+  }
+  for (const { el } of edgeEls) {
+    el.setAttribute("stroke-opacity", "0.6");
+  }
+}
+
+// ── Search — debounced highlight ──────────────────────────────────────────────
+// Input events fire on every keystroke. Debounce by one animation frame so
+// rapid typing only triggers one DOM pass, not one per character.
+let searchActive = false;
+let _searchRaf = null;
+
+document.getElementById("search-input").addEventListener("input", ev => {
+  const q = ev.target.value.toLowerCase().trim();
+  if (_searchRaf) cancelAnimationFrame(_searchRaf);
+  _searchRaf = requestAnimationFrame(() => {
+    _searchRaf = null;
+    applySearchHighlight(q);
+  });
+});
+
+function applySearchHighlight(q) {
+  if (!q) {
+    if (selectedNodeId) {
+      applyNodeHighlight(selectedNodeId);
+    } else {
+      clearNodeHighlight();
+    }
+    document.getElementById("search-count").textContent = "";
+    searchActive = false;
+    return;
+  }
+
+  searchActive = true;
+  let matchCount = 0;
+  const matchedIds = new Set();
+
+  for (const { circle, text, degLabel, data } of nodeEls) {
+    const match = data.label.toLowerCase().includes(q) || data.id.toLowerCase().includes(q);
+    circle.setAttribute("opacity", match ? "1" : "0.1");
+    text.setAttribute("opacity", match ? "1" : "0");
+    degLabel.setAttribute("opacity", match ? "1" : "0");
+    if (match) { matchedIds.add(data.id); matchCount++; }
+  }
+
+  for (const { el, data } of edgeEls) {
+    const s = data.source?.id || data.source;
+    const t = data.target?.id || data.target;
+    el.setAttribute("stroke-opacity", (matchedIds.has(s) || matchedIds.has(t)) ? "0.5" : "0.03");
+  }
+
+  document.getElementById("search-count").textContent =
+    matchCount > 0 ? `${matchCount} match${matchCount !== 1 ? "es" : ""}` : "no match";
+}
+
+document.addEventListener("keydown", ev => {
+  const inp = document.getElementById("search-input");
+  if (ev.key === "/" && document.activeElement !== inp) {
+    ev.preventDefault();
+    inp.focus();
+  }
+  if (ev.key === "Escape") {
+    inp.value = "";
+    applySearchHighlight("");
+    closeDetail();
+  }
+});
+
+window.addEventListener("resize", () => {
+  svgW = window.innerWidth; svgH = window.innerHeight - 41;
+  svg.setAttribute("width", svgW); svg.setAttribute("height", svgH);
+  vb.w = svgW; vb.h = svgH;
+  svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+});
+</script>
+</body>
+</html>

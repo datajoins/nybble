@@ -1,0 +1,27 @@
+# MANIFEST.in - controls what goes into the sdist (source distribution)
+# The wheel uses pyproject.toml package-data instead; this is a safety net.
+
+# License and metadata
+include LICENSE
+include README.md
+include CHANGELOG.md
+include pyproject.toml
+
+# Jinja2 templates bundled with the package
+recursive-include nybble/templates *.jinja
+
+# Exclude everything that should not be in the sdist
+exclude .gitignore
+recursive-exclude server *
+recursive-exclude deploy *
+recursive-exclude docs *
+recursive-exclude website *
+recursive-exclude data *
+recursive-exclude .github *
+recursive-exclude .bob *
+recursive-exclude .nybble *
+recursive-exclude .nybble-test-fixtures *
+prune __pycache__
+prune *.egg-info
+prune dist
+prune build

@@ -1,0 +1,78 @@
+# docker-compose.yml - Nybble  (by DataJoins, https://datajoins.com)
+#
+# Usage
+# -----
+#
+# Start (upload files via the UI):
+#   docker compose up
+#
+# Start with a pre-loaded SQLite database (Mode B - processed on first boot):
+#   DB_FILE=/absolute/path/to/my.db docker compose up
+#
+# Or set DB_FILE permanently in a .env file:
+#   echo "DB_FILE=/path/to/input.sql.gz" > .env
+#   docker compose up
+#
+# Open http://localhost:7700 to access the Nybble UI.
+#
+# Named volumes
+# -------------
+# erd-uploads   raw uploaded files (survive container restarts)
+# erd-output    processed schema.json + schema.sql per file (survive restarts)
+#
+# To clear all processed data:
+#   docker compose down -v
+
+services:
+  nybble:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+
+    ports:
+      - "${ERD_PORT:-7700}:80"
+
+    volumes:
+      # Persist uploaded files across restarts
+      - erd-uploads:/uploads
+      # Persist processed ERD output across restarts
+      - erd-output:/output
+      # Optional: bind-mount a single database file for Mode B.
+      # Set DB_FILE in your shell or .env file to activate.
+      # If DB_FILE is not set, this bind is a no-op (source is empty string → skipped).
+      - type: bind
+        source: ${DB_FILE:-/dev/null}
+        target: /input/database
+        read_only: true
+        bind:
+          create_host_path: false
+
+    environment:
+      UPLOAD_DIR:       "/uploads"
+      OUTPUT_DIR:       "/output/erd"
+      REGISTRY:         "/output/registry.json"
+      PIPELINE:         "/app/server/pipeline/run_pipeline.py"
+      PIPELINE_TIMEOUT: "${PIPELINE_TIMEOUT:-120}"
+
+    # Allow the container to reach databases running on the Docker host via
+    # the standard "host.docker.internal" alias.  Docker Desktop (Mac/Windows)
+    # provides this automatically; on Linux it must be declared explicitly.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    stop_grace_period: 30s
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    restart: unless-stopped
+
+volumes:
+  erd-uploads:
+    driver: local
+  erd-output:
+    driver: local
