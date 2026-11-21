@@ -26,21 +26,23 @@ def _is_server_error(exc: BaseException) -> bool:
     return name.startswith("server") or "server." in msg or "'server'" in msg
 
 
-@pytest.hookimpl(hookwrapper=True)
+@pytest.hookimpl(wrapper=True)
 def pytest_fixture_setup(fixturedef, request):
     """Skip tests whose fixtures fail with a server.* import error."""
-    outcome = yield
-    if outcome.excinfo is not None:
-        exc = outcome.excinfo[1]
+    try:
+        return (yield)
+    except (ModuleNotFoundError, ImportError) as exc:
         if _is_server_error(exc):
             pytest.skip(f"server package not available: {exc}")
+        raise
 
 
-@pytest.hookimpl(hookwrapper=True)
+@pytest.hookimpl(wrapper=True)
 def pytest_pyfunc_call(pyfuncitem):
     """Skip tests that fail with a server.* import error during execution."""
-    outcome = yield
-    if outcome.excinfo is not None:
-        exc = outcome.excinfo[1]
+    try:
+        return (yield)
+    except (ModuleNotFoundError, ImportError) as exc:
         if _is_server_error(exc):
             pytest.skip(f"server package not available: {exc}")
+        raise

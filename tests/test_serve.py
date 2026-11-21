@@ -16,6 +16,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Skip marker for tests that require the private server/ directory.
+_server_available = (Path(__file__).parent.parent / "server" / "app" / "api_server.py").exists()
+_requires_server = pytest.mark.skipif(
+    not _server_available,
+    reason="server/ directory not present (public repo install)",
+)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -85,6 +92,7 @@ class TestValidatePort:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestFindServerDir:
+    @_requires_server
     def test_finds_server_dir_in_repo(self):
         """In the dev/editable install the server/ dir sits next to nybble/."""
         from nybble.serve import find_server_dir
@@ -165,6 +173,7 @@ class TestGetFlaskApp:
             with pytest.raises(ImportError, match="Flask is required"):
                 serve_mod.get_flask_app()
 
+    @_requires_server
     def test_returns_flask_app_object(self):
         """When server/ is on the path, get_flask_app() returns the app object."""
         from nybble.serve import get_flask_app
@@ -172,6 +181,7 @@ class TestGetFlaskApp:
         # The Flask app object has a 'run' callable
         assert callable(getattr(app, "run", None))
 
+    @_requires_server
     def test_server_dir_added_to_sys_path(self):
         """get_flask_app() ensures the repo root is on sys.path."""
         from nybble.serve import get_flask_app, find_server_dir

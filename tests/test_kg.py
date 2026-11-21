@@ -5,6 +5,13 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
+# Skip marker for tests that require the private server/ directory on disk.
+_server_available = (Path(__file__).parent.parent / "server").is_dir()
+_requires_server = pytest.mark.skipif(
+    not _server_available,
+    reason="server/ directory not present (public repo install)",
+)
+
 
 @pytest.fixture(autouse=True)
 def fresh_session():
@@ -658,6 +665,7 @@ class TestP4JSONLDContextURI:
 class TestP4NoBareExceptPass:
     """P4-B: No bare 'except Exception: pass' patterns outside ALTER TABLE blocks."""
 
+    @_requires_server
     def test_structured_log_no_bare_pass(self):
         """kg_indexer.py and kg_search.py must not contain silent except…pass blocks."""
         import pathlib
