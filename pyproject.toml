@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datajoins-nybble"
-version = "1.0.3"
+version = "1.0.4"
 description = "A nybble is 4 bits. That's all you need. Browse, query, diagram, and graph any data source - one pip install, zero infrastructure."
 readme = "README.md"
 license = "Apache-2.0"

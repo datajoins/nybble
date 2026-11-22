@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.4] - 2026-11-22
+
+### Changed
+
+- Version bump only — required because the `1.0.3` wheel filename was already
+  accepted by PyPI on the first publish attempt; PyPI permanently rejects
+  re-uploads of the same filename regardless of content.
+
+---
+
 ## [1.0.3] - 2026-11-22
 
 ### Added
