@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -11,24 +12,37 @@ import pytest
 @pytest.fixture(autouse=True)
 def fresh_session():
     """Reset the module-level DuckDB session before each test."""
+    import gc
     import nybble.resolver as r
-    # Close existing session and clear registrations
-    if r._SESSION is not None:
-        try:
-            r._SESSION.close()
-        except Exception:
-            pass
-        r._SESSION = None
-    r._REGISTERED.clear()
+
+    def _reset():
+        if r._SESSION is not None:
+            try:
+                # DETACH all non-default databases before closing so DuckDB
+                # releases file handles — otherwise sqlite/duckdb files in
+                # tmp_path remain locked across tests.
+                rows = r._SESSION.execute("PRAGMA database_list").fetchall()
+                for row in rows:
+                    # row: (seq, name, file) — skip the default in-memory db
+                    db_name = row[1]
+                    if db_name not in ("memory", "main", ""):
+                        try:
+                            r._SESSION.execute(f"DETACH {db_name}")
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            try:
+                r._SESSION.close()
+            except Exception:
+                pass
+            r._SESSION = None
+        r._REGISTERED.clear()
+        gc.collect()
+
+    _reset()
     yield
-    # Cleanup
-    if r._SESSION is not None:
-        try:
-            r._SESSION.close()
-        except Exception:
-            pass
-        r._SESSION = None
-    r._REGISTERED.clear()
+    _reset()
 
 
 @pytest.fixture
@@ -197,8 +211,8 @@ class TestBrowseMultiTablePicker:
 
     def _make_sqlite_db(self, tmp_path) -> str:
         """Create a minimal SQLite DB with two tables."""
-        import sqlite3
-        db = tmp_path / "multi.db"
+        import sqlite3, uuid
+        db = tmp_path / f"multi_{uuid.uuid4().hex[:8]}.db"
         con = sqlite3.connect(str(db))
         con.execute("CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT)")
         con.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, total REAL)")
@@ -212,25 +226,27 @@ class TestBrowseMultiTablePicker:
         """Loading a SQLite DB returns a parent Relation with a .tables list."""
         from nybble.resolver import load
         db_path = self._make_sqlite_db(tmp_path)
-        rel = load(f"sqlite:///{db_path}", name="testdb")
+        name = f"db_{uuid.uuid4().hex[:8]}"
+        rel = load(f"sqlite:///{db_path}", name=name)
         assert hasattr(rel, "tables"), "Parent Relation must have .tables attribute"
         assert set(rel.tables) == {"customers", "orders"}
 
     def test_multitable_child_views_registered(self, tmp_path):
-        """Child views testdb__customers and testdb__orders must be in _REGISTERED."""
+        """Child views <name>__customers and <name>__orders must be in _REGISTERED."""
         from nybble.resolver import load, _REGISTERED
         db_path = self._make_sqlite_db(tmp_path)
-        load(f"sqlite:///{db_path}", name="testdb")
-        assert "testdb__customers" in _REGISTERED
-        assert "testdb__orders" in _REGISTERED
+        name = f"db_{uuid.uuid4().hex[:8]}"
+        load(f"sqlite:///{db_path}", name=name)
+        assert f"{name}__customers" in _REGISTERED
+        assert f"{name}__orders" in _REGISTERED
 
     def test_pick_table_returns_child_relation(self, tmp_path):
         """_pick_table() with user input '1' must return the first child Relation."""
         from nybble.resolver import load
         from nybble.browse import _pick_table
-        import io
         db_path = self._make_sqlite_db(tmp_path)
-        parent = load(f"sqlite:///{db_path}", name="testdb2")
+        name = f"db_{uuid.uuid4().hex[:8]}"
+        parent = load(f"sqlite:///{db_path}", name=name)
         assert hasattr(parent, "tables")
         # Simulate user typing "1\n"
         import builtins
@@ -260,9 +276,10 @@ class TestBrowseMultiTablePicker:
         browse_mod = importlib.import_module("nybble.browse")
 
         db_path = self._make_sqlite_db(tmp_path)
-        parent = load(f"sqlite:///{db_path}", name="testdb3")
+        name = f"db_{uuid.uuid4().hex[:8]}"
+        parent = load(f"sqlite:///{db_path}", name=name)
 
-        first_child = _REGISTERED.get("testdb3__customers") or _REGISTERED.get("testdb3__orders")
+        first_child = _REGISTERED.get(f"{name}__customers") or _REGISTERED.get(f"{name}__orders")
         assert first_child is not None
 
         # _pick_table: return child on first call, simulate user pressing 'q'
@@ -291,8 +308,10 @@ class TestSqliteBareExtension:
     """load('path/to/file.sqlite') and load('path/to/file.db') must work."""
 
     @staticmethod
-    def _make_sqlite(tmp_path, filename="mydb.sqlite"):
-        import sqlite3
+    def _make_sqlite(tmp_path, filename=None):
+        import sqlite3, uuid
+        if filename is None:
+            filename = f"mydb_{uuid.uuid4().hex[:8]}.sqlite"
         p = tmp_path / filename
         conn = sqlite3.connect(str(p))
         conn.execute("CREATE TABLE items (item_id INTEGER PRIMARY KEY, name TEXT)")
@@ -303,8 +322,9 @@ class TestSqliteBareExtension:
 
     def test_dot_sqlite_extension_loads(self, tmp_path):
         """load('mydb.sqlite') must succeed and register child table views."""
+        import uuid
         from nybble.resolver import load, _REGISTERED
-        db_file = self._make_sqlite(tmp_path, "mydb.sqlite")
+        db_file = self._make_sqlite(tmp_path, f"mydb_{uuid.uuid4().hex[:8]}.sqlite")
         rel = load(str(db_file))
         assert rel.source_type == "db"
         assert hasattr(rel, "tables") and "items" in rel.tables
@@ -312,28 +332,30 @@ class TestSqliteBareExtension:
 
     def test_dot_db_extension_loads(self, tmp_path):
         """load('mydb.db') must succeed and register child table views."""
+        import uuid
         from nybble.resolver import load, _REGISTERED
-        db_file = self._make_sqlite(tmp_path, "mydb.db")
+        db_file = self._make_sqlite(tmp_path, f"mydb_{uuid.uuid4().hex[:8]}.db")
         rel = load(str(db_file))
         assert rel.source_type == "db"
         assert hasattr(rel, "tables") and "items" in rel.tables
 
     def test_dot_sqlite3_extension_loads(self, tmp_path):
         """load('mydb.sqlite3') must succeed."""
+        import uuid
         from nybble.resolver import load, _REGISTERED
-        db_file = self._make_sqlite(tmp_path, "mydb.sqlite3")
+        db_file = self._make_sqlite(tmp_path, f"mydb_{uuid.uuid4().hex[:8]}.sqlite3")
         rel = load(str(db_file))
         assert rel.source_type == "db"
         assert hasattr(rel, "tables")
 
     def test_relative_sqlite_uri_resolves(self, tmp_path, monkeypatch):
         """sqlite:///relative/path must resolve correctly (not break on Windows)."""
-        import os
+        import uuid
         from nybble.resolver import load, _REGISTERED
-        # Create DB in tmp_path; chdir there so the relative path works
-        db_file = self._make_sqlite(tmp_path, "shop.sqlite")
+        fname = f"shop_{uuid.uuid4().hex[:8]}.sqlite"
+        db_file = self._make_sqlite(tmp_path, fname)
         monkeypatch.chdir(tmp_path)
-        rel = load("sqlite:///shop.sqlite")
+        rel = load(f"sqlite:///{fname}")
         assert rel.source_type == "db"
         assert hasattr(rel, "tables") and "items" in rel.tables
 
@@ -364,13 +386,16 @@ class TestCrossPlatformPaths:
 
     def test_dot_duckdb_bare_path_loads(self, tmp_path):
         """load('mydb.duckdb') via bare .duckdb extension must succeed."""
+        import uuid
         import duckdb
-        db_path = tmp_path / "mydb.duckdb"
-        # Create a DuckDB file with one table
+        # Use a unique name so DuckDB's process-level file registry never conflicts
+        # across test reruns in the same process.
+        db_path = tmp_path / f"mydb_{uuid.uuid4().hex[:8]}.duckdb"
         con = duckdb.connect(str(db_path))
         con.execute("CREATE TABLE products (id INTEGER, name VARCHAR)")
         con.execute("INSERT INTO products VALUES (1, 'Widget'), (2, 'Gadget')")
         con.close()
+        del con
 
         from nybble.resolver import load, _REGISTERED
         rel = load(str(db_path))
@@ -380,16 +405,19 @@ class TestCrossPlatformPaths:
 
     def test_relative_duckdb_uri_resolves(self, tmp_path, monkeypatch):
         """duckdb:///relative/file.duckdb must resolve on Windows (leading-slash fix)."""
+        import uuid
         import duckdb
-        db_path = tmp_path / "rel.duckdb"
+        db_name = f"rel_{uuid.uuid4().hex[:8]}.duckdb"
+        db_path = tmp_path / db_name
         con = duckdb.connect(str(db_path))
         con.execute("CREATE TABLE sales (id INTEGER, amount REAL)")
         con.execute("INSERT INTO sales VALUES (1, 9.99)")
         con.close()
+        del con
 
         monkeypatch.chdir(tmp_path)
         from nybble.resolver import load
-        rel = load("duckdb:///rel.duckdb")
+        rel = load(f"duckdb:///{db_name}")
         assert rel.source_type == "db"
         assert hasattr(rel, "tables") and "sales" in rel.tables
 
