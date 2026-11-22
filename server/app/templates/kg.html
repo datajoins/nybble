@@ -3182,10 +3182,11 @@ function updateStatusBadge(ready, indexed) {
   }
 }
 
+let _indexing = false;  // true while a reindex is in flight; prevents double-submit
+
 function _syncIndexBtn() {
   const btn = document.getElementById('index-btn');
-  if (btn && !btn.disabled) return;  // already enabled by _startReindex during indexing
-  if (btn) btn.disabled = getSelectedKeys().length === 0;
+  if (btn) btn.disabled = _indexing || getSelectedKeys().length === 0;
 }
 function selectAllSources()   { document.querySelectorAll('.src-check').forEach(c => c.checked = true);  _syncIndexBtn(); }
 function deselectAllSources() { document.querySelectorAll('.src-check').forEach(c => c.checked = false); _syncIndexBtn(); }
@@ -3210,6 +3211,8 @@ async function indexSelected() {
 }
 
 async function _startReindex(keys) {
+  _indexing = true;
+  _shownIndexErrors.clear();
   const btn = document.getElementById('index-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Indexing…';
@@ -3227,17 +3230,25 @@ async function _startReindex(keys) {
       toast(`Indexing started  -  graph will appear when ready`);
       _pollUntilIndexed(targetKeys, 0);
     } else {
+      _indexing = false;
       toast('Reindex error: ' + (data.error || 'unknown'), true);
     }
-  } catch { toast('Network error during reindex', true); }
+  } catch {
+    _indexing = false;
+    toast('Network error during reindex', true);
+  }
   finally {
     setTimeout(() => {
       btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Index Sources';
       showProgress(false);
-      _syncIndexBtn();  // re-enable only if something is checked
+      _syncIndexBtn();
     }, 2500);
   }
 }
+
+// Keys whose index errors have already been toasted this polling cycle.
+// Reset at the start of each _startReindex so errors from a fresh run are shown.
+const _shownIndexErrors = new Set();
 
 // Poll /api/kg/status every 3s. No hard attempt limit.
 // Shows graph as soon as at least one submitted source is indexed.
@@ -3250,32 +3261,47 @@ async function _pollUntilIndexed(targetKeys, attempts = 0) {
     (status.index_states || []).forEach(s => { _indexStates[s.source_key] = s; });
     _refreshSidebarDots();
     updateStatusBadge(_sources.length, nowIndexed.size);
-    // Surface background indexing errors to the user immediately.
+
+    // Surface background indexing errors once per error key — never repeat on
+    // subsequent polls.  Error keys are treated as "done" so polling terminates.
     const errs = status.index_errors || {};
+    const errorKeys = new Set();
     Object.entries(errs).forEach(([k, msg]) => {
-      if (msg) toast(`Index error${k !== '__all__' ? ' (' + k + ')' : ''}: ${msg}`, true);
+      if (!msg) return;
+      errorKeys.add(k);
+      if (!_shownIndexErrors.has(k)) {
+        _shownIndexErrors.add(k);
+        toast(`Index error${k !== '__all__' && k !== '__store__' ? ' (' + k + ')' : ''}: ${msg}`, true);
+      }
     });
 
     const keysToCheck = targetKeys && targetKeys.length ? targetKeys : [...nowIndexed];
-    const doneKeys    = keysToCheck.filter(k => nowIndexed.has(k));
-    const allDone     = doneKeys.length === keysToCheck.length;
+    // A key is "done" if it is indexed OR if it errored (so we don't poll forever).
+    const doneKeys = keysToCheck.filter(k => nowIndexed.has(k) || errorKeys.has(k) || errorKeys.has('__all__') || errorKeys.has('__store__'));
+    const allDone  = doneKeys.length === keysToCheck.length || errorKeys.has('__all__') || errorKeys.has('__store__');
 
     // Show graph as soon as first source is done; skip re-render if unchanged
-    const sig = doneKeys.slice().sort().join(',');
-    if (doneKeys.length > 0 && sig !== _lastRenderedKeySig) {
-      toast(`Indexed ${doneKeys.length}/${keysToCheck.length} source${keysToCheck.length > 1 ? 's' : ''}  -  showing graph`);
+    const indexedDone = keysToCheck.filter(k => nowIndexed.has(k));
+    const sig = indexedDone.slice().sort().join(',');
+    if (indexedDone.length > 0 && sig !== _lastRenderedKeySig) {
+      toast(`Indexed ${indexedDone.length}/${keysToCheck.length} source${keysToCheck.length > 1 ? 's' : ''}  -  showing graph`);
       _autoGraphShown = true;
-      await showGraphForSources(doneKeys);
-      if (allDone) setTimeout(checkStaleness, 1500);  // re-check freshness on completion
+      await showGraphForSources(indexedDone);
+      if (allDone) setTimeout(checkStaleness, 1500);
     } else if (!allDone) {
-      const done = doneKeys.length, total = keysToCheck.length;
+      const done = indexedDone.length, total = keysToCheck.length;
       if (done > 0) toast(`Indexing… ${done}/${total} sources done`);
     }
 
-    if (!allDone) {
+    if (allDone) {
+      _indexing = false;
+      _syncIndexBtn();
+    } else {
       _pollUntilIndexed(targetKeys, attempts + 1);
     }
-  } catch { _pollUntilIndexed(targetKeys, attempts + 1); }
+  } catch {
+    _pollUntilIndexed(targetKeys, attempts + 1);
+  }
 }
 
 // Reset all index state in search.db, then reload sources panel

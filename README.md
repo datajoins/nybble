@@ -549,7 +549,7 @@ docker run -p 7700:80 my-org/nybble-analytics
 
 Open [http://localhost:7700](http://localhost:7700) for the full browser UI.
 
-Or run without Docker after `pip install "datajoins-nybble[dev]"`:
+Or run without Docker after `pip install "datajoins-nybble[serve]"`:
 
 ```bash
 nybble serve --port 7700 --source mydb.sqlite

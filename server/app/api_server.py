@@ -7115,13 +7115,26 @@ def api_kg_reindex():
         from server.kg.kg_indexer import index_source, index_all
         from server.kg.kg_store import _open_store_raw
 
+        # Clear stale errors for the keys we're about to index so the
+        # UI doesn't show old toasts from a previous failed run.
+        if keys:
+            for k in keys:
+                _index_errors.pop(k, None)
+        else:
+            _index_errors.clear()
+
         def _run():
-            store = _open_store_raw()
+            try:
+                store = _open_store_raw()
+            except Exception as exc:
+                # Store failed to open — record under a sentinel key so the
+                # UI surfaces the error and _pollUntilIndexed can terminate.
+                _index_errors["__store__"] = str(exc)
+                return
             try:
                 if keys:
                     for k in keys:
                         try:
-                            _index_errors.pop(k, None)
                             index_source(k, store=store)
                         except Exception as exc:
                             _index_errors[k] = str(exc)

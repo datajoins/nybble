@@ -98,10 +98,7 @@ def find_server_dir() -> Path:
         "  git clone https://github.com/datajoins/nybble\n"
         "  cd nybble\n"
         "  pip install -e .\n"
-        "  nybble serve\n"
-        "\n"
-        "Or run the Docker image (server/ is baked in):\n"
-        "  docker run -p 7700:80 datajoins/nybble"
+        "  nybble serve"
     )
 
 
@@ -124,7 +121,7 @@ def get_flask_app():  # type: ignore[return]
     except ImportError as exc:
         raise ImportError(
             "Flask is required to run the Nybble web UI.\n"
-            'Install it with:  pip install "datajoins-nybble[serve]"'
+            r'Install it with:  pip install "datajoins-nybble\[serve]"'
         ) from exc
 
     server_dir = find_server_dir()

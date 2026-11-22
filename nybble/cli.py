@@ -1640,6 +1640,8 @@ def cmd_serve(
               help="Human-readable description for the shared resource.")
 @click.option("--expires-hours", default=None, type=int,
               help="TTL in hours (DataJoins backend only). Omit for permanent.")
+@click.option("--yes", "-y", is_flag=True, default=False,
+              help="Skip the upload confirmation prompt (for scripts and CI).")
 def cmd_share(
     config: Optional[str],
     source: Optional[str],
@@ -1649,6 +1651,7 @@ def cmd_share(
     endpoint: Optional[str],
     description: str,
     expires_hours: Optional[int],
+    yes: bool,
 ) -> None:
     """Share an ERD or Knowledge Graph as a public URL.
 
@@ -1684,7 +1687,7 @@ def cmd_share(
         f"[yellow]Warning:[/yellow] This will upload your data to {_dest}.\n"
         "         Use --backend gist --gist-token to authenticate, or Ctrl-C to abort."
     )
-    if not click.confirm("Proceed with upload?", default=False):
+    if not yes and not click.confirm("Proceed with upload?", default=False):
         raise SystemExit(0)
 
     share_kwargs: dict = dict(

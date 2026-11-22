@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.8] - 2026-11-22
+
+### Added
+
+- **`nybble share --yes` / `-y` flag** (`nybble/cli.py`): scripts and CI can now
+  bypass the upload confirmation prompt by passing `--yes` or `-y`.  The interactive
+  prompt is still shown when the flag is absent.
+
+### Fixed
+
+- **Flask-missing error strips `[serve]`** (`nybble/serve.py`): Rich was parsing
+  `[serve]` as a markup tag and silently discarding it, so the install hint read
+  `pip install "datajoins-nybble"` instead of `pip install "datajoins-nybble[serve]"`.
+  Fixed by escaping the bracket with `\[serve]` in the raw string.
+
+- **`docker run` reference in `find_server_dir()` error** (`nybble/serve.py`): the
+  error message shown when `server/` cannot be found still referenced
+  `docker run -p 7700:80 datajoins/nybble`.  The Docker Hub image does not exist
+  (KNOWN_ISSUES #10), so the Docker line was removed from the message.
+
+- **`_open_store_raw()` failures are silent in KG reindex** (`server/app/api_server.py`):
+  if the KuZu store failed to open, the exception escaped `_run()`'s `try/except`
+  block, background indexing exited silently, and `_pollUntilIndexed` polled forever
+  with no feedback.  The full `_run()` body is now wrapped; store-open failures are
+  recorded under `_index_errors["__store__"]` and surfaced as a UI error toast.
+  `_index_errors` is also cleared at the start of each reindex call so stale errors
+  from a previous run do not reappear.
+
+- **`_pollUntilIndexed` polls forever on error** (`server/app/templates/kg.html`):
+  keys that errored never appeared in `index_states`, so the poller never saw them
+  as "done".  Error keys (and the `__all__` / `__store__` sentinels) are now treated
+  as done, terminating the loop.  Each error key is toasted exactly once per reindex
+  via a `_shownIndexErrors` set; the `_indexing` flag is cleared and the button
+  re-evaluated when polling ends.
+
+- **Index Sources button never re-disables** (`server/app/templates/kg.html`): the
+  `_syncIndexBtn()` early-return guard `if (btn && !btn.disabled) return` made the
+  function a no-op once the button was ever enabled.  "Deselect all" left the button
+  clickable; ticking a box during indexing allowed double-submit.  The guard is
+  removed.  An `_indexing` flag now gates `_syncIndexBtn()`:
+  `btn.disabled = _indexing || getSelectedKeys().length === 0`.
+
+- **ERD header/footer FK count discrepancy** (`nybble/templates/erd.html.jinja`):
+  the toolbar stat (`N relationships`) was a Jinja-rendered edge count while the
+  sidebar footer showed a JS-computed FK column count — the two numbers differed
+  whenever multiple FK columns between the same pair of tables were collapsed into
+  one edge.  The header stat is now JS-driven using the same `totalFks` calculation
+  as the footer, so both always agree.
+
+- **README `[dev]` → `[serve]` for `nybble serve`** (`README.md`): the "Or run
+  without Docker" code block incorrectly instructed
+  `pip install "datajoins-nybble[dev]"`.  Corrected to `[serve]`.
+
+---
+
 ## [1.0.7] - 2026-11-22
 
 ### Fixed

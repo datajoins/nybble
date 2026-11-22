@@ -194,7 +194,7 @@ html, body { height: 100vh; font-family: -apple-system,"Segoe UI",Arial,sans-ser
       </svg>
       <span class="tb-title">Nybble ERD</span>
     </div>
-    <span class="tb-stats">{{ table_count }} tables &middot; {{ edge_count }} relationships</span>
+    <span class="tb-stats" id="tb-header-stats">{{ table_count }} tables</span>
     <div class="tb-sep"></div>
     <!-- Focus mode chip - hidden until double-click activates focus mode -->
     <div id="focus-chip" style="display:none;align-items:center;gap:5px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3);border-radius:4px;padding:0 8px;height:24px;font-size:11px;color:#c4b5fd;margin:0 6px;flex-shrink:0;">
@@ -683,6 +683,8 @@ function buildSidebar(tables) {
   const totalFks = tables.reduce((s,t)=>s+t.columns.filter(c=>c.fk).length,0);
   const totalCols = tables.reduce((s,t)=>s+t.columns.length,0);
   document.getElementById('sb-stats').textContent = `${tables.length} tables · ${totalCols} cols · ${totalFks} FKs`;
+  const hdr = document.getElementById('tb-header-stats');
+  if (hdr) hdr.textContent = `${tables.length} tables · ${totalFks} FKs`;
 }
 function toggleTableVisibility(name) {
   if(!cy)return;
