@@ -262,7 +262,7 @@ def _execute_single(sql: str, limit: Optional[int] = None) -> QueryResult:
     with _SESSION_LOCK:
         result_cursor = con.execute(exec_sql)
         t1 = time.perf_counter()
-        arrow = result_cursor.fetch_arrow_table()
+        arrow = result_cursor.arrow()
     t2 = time.perf_counter()
 
     plan_ms = (t1 - t0) * 1000

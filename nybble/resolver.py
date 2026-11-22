@@ -1428,7 +1428,7 @@ class Relation:
         with _SESSION_LOCK:
             arrow = con.execute(
                 f'SELECT * FROM "{self.name}" LIMIT {n}'
-            ).fetch_arrow_table()
+            ).arrow()
         return pl.from_arrow(arrow)
 
     def to_polars(self, limit: Optional[int] = None) -> pl.DataFrame:
@@ -1438,7 +1438,7 @@ class Relation:
             sql += f" LIMIT {limit}"
         con = session()
         with _SESSION_LOCK:
-            arrow = con.execute(sql).fetch_arrow_table()
+            arrow = con.execute(sql).arrow()
         return pl.from_arrow(arrow)
 
     def __repr__(self) -> str:

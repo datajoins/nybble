@@ -660,9 +660,11 @@ class TestHighlightStore:
 
     @pytest.fixture(autouse=True)
     def patch_store(self, tmp_path, monkeypatch):
-        """Redirect .nybble/highlights.json to a temp dir."""
+        """Redirect .nybble/highlights.json to a temp dir and clear any cached state."""
         import nybble.highlight_store as hs
-        monkeypatch.setattr(hs, "_STORE_FILE", tmp_path / ".nybble" / "highlights.json")
+        store_file = tmp_path / ".nybble" / "highlights.json"
+        store_file.parent.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(hs, "_STORE_FILE", store_file)
 
     def test_load_rules_empty_by_default(self):
         from nybble.highlight_store import load_rules
@@ -837,7 +839,7 @@ class TestCmdErdNoSources:
         from nybble.cli import cli
 
         monkeypatch.chdir(tmp_path)  # ensure no nybble.yaml is auto-discovered
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(cli, ["erd", "--no-browser"])
 
         # (a) No unhandled exception / traceback.
@@ -855,7 +857,7 @@ class TestCmdErdNoSources:
         from nybble.cli import cli
 
         monkeypatch.chdir(tmp_path)
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(cli, ["erd", "--no-browser"])
 
         # (c) Exit code 1
@@ -869,7 +871,7 @@ class TestCmdErdNoSources:
         from nybble.cli import cli
 
         monkeypatch.chdir(tmp_path)
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         result = runner.invoke(cli, ["erd", "--no-browser"])
 
         out = result.output
