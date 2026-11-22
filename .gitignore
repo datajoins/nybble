@@ -1,4 +1,4 @@
-﻿# -- Python -------------------------------------------------------------------
+# -- Python -------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *.pyo
@@ -105,8 +105,7 @@ temp/
 # Bob-generated reports or exported docs dropped here accidentally.
 # If intentional, move them to docs/ and commit explicitly.
 /*.html
-# -- Private directories (never go in the public repo) ------------------------
-server/
+# -- Private directories (not in the public repo) -----------------------------
 website/
 doc_builder_parts/
 docs/
