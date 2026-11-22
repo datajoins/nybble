@@ -1694,6 +1694,7 @@ def cmd_share(
         backend=backend,
         output=output,
         description=description,
+        confirm=True,   # CLI already showed an interactive prompt; suppress the Python-level warning
     )
     if gist_token:
         share_kwargs["gist_token"] = gist_token

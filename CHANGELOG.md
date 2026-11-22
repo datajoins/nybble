@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.9] - 2026-11-22
+
+### Added
+
+- **`nybble.share(confirm=False)`** (`nybble/share.py`): the Python API now emits a
+  `UserWarning` before uploading when `confirm` is not `True`, matching the CLI's
+  confirmation prompt.  Scripts and notebooks that have already obtained consent can
+  pass `confirm=True` to suppress it.  The CLI passes `confirm=True` automatically
+  since its interactive prompt is the equivalent gate.
+
+### Fixed
+
+- **Stale `__store__` / `__all__` sentinels survive targeted reindex**
+  (`server/app/api_server.py`): when `api_kg_reindex` was called with a `keys` list,
+  only the targeted source keys were cleared from `_index_errors`.  The `__store__`
+  and `__all__` sentinel keys from a previous failed reindex were left in place.
+  On the next reindex (which the UI always sends as a targeted `keys` request),
+  `_pollUntilIndexed` read the stale sentinel on its first poll, showed the old error
+  toast, and terminated — even after the underlying problem was resolved.  Both
+  sentinel keys are now unconditionally popped at the start of every reindex,
+  regardless of whether a `keys` list was supplied.
+
+---
+
 ## [1.0.8] - 2026-11-22
 
 ### Added

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -254,6 +255,7 @@ def share(
     endpoint: str = _DEFAULT_DATAJOINS_ENDPOINT,
     description: str = "Nybble shared export",
     expires_hours: Optional[int] = None,
+    confirm: bool = False,
     _html_override: Optional[str] = None,
 ) -> NybbleShareResult:
     """Share a Nybble ERD or Knowledge Graph HTML output at a public URL.
@@ -280,6 +282,10 @@ def share(
         Human-readable description attached to the shared resource.
     expires_hours : int | None
         Requested TTL in hours (DataJoins backend only).  None = permanent.
+    confirm : bool
+        Set to ``True`` to acknowledge that data will be uploaded to a public
+        URL and suppress the upload warning.  Default is ``False``, which
+        emits a :class:`UserWarning` before uploading.
     _html_override : str | None
         Internal: supply raw HTML directly (used in tests / programmatic use).
 
@@ -295,6 +301,22 @@ def share(
     RuntimeError
         If the upstream API call fails.
     """
+    # Warn before anything leaves the machine — matches the CLI confirmation
+    # prompt.  Pass confirm=True to suppress (e.g. in scripts that have
+    # already obtained consent or are sharing pre-anonymised exports).
+    if not confirm:
+        _dest = (
+            "a public GitHub Gist"
+            if (backend or "gist").lower().strip() == "gist"
+            else "share.datajoins.com"
+        )
+        warnings.warn(
+            f"nybble.share() will upload your data to {_dest}. "
+            "Pass confirm=True to suppress this warning.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     # Backend resolution: explicit arg → env var → default
     resolved_backend = (
         backend

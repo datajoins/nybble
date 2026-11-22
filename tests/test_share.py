@@ -323,7 +323,7 @@ class TestSharePublicAPI:
 
         with patch("requests.post", return_value=mock_resp), \
              patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_test_token"}):
-            result = share(str(html_file), backend="gist", _html_override=None)
+            result = share(str(html_file), backend="gist", confirm=True, _html_override=None)
 
         assert result.backend == "gist"
         assert result.url.startswith("https://")
@@ -349,6 +349,7 @@ class TestSharePublicAPI:
             result = share(
                 "irrelevant_source",
                 backend="gist",
+                confirm=True,
                 _html_override="<html><body>test</body></html>",
             )
 
@@ -358,7 +359,7 @@ class TestSharePublicAPI:
         from nybble.share import share
 
         with pytest.raises(ValueError, match="Unknown share backend"):
-            share(str(html_file), backend="unknown_backend", _html_override="<html/>")
+            share(str(html_file), backend="unknown_backend", confirm=True, _html_override="<html/>")
 
     def test_share_datajoins_backend(self, html_file):
         from nybble.share import share
@@ -371,6 +372,7 @@ class TestSharePublicAPI:
             result = share(
                 str(html_file),
                 backend="datajoins",
+                confirm=True,
                 endpoint="https://share.datajoins.com/v1/share",
             )
 
@@ -391,7 +393,7 @@ class TestSharePublicAPI:
 
         with patch("requests.post", return_value=mock_resp) as mock_post:
             with patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_from_env"}):
-                share(str(html_file), backend="gist")
+                share(str(html_file), backend="gist", confirm=True)
 
         headers = mock_post.call_args.kwargs.get("headers", {})
         assert "ghp_from_env" in headers.get("Authorization", "")
@@ -408,7 +410,7 @@ class TestSharePublicAPI:
         }
         with patch("requests.post", return_value=mock_resp), \
              patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_test_token"}):
-            result = share(str(html_file), backend="GIST")
+            result = share(str(html_file), backend="GIST", confirm=True)
         assert result.backend == "gist"
 
     def test_share_gist_raises_without_token(self, html_file):
@@ -418,7 +420,7 @@ class TestSharePublicAPI:
         env = {k: v for k, v in __import__("os").environ.items() if k != "GITHUB_TOKEN"}
         with patch.dict("os.environ", env, clear=True):
             with pytest.raises(ValueError, match="GitHub personal access token is required"):
-                share(str(html_file), backend="gist")
+                share(str(html_file), backend="gist", confirm=True)
 
     def test_share_gist_401_raises_actionable_error(self, html_file):
         """A 401 from the Gist API raises RuntimeError with token guidance."""
@@ -432,7 +434,57 @@ class TestSharePublicAPI:
         with patch("requests.post", return_value=mock_resp), \
              patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_expired_token"}):
             with pytest.raises(RuntimeError, match="401 Unauthorized"):
+                share(str(html_file), backend="gist", confirm=True)
+
+
+    def test_share_emits_warning_without_confirm(self, html_file):
+        """share() without confirm=True should emit a UserWarning about upload."""
+        import warnings as _warnings
+        from nybble.share import share
+
+        mock_resp = MagicMock()
+        mock_resp.ok = True
+        mock_resp.json.return_value = {
+            "id": "warn_test",
+            "html_url": "https://gist.github.com/warn_test",
+            "files": {"erd.html": {"raw_url": "https://raw.github.com/warn_test"}},
+        }
+
+        with patch("requests.post", return_value=mock_resp), \
+             patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_test_token"}):
+            with _warnings.catch_warnings(record=True) as caught:
+                _warnings.simplefilter("always")
                 share(str(html_file), backend="gist")
+
+        assert any(
+            issubclass(w.category, UserWarning) and "upload" in str(w.message).lower()
+            for w in caught
+        ), "Expected a UserWarning about data upload"
+
+    def test_share_no_warning_with_confirm(self, html_file):
+        """share(confirm=True) should not emit any UserWarning."""
+        import warnings as _warnings
+        from nybble.share import share
+
+        mock_resp = MagicMock()
+        mock_resp.ok = True
+        mock_resp.json.return_value = {
+            "id": "no_warn_test",
+            "html_url": "https://gist.github.com/no_warn_test",
+            "files": {"erd.html": {"raw_url": "https://raw.github.com/no_warn_test"}},
+        }
+
+        with patch("requests.post", return_value=mock_resp), \
+             patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_test_token"}):
+            with _warnings.catch_warnings(record=True) as caught:
+                _warnings.simplefilter("always")
+                share(str(html_file), backend="gist", confirm=True)
+
+        upload_warnings = [
+            w for w in caught
+            if issubclass(w.category, UserWarning) and "upload" in str(w.message).lower()
+        ]
+        assert not upload_warnings, "No UserWarning expected when confirm=True"
 
 
 # ── Tests: Token registry ─────────────────────────────────────────────────────

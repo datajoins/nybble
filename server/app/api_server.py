@@ -7115,8 +7115,12 @@ def api_kg_reindex():
         from server.kg.kg_indexer import index_source, index_all
         from server.kg.kg_store import _open_store_raw
 
-        # Clear stale errors for the keys we're about to index so the
-        # UI doesn't show old toasts from a previous failed run.
+        # Clear stale errors before each reindex.
+        # Always remove the __store__ and __all__ sentinels regardless of whether
+        # a key list was supplied — a successful store-open on this run proves
+        # the previous sentinel is no longer valid.
+        _index_errors.pop("__store__", None)
+        _index_errors.pop("__all__", None)
         if keys:
             for k in keys:
                 _index_errors.pop(k, None)

@@ -186,70 +186,54 @@ for declared pairs.
 
 ### #17 — Flask-missing error message garbled by Rich markup
 
-**Symptom:** When Flask is not installed and a user runs `nybble serve`, the error
-message reads:
-```
-Flask is required to run the Nybble web UI.
-Install it with:  pip install "datajoins-nybble"
-```
-The `[serve]` extra specifier is silently dropped because Rich interprets `[serve]`
-as a markup tag.
-
-**Root cause:** `nybble/serve.py:get_flask_app()` raises an `ImportError` whose
-message contains `[serve]`.  When the CLI prints that message via Rich, it is parsed
-as markup and the tag is stripped.
-
-**Fix required (applied in v1.0.8):** Use a raw string with `\[serve]` so Rich
-renders the literal bracket.
-
-*(Fixed in v1.0.8 — keeping entry to track that the fix ships.)*
+**Fixed in v1.0.8.** `nybble/serve.py:get_flask_app()` now uses `\[serve]` so Rich
+renders the literal bracket instead of treating it as a markup tag.
 
 ---
 
-### #18 — KG error surfacing: `_open_store_raw()` failures are silent
+### #18 — KG indexing: `_open_store_raw()` failures silent; poll loop runs forever
 
-**Symptom:** If the KuZu store fails to open (e.g. the path is read-only or the
-database is corrupt), background indexing exits silently.  No error is shown in the
-UI; the poll loop runs forever at 3-second intervals and shows the same red toast on
-every poll.
+**Fixed in v1.0.8.** The KG index store is SQLite (`search.db`), not KuZu.
+`_run()` is now wrapped in `try/except`; store-open failures are captured under
+`_index_errors["__store__"]`, which terminates the poll loop and shows a single
+error toast.  Each error key is toasted exactly once per reindex run.
 
-**Root cause:** In `api_kg_reindex → _run()`, `_open_store_raw()` was called
-*before* the `try/except` block, so its exceptions escaped the error-capture net.
-Additionally, keys that errored were never added to `index_states`, so
-`_pollUntilIndexed` never saw them as "done" and kept polling.
-
-**Fix (applied in v1.0.8):**
-- Wrapped the full `_run()` body in `try/except`; store-open failures are recorded
-  under `_index_errors["__store__"]`.
-- `_index_errors` is cleared at the start of each reindex (before the thread is
-  spawned) so stale errors from a previous run don't reappear.
-- `_pollUntilIndexed` now treats any key in `_index_errors` as "done", so polling
-  terminates on failure.
-- Each error key is toasted exactly once per reindex via `_shownIndexErrors`.
-
-*(Fixed in v1.0.8 — keeping entry to verify the fix is complete.)*
+**Edge case fixed in v1.0.9:** When a targeted reindex (`keys` list provided) was
+started after a previous `__store__` or `__all__` failure, those sentinel keys were
+not cleared — only the targeted source keys were popped.  The stale sentinel caused
+every subsequent reindex to surface the old error immediately on the first poll and
+then terminate, even after the underlying problem (e.g. read-only permissions) was
+resolved.  Fix: `__store__` and `__all__` are now always popped unconditionally at
+the start of every reindex request, regardless of whether a key list was supplied.
 
 ---
 
 ### #19 — Index Sources button: `_syncIndexBtn()` never re-disables after first enable
 
-**Symptom:** Once the Index Sources button is enabled (by ticking a checkbox), it
-stays enabled permanently.  "Deselect all" leaves it clickable, allowing a submit
-with zero sources.  Ticking a checkbox during active indexing re-enables the button
-mid-run, allowing a double-submit.
+**Fixed in v1.0.8.** Early-return guard removed; `_indexing` flag added.
+`btn.disabled = _indexing || getSelectedKeys().length === 0` is evaluated on every
+checkbox change, Deselect All, and poll-loop completion.
 
-**Root cause:** `_syncIndexBtn()` had an early-return guard:
-`if (btn && !btn.disabled) return;` — once the button was enabled once, the function
-became a no-op.
+---
 
-**Fix (applied in v1.0.8):**
-- Removed the early-return guard.
-- Added an `_indexing` boolean flag; `_syncIndexBtn()` now sets
-  `btn.disabled = _indexing || getSelectedKeys().length === 0`.
-- `_indexing` is set to `true` at the start of `_startReindex` and back to `false`
-  when polling completes or fails.
+### #20 — `nybble.share()` Python API uploads silently (no confirmation)
 
-*(Fixed in v1.0.8 — keeping entry to verify the fix is complete.)*
+**Fixed in v1.0.9.** `nybble.share()` previously uploaded data to a public URL with
+no warning.  Only the CLI showed a confirmation prompt.
+
+`share()` now emits a `UserWarning` by default before uploading:
+
+```python
+# Shows: UserWarning: nybble.share() will upload your data to a public GitHub Gist.
+#        Pass confirm=True to suppress this warning.
+result = share("erd.html", backend="gist", gist_token="ghp_...")
+
+# Suppress the warning when you have already obtained consent:
+result = share("erd.html", backend="gist", gist_token="ghp_...", confirm=True)
+```
+
+The CLI passes `confirm=True` automatically (its interactive prompt is the equivalent
+consent gate), so CLI behaviour is unchanged.
 
 ---
 
