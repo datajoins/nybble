@@ -10,7 +10,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/datajoins/nybble?style=social)](https://github.com/datajoins/nybble)
 
-**[datajoins.com](https://datajoins.com) · [PyPI](https://pypi.org/project/datajoins-nybble/) · [Changelog](https://github.com/datajoins/nybble/blob/main/CHANGELOG.md) · [Documentation](https://nybble.datajoins.com/documentation.html) · [Issues](https://github.com/datajoins/nybble/issues)**
+**[datajoins.com](https://datajoins.com) · [PyPI](https://pypi.org/project/datajoins-nybble/) · [Changelog](https://github.com/datajoins/nybble/blob/main/CHANGELOG.md) · [Known Issues](https://github.com/datajoins/nybble/blob/main/KNOWN_ISSUES.md) · [Documentation](https://nybble.datajoins.com/documentation.html) · [Issues](https://github.com/datajoins/nybble/issues)**
 
 </div>
 
