@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.7] - 2026-11-22
+
+### Fixed
+
+- **CLI share tests: confirmation prompt not answered** (`tests/test_share.py`): five
+  `TestCLIShareCommand` tests that invoke `nybble share` via Click's `CliRunner` were
+  missing `input="y\n"` to satisfy the upload-confirmation prompt added in v1.0.5.
+  `test_share_cli_datajoins_backend`, `test_share_cli_exits_1_on_api_failure`, and
+  `test_share_cli_exits_1_without_token` got exit code 0 (prompt answered "N" by EOF)
+  instead of the expected result, causing all three to fail in CI.  All five share CLI
+  tests now pass `input="y\n"` to the runner.
+
+---
+
 ## [1.0.6] - 2026-11-22
 
 ### Fixed

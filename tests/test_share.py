@@ -584,7 +584,7 @@ class TestCLIShareCommand:
                 "--source", str(html_file),
                 "--gist-token", "ghp_test_token",
                 "--backend", "gist",
-            ])
+            ], input="y\n")
 
         assert result.exit_code == 0, f"exit={result.exit_code}\n{result.output}"
 
@@ -609,7 +609,7 @@ class TestCLIShareCommand:
                 "--source", str(html_file),
                 "--gist-token", "ghp_test_token",
                 "--backend", "gist",
-            ])
+            ], input="y\n")
 
         assert share_url in result.output
 
@@ -630,7 +630,7 @@ class TestCLIShareCommand:
                 "--source", str(html_file),
                 "--gist-token", "ghp_test_token",
                 "--backend", "gist",
-            ])
+            ], input="y\n")
 
         assert result.exit_code != 0
 
@@ -646,7 +646,7 @@ class TestCLIShareCommand:
             "share",
             "--source", str(html_file),
             "--backend", "gist",
-        ], env=env)
+        ], input="y\n", env=env)
 
         assert result.exit_code != 0
         assert "token" in result.output.lower() or "github" in result.output.lower()
@@ -678,7 +678,7 @@ class TestCLIShareCommand:
                 "--source", str(html_file),
                 "--backend", "datajoins",
                 "--endpoint", "https://share.datajoins.com/v1/share",
-            ])
+            ], input="y\n")
 
         assert result.exit_code == 0, f"exit={result.exit_code}\n{result.output}"
         assert "share.datajoins.com/cli-test" in result.output
