@@ -25,6 +25,9 @@ jobs:
   docker-build-push:
     name: Build and push Docker image to Docker Hub
     runs-on: ubuntu-latest
+    # Skip entirely when Docker Hub credentials are not configured.
+    # Set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in repo Settings → Secrets → Actions.
+    if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
 
     steps:
       - name: Check out repository
