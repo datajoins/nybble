@@ -741,7 +741,7 @@ def _fetch_sample(name: str, n: int) -> list[dict]:
     con = session()
     with _SESSION_LOCK:
         try:
-            arrow = con.execute(f'SELECT * FROM "{name}" LIMIT {n}').arrow().read_all()
+            arrow = con.sql(f'SELECT * FROM "{name}" LIMIT {n}').arrow()
         except Exception:
             return []
     import polars as pl
