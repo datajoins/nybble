@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.5] - 2026-11-22
+
+### Fixed
+
+- **Upload pipeline path** (`nybble/serve.py`): `nybble serve` now sets the
+  `PIPELINE` environment variable to `server/pipeline/run_pipeline.py` relative
+  to the installed package before importing `api_server.py`.  Previously the
+  default was Docker's `/app/run_pipeline.py`, causing every upload to fail with
+  "can't open file" outside Docker.
+
+- **`[serve]` extra now includes Flask** (`pyproject.toml`): `pip install
+  "datajoins-nybble[serve]"` previously only added Waitress.  Flask is now
+  included, so a single extra is sufficient to run `nybble serve` without Docker.
+
+- **Flask missing error message** (`nybble/serve.py`): the `ImportError` now
+  correctly says `pip install "datajoins-nybble[serve]"` instead of `[dev]`.
+
+- **`python -m nybble serve` works** (`nybble/__main__.py`): a new
+  `__main__.py` module delegates to the CLI, so `python -m nybble <command>`
+  works correctly.  The MCP `nybble_serve_start` tool uses this form.
+
+- **`nybble share` confirms before uploading** (`nybble/cli.py`): the share
+  command now prints a warning and requires explicit confirmation before sending
+  any data to GitHub Gist or share.datajoins.com.
+
+### Documentation
+
+- **README Python requirement** corrected: `≥ 3.9` → `≥ 3.10`.
+
+- **MCP docs updated** (`README.md`):
+  - Correct Claude Desktop config paths (macOS and Windows).
+  - Added Claude Code instructions (`claude mcp add` and `.mcp.json`).
+  - Tool count corrected to 72.
+  - Tools split into "works offline" (18) and "requires `nybble serve`" (48+)
+    so users know which tools are available from a plain pip install.
+
+---
+
 ## [1.0.4] - 2026-11-22
 
 ### Changed

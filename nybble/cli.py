@@ -1677,6 +1677,16 @@ def cmd_share(
         )
         raise SystemExit(1)
 
+    # Warn before anything leaves the machine — no silent uploads.
+    _backend = backend or "gist"
+    _dest = "a public GitHub Gist" if _backend == "gist" else f"share.datajoins.com ({_backend})"
+    console.print(
+        f"[yellow]Warning:[/yellow] This will upload your data to {_dest}.\n"
+        "         Use --backend gist --gist-token to authenticate, or Ctrl-C to abort."
+    )
+    if not click.confirm("Proceed with upload?", default=False):
+        raise SystemExit(0)
+
     share_kwargs: dict = dict(
         backend=backend,
         output=output,

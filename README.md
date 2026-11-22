@@ -83,7 +83,7 @@ pip install "datajoins-nybble[semantic]"
 pip install "datajoins-nybble[all]"
 ```
 
-**Requirements:** Python ≥ 3.9
+**Requirements:** Python ≥ 3.10
 
 ---
 
@@ -210,9 +210,25 @@ Cursor, VS Code Copilot, Raycast, and others.
 pip install "datajoins-nybble[mcp]"
 ```
 
-**Register in your AI client config** (e.g. `~/.config/claude/claude_desktop_config.json`):
+**Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
 ```json
+{
+  "mcpServers": {
+    "nybble": { "command": "nybble-mcp" }
+  }
+}
+```
+
+**Claude Code** — register via CLI or `.mcp.json`:
+
+```bash
+# CLI (run once in your project directory)
+claude mcp add nybble -- nybble-mcp
+```
+
+```json
+// .mcp.json in your project root
 {
   "mcpServers": {
     "nybble": { "command": "nybble-mcp" }
@@ -226,7 +242,11 @@ pip install "datajoins-nybble[mcp]"
 nybble-mcp
 ```
 
-**Available MCP tools:**
+**Available MCP tools (72 total):**
+
+The server exposes 72 tools across two categories:
+
+*Works offline from pip install (no server needed):*
 
 | Tool | Description |
 |---|---|
@@ -238,10 +258,20 @@ nybble-mcp
 | `nybble_profile` | Column statistics (null%, cardinality, min/max/top value) |
 | `nybble_infer_schema` | Infer FK relationships - deterministic, zero LLM calls |
 | `nybble_kg_summary` | Knowledge-graph summary (node/edge counts, entity types) |
+| `nybble_kg_graph` | Full KG as node/edge lists |
+| `nybble_kg_search` | Free-text node search (semantic or substring) |
+| `nybble_kg_frd_scores` | Rank nodes by Frequency-Relative Degree score |
+| `nybble_kg_frd_expand` | BFS expansion from a seed node, ranked by FRD |
+| `nybble_kg_validate` | KG structural consistency checks |
+| `nybble_kg_export_pgq` | Generate DuckDB CREATE PROPERTY GRAPH DDL |
 | `nybble_diff` | Schema diff between two sources |
 | `nybble_erd` | Generate interactive ERD HTML, return path |
 | `nybble_kg` | Build and export Knowledge Graph, return paths |
 | `nybble_search_history` | Search the persistent query history log |
+
+*Requires `nybble serve` to be running (`nybble_serve_start` or `nybble serve`):*
+
+`nybble_serve_start`, `nybble_serve_status`, `nybble_sources_list`, `nybble_source_tables`, `nybble_browse_rows`, `nybble_run_query`, `nybble_col_profile`, `nybble_col_profile_detail`, `nybble_source_connect`, `nybble_source_process`, `nybble_source_status`, `nybble_source_delete`, `nybble_source_rename`, `nybble_aggregate`, `nybble_facets`, `nybble_autocomplete`, `nybble_freshness`, `nybble_triggers`, `nybble_ui_search`, `nybble_write_row`, `nybble_delete_row`, `nybble_erd_detail`, `nybble_history`, `nybble_audit`, `nybble_saved_queries`, `nybble_charts`, `nybble_metrics`, `nybble_joins`, `nybble_reports`, `nybble_dashboard`, `nybble_kg_ui_sources`, `nybble_kg_ui_search`, `nybble_kg_ui_graph`, `nybble_kg_ui_entity`, `nybble_kg_ui_columns`, `nybble_kg_configure_cols`, `nybble_kg_ui_expand`, `nybble_kg_ui_frd_scores`, `nybble_kg_ui_validate`, `nybble_kg_ui_propose_link`, `nybble_kg_ui_temporal`, `nybble_kg_ui_versions`, `nybble_kg_ui_diff`, `nybble_kg_ui_reindex`, `nybble_kg_ui_reset`, `nybble_kg_ui_status`, `nybble_kg_ui_capabilities`
 
 **How it works - no LLM calls on the Nybble side:**
 
