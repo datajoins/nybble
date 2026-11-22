@@ -105,7 +105,9 @@ temp/
 # Bob-generated reports or exported docs dropped here accidentally.
 # If intentional, move them to docs/ and commit explicitly.
 /*.html
-# -- Private directories (not in the public repo) -----------------------------
+
+# -- Internal strategy / private docs (not for the public repo) ---------------
+LICENSING_STRATEGY.md
 website/
 doc_builder_parts/
 docs/
