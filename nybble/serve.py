@@ -151,13 +151,21 @@ def _configure_env(host: str, port: int) -> None:
     os.environ.setdefault("OUTPUT_DIR", str(nybble_dir / "output" / "erd"))
     os.environ.setdefault("REGISTRY",   str(nybble_dir / "registry.json"))
 
+    # KG index storage — must be set before kg_store/kg_config are imported.
+    os.environ.setdefault("KG_DIR",       str(nybble_dir / "output" / "kg"))
+    os.environ.setdefault("KUZU_DB_PATH", str(nybble_dir / "output" / "kg" / "graph.kuzu"))
+
     # Point the pipeline at the copy shipped with the package (not Docker's /app/).
     # server/pipeline/run_pipeline.py lives next to nybble/ in the installed package.
     _pipeline = Path(__file__).parent.parent / "server" / "pipeline" / "run_pipeline.py"
     os.environ.setdefault("PIPELINE", str(_pipeline))
 
     # Ensure the directories exist before the Flask app touches them
-    for d in (nybble_dir / "uploads", nybble_dir / "output" / "erd"):
+    for d in (
+        nybble_dir / "uploads",
+        nybble_dir / "output" / "erd",
+        nybble_dir / "output" / "kg",
+    ):
         d.mkdir(parents=True, exist_ok=True)
 
 

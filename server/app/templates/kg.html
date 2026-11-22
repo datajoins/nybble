@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8"/>
@@ -1948,7 +1948,7 @@ body { display: flex; flex-direction: column; font-size: 14px; height: 100vh; he
       <div class="empty-panel"><span class="spinner"></span></div>
     </div>
     <div id="src-actions">
-      <button class="btn-sm primary" id="index-btn" onclick="indexSelected()">
+      <button class="btn-sm primary" id="index-btn" onclick="indexSelected()" disabled>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         Index Sources
       </button>
@@ -3146,6 +3146,10 @@ async function loadSources() {
         <div class="src-indexed ${indexed ? 'yes' : ''}" title="${indexed ? 'Indexed' : 'Not indexed'}"></div>
       </label>`;
     }).join('');
+    // Enable/disable Index Sources based on current checkbox state.
+    // Attach a delegated listener so it fires for every future checkbox change.
+    list.onchange = (e) => { if (e.target.classList.contains('src-check')) _syncIndexBtn(); };
+    _syncIndexBtn();
     const indexedKeys = Object.keys(_indexStates);
     updateStatusBadge(_sources.length, indexedKeys.length);
     if (!_autoGraphShown) {
@@ -3178,8 +3182,13 @@ function updateStatusBadge(ready, indexed) {
   }
 }
 
-function selectAllSources()   { document.querySelectorAll('.src-check').forEach(c => c.checked = true); }
-function deselectAllSources() { document.querySelectorAll('.src-check').forEach(c => c.checked = false); }
+function _syncIndexBtn() {
+  const btn = document.getElementById('index-btn');
+  if (btn && !btn.disabled) return;  // already enabled by _startReindex during indexing
+  if (btn) btn.disabled = getSelectedKeys().length === 0;
+}
+function selectAllSources()   { document.querySelectorAll('.src-check').forEach(c => c.checked = true);  _syncIndexBtn(); }
+function deselectAllSources() { document.querySelectorAll('.src-check').forEach(c => c.checked = false); _syncIndexBtn(); }
 function getSelectedKeys()    { return [...document.querySelectorAll('.src-check:checked')].map(c => c.value); }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3223,9 +3232,9 @@ async function _startReindex(keys) {
   } catch { toast('Network error during reindex', true); }
   finally {
     setTimeout(() => {
-      btn.disabled = false;
       btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Index Sources';
       showProgress(false);
+      _syncIndexBtn();  // re-enable only if something is checked
     }, 2500);
   }
 }
@@ -3241,6 +3250,11 @@ async function _pollUntilIndexed(targetKeys, attempts = 0) {
     (status.index_states || []).forEach(s => { _indexStates[s.source_key] = s; });
     _refreshSidebarDots();
     updateStatusBadge(_sources.length, nowIndexed.size);
+    // Surface background indexing errors to the user immediately.
+    const errs = status.index_errors || {};
+    Object.entries(errs).forEach(([k, msg]) => {
+      if (msg) toast(`Index error${k !== '__all__' ? ' (' + k + ')' : ''}: ${msg}`, true);
+    });
 
     const keysToCheck = targetKeys && targetKeys.length ? targetKeys : [...nowIndexed];
     const doneKeys    = keysToCheck.filter(k => nowIndexed.has(k));

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.6] - 2026-11-22
+
+### Fixed
+
+- **KG indexing paths** (`nybble/serve.py`): `KG_DIR` and `KUZU_DB_PATH` previously
+  defaulted to Docker-only paths (`/output/kg`), causing KG indexing to fail under
+  `nybble serve`.  Both are now set to `.nybble/output/kg/` and
+  `.nybble/output/kg/graph.kuzu` respectively in `_configure_env()`, and the
+  `.nybble/output/kg/` directory is created at startup alongside the existing
+  `uploads` and `output/erd` directories.
+
+- **Background KG indexing errors now surface to the UI** (`server/app/api_server.py`,
+  `server/app/templates/kg.html`): a new `_index_errors` dict captures exceptions from
+  the background `_run()` thread in `api_kg_reindex`.  The errors are included in the
+  `GET /api/kg/status` response under `index_errors`.  The KG page's `_pollUntilIndexed`
+  loop reads `index_errors` on every poll and shows a red toast for each failure, so
+  a failed index is no longer indistinguishable from one that never started.
+
+- **"Index Sources" button disabled until a source is checked** (`server/app/templates/kg.html`):
+  the button now starts `disabled`.  A delegated `change` listener on the sources list
+  and a `_syncIndexBtn()` helper enable/disable it based on the current checkbox state.
+  `Select all` and `Deselect all` also call `_syncIndexBtn()`.  The button re-evaluates
+  after indexing completes rather than unconditionally re-enabling.
+
+---
+
 ## [1.0.5] - 2026-11-22
 
 ### Fixed

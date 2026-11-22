@@ -357,6 +357,9 @@ app.jinja_env.filters['md_to_html'] = md_to_html
 # ── Registry helpers ──────────────────────────────────────────────────────────
 _lock: threading.Lock = threading.Lock()
 _live_logs: Dict[str, list] = {}
+# Captures the last error message from background KG indexing per source key.
+# Written by _run() in api_kg_reindex; read by api_kg_status.
+_index_errors: Dict[str, str] = {}
 
 
 def _load_reg() -> Dict[str, Any]:
@@ -7117,9 +7120,16 @@ def api_kg_reindex():
             try:
                 if keys:
                     for k in keys:
-                        index_source(k, store=store)
+                        try:
+                            _index_errors.pop(k, None)
+                            index_source(k, store=store)
+                        except Exception as exc:
+                            _index_errors[k] = str(exc)
                 else:
-                    index_all(store=store)
+                    try:
+                        index_all(store=store)
+                    except Exception as exc:
+                        _index_errors["__all__"] = str(exc)
             finally:
                 store.close()
 
@@ -7236,6 +7246,7 @@ def api_kg_status():
         "capabilities":  caps_dict,
         "sources_ready": ready_count,
         "index_states":  states,
+        "index_errors":  dict(_index_errors),
     })
 
 
