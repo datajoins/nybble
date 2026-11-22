@@ -63,7 +63,7 @@ from nybble.report import build_report, save_report, NybbleReport, ReportSection
 from nybble.share import share, NybbleShareResult, register_token, resolve_token, get_token_registry
 from nybble.lineage import build_lineage_dag, dag_to_html, save_lineage_html
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "DataJoins"
 __license__ = "Apache-2.0"
 

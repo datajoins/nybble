@@ -2469,9 +2469,19 @@ def _serialise(obj: Any) -> str:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+async def _run_server() -> None:
+    """Run the MCP server over stdio (async context-manager pattern)."""
+    async with stdio_server() as (read_stream, write_stream):
+        await app.run(
+            read_stream,
+            write_stream,
+            app.create_initialization_options(),
+        )
+
+
 def main() -> None:
     """Start the Nybble MCP server (stdio transport)."""
-    asyncio.run(stdio_server(app))
+    asyncio.run(_run_server())
 
 
 if __name__ == "__main__":
