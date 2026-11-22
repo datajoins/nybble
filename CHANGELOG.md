@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.3] - 2026-11-22
+
+### Added
+
+- **`server/` included in wheel and repo** (`server/app/`, `server/ingestion/`,
+  `server/kg/`, `server/pipeline/`): the full Flask web UI is now published to PyPI
+  and present in the GitHub repo.  `nybble serve` works from a plain `pip install`
+  without cloning — no Docker required.
+  Install the optional WSGI server for production use:
+  ```
+  pip install "datajoins-nybble[serve]"   # adds Waitress; Flask dev server used otherwise
+  nybble serve
+  ```
+
+### Fixed
+
+- **`nybble-mcp` auto-loads `nybble.yaml`** (`nybble/mcp_server.py`): the MCP server
+  now calls `find_config()` / `load_config()` / `apply_config()` at startup, mirroring
+  the behaviour of `nybble serve`.  If `nybble.yaml` is present in the working directory
+  the configured sources are pre-loaded before the first tool call.  Startup never fails
+  if the config file is absent or any source fails to load.
+
+---
+
 ## [1.0.2] - 2026-11-22
 
 ### Fixed

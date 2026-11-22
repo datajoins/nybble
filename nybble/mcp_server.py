@@ -2479,8 +2479,30 @@ async def _run_server() -> None:
         )
 
 
+def _load_config_at_startup() -> None:
+    """Auto-load sources from nybble.yaml (if present) before the server loop starts.
+
+    Silently skips if the file is missing, unreadable, or any source fails to load —
+    the MCP server must always start regardless of workspace state.
+    """
+    try:
+        from nybble.config import find_config, load_config, apply_config
+        cfg_path = find_config()
+        if cfg_path is not None:
+            cfg = load_config(cfg_path)
+            apply_config(cfg)
+    except Exception:
+        pass  # Never block server startup on config errors
+
+
 def main() -> None:
-    """Start the Nybble MCP server (stdio transport)."""
+    """Start the Nybble MCP server (stdio transport).
+
+    Auto-loads sources from ``nybble.yaml`` in the current directory (if present)
+    before entering the stdio server loop.  Equivalent to the sources a
+    ``nybble serve`` instance would pre-load from the same config file.
+    """
+    _load_config_at_startup()
     asyncio.run(_run_server())
 
 

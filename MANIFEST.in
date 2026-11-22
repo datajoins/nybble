@@ -12,7 +12,8 @@ recursive-include nybble/templates *.jinja
 
 # Exclude everything that should not be in the sdist
 exclude .gitignore
-recursive-exclude server *
+recursive-exclude server/__pycache__ *
+recursive-exclude server/output *
 recursive-exclude deploy *
 recursive-exclude docs *
 recursive-exclude website *
