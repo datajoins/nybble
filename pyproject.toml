@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datajoins-nybble"
-version = "1.0.1"
+version = "1.0.2"
 description = "A nybble is 4 bits. That's all you need. Browse, query, diagram, and graph any data source - one pip install, zero infrastructure."
 readme = "README.md"
 license = "Apache-2.0"
@@ -17,13 +17,14 @@ keywords = [
     "graphml", "json-ld", "parquet", "graph", "visualization",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Scientific/Engineering :: Visualization",
@@ -80,7 +81,7 @@ all       = [
     "psycopg2-binary",
     "connectorx>=0.3,<0.4",
     "pymysql",
-    "mcp>=1.0",
+    "mcp>=1.0,<2.0",
     "rdflib>=6.0",
     "waitress>=2.1",
 ]
@@ -89,6 +90,7 @@ all       = [
 Homepage        = "https://datajoins.com"
 Repository      = "https://github.com/datajoins/nybble"
 Documentation   = "https://nybble.datajoins.com/documentation.html"
+Changelog       = "https://github.com/datajoins/nybble/blob/main/CHANGELOG.md"
 "Bug Tracker"   = "https://github.com/datajoins/nybble/issues"
 Contributing    = "https://github.com/datajoins/nybble/blob/main/CONTRIBUTING.md"
 
