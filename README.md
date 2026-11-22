@@ -1,8 +1,8 @@
 <div align="center">
 
-# Nybble 🍱
+# Nybble
 
-### *You don't need a Googol of infrastructure just to see your data.*
+### Browse, Query, ERD & Knowledge Graph. One `pip install`.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/datajoins/nybble/ci.yml?branch=main&label=CI&logo=github)](https://github.com/datajoins/nybble/actions/workflows/ci.yml)
 [![PyPI Version](https://img.shields.io/pypi/v/datajoins-nybble)](https://pypi.org/project/datajoins-nybble/)
@@ -10,51 +10,22 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/datajoins/nybble?style=social)](https://github.com/datajoins/nybble)
 
-**[datajoins.com](https://datajoins.com) · [PyPI](https://pypi.org/project/datajoins-nybble/) · [Changelog](https://github.com/datajoins/nybble/blob/main/CHANGELOG.md) · [Known Issues](https://github.com/datajoins/nybble/blob/main/KNOWN_ISSUES.md) · [Documentation](https://nybble.datajoins.com/documentation.html) · [Issues](https://github.com/datajoins/nybble/issues)**
+**[Website](https://nybble.datajoins.com) · [Documentation](https://nybble.datajoins.com/documentation.html) · [PyPI](https://pypi.org/project/datajoins-nybble/) · [Changelog](CHANGELOG.md) · [Known Issues](KNOWN_ISSUES.md) · [Issues](https://github.com/datajoins/nybble/issues)**
 
 </div>
 
 ---
 
-## Why Nybble?
+Nybble is an ultra-lightweight Python data engine. A CSV here. A Parquet file there. A live Postgres database. A REST API. `pip install` and you see how they all connect — no six-container platform required.
 
-In computer science, a **nybble** is exactly 4 bits - half a byte, one of the smallest
-functional units of digital storage.
+It unifies four things that normally demand four separate tools:
 
-A **googol** is 10¹⁰⁰ - a number larger than the estimated count of elementary particles
-in the entire observable universe.
-
-Every developer working with data eventually ends up wrestling with a googol of
-complexity: heavy enterprise BI platforms, sprawling cloud data warehouses, multi-service
-ETL pipelines, and schema documentation that's always out of date. Tools that charge
-tens of thousands of dollars a year for capabilities that should take ten seconds to
-invoke.
-
-**Nybble exists because you don't need any of that just to understand your own data.**
-
-You need something the exact opposite size - something small enough to install in one
-command, fast enough to produce results before you finish your coffee, and honest enough
-to show you exactly what's in your database without a sales call, a YAML sprawl, or a
-Node.js build pipeline.
-
-> *A nybble is half a byte. It is also exactly enough.*
-
----
-
-## What Nybble Does
-
-Nybble is an ultra-lightweight Python engine that takes a single, effortless bite out of
-any data source and gives you back four things that normally require four separate tools:
-
-| Capability | What you get | Replaces |
-|---|---|---|
-| **Browse** | Full-terminal paginated data grid, live filter, column sort | TablePlus, DBeaver (desktop) |
-| **SQL Arena** | Cross-source SQL via DuckDB - join a CSV to a Parquet to a live DB | Redash, DataGrip |
-| **ERD** | Auto-generated interactive Entity-Relationship Diagram with FK inference | DbDiagram.io (paid), SchemaSpy |
-| **Knowledge Graph** | Semantic entity graph with GraphML, JSON-LD, and HTML export | DataHub, Neo4j (enterprise) |
-
-All four capabilities work from the same `pip install`. No Docker required. No server to
-run. No Node.js. No API keys.
+| Capability | What you get |
+|---|---|
+| **Browse** | Full-terminal paginated data grid — live filter, column sort, keyboard nav |
+| **SQL Arena** | Cross-source DuckDB SQL — join a CSV to a Parquet to a live database |
+| **ERD** | Auto-generated interactive Entity-Relationship Diagram with 4-tier FK inference |
+| **Knowledge Graph** | Semantic entity graph with GraphML, JSON-LD, PGQ DDL, and HTML export |
 
 ---
 
@@ -64,92 +35,109 @@ run. No Node.js. No API keys.
 pip install datajoins-nybble
 ```
 
-**With optional connectors and extras:**
+**Requirements:** Python ≥ 3.10
+
+### Optional extras
 
 ```bash
-# PostgreSQL
-pip install "datajoins-nybble[postgres]"
+# Database connectors
+pip install "datajoins-nybble[postgres]"    # PostgreSQL (psycopg2 + connectorx)
+pip install "datajoins-nybble[mysql]"       # MySQL / MariaDB (pymysql)
+pip install "datajoins-nybble[mssql]"       # SQL Server (pyodbc)
+pip install "datajoins-nybble[oracle]"      # Oracle Database (oracledb)
+pip install "datajoins-nybble[mongo]"       # MongoDB (pymongo)
+pip install "datajoins-nybble[redis]"       # Redis (redis-py)
+pip install "datajoins-nybble[cassandra]"   # Cassandra (cassandra-driver)
+pip install "datajoins-nybble[elastic]"     # Elasticsearch (elasticsearch)
+pip install "datajoins-nybble[kafka]"       # Kafka topic streaming (confluent-kafka)
+pip install "datajoins-nybble[dynamo]"      # Amazon DynamoDB (boto3)
 
-# MySQL / MariaDB
-pip install "datajoins-nybble[mysql]"
+# Features
+pip install "datajoins-nybble[mcp]"         # MCP server for AI agents (Claude, Cursor, VS Code)
+pip install "datajoins-nybble[serve]"       # Web UI production server (waitress)
+pip install "datajoins-nybble[semantic]"    # Neural node search (sentence-transformers)
+pip install "datajoins-nybble[kuzu]"        # Embedded graph DB for cypher queries
+pip install "datajoins-nybble[rdf]"         # RDF/Turtle + SPARQL (rdflib)
+pip install "datajoins-nybble[textual]"     # Enhanced TUI browser (textual)
 
-# MCP server (AI agent integration - Claude, Cursor, VS Code)
-pip install "datajoins-nybble[mcp]"
-
-# Semantic node search (sentence-transformers)
-pip install "datajoins-nybble[semantic]"
-
-# Everything (postgres + mysql + mcp + rdflib)
-pip install "datajoins-nybble[all]"
+# Recommended bundle
+pip install "datajoins-nybble[all]"         # postgres + mysql + mcp + rdflib + waitress
 ```
-
-**Requirements:** Python ≥ 3.10
 
 ---
 
-## 30-Second Smoke Test
+## Quickstart
 
-Copy and paste this block — it uses the demo CSV files in `.nybble-test-fixtures/`.
-No database required, no configuration needed.
+### 1. Browse any data source in the terminal
 
 ```bash
-# 1. Install
-pip install datajoins-nybble
-
-# 2. Use the demo fixtures (copy from .nybble-test-fixtures/ in the repo)
-#    Or create them: customers.csv, orders.csv, products.csv - see documentation.html
-
-# 3. Inspect a source
-nybble info customers.csv
-
-# 4. Profile column statistics
-nybble profile customers.csv
-
-# 5. Browse a file in the terminal (arrow keys, / to filter, q to quit)
-nybble browse customers.csv
-
-# 6. Run a cross-source SQL query
-nybble query "SELECT c.name, COUNT(o.order_id) AS orders, SUM(o.amount) AS revenue
-              FROM customers c JOIN orders o ON c.customer_id = o.customer_id
-              GROUP BY c.name ORDER BY revenue DESC" \
-  --source customers.csv \
-  --source orders.csv
-
-# 7. Diff two schemas
-nybble diff customers.csv orders.csv
-
-# 8. Generate a self-contained ERD HTML (opens in browser automatically)
-nybble erd --source customers.csv --source orders.csv --source products.csv --no-browser
-
-# 9. Build a Knowledge Graph
-nybble kg --source customers.csv --source orders.csv --source products.csv --no-browser
-
-# 10. Search the Knowledge Graph
-nybble kg search "Alice" --source customers.csv
-nybble kg search "shipped" --source orders.csv
-
-# 11. Generate DuckDB SQL/PGQ DDL
-nybble kg pgq --source customers.csv --source orders.csv --source products.csv
-
-# 12. Print KG summary JSON
-nybble kg --summary-only --source customers.csv --source orders.csv --source products.csv
-
-# 13. Generate a Markdown data report
-nybble report --source customers.csv --output customers_report.md
-
-# 14. View query history
-nybble history --limit 5
+nybble browse ./sales.csv
+nybble browse ./warehouse.parquet
+nybble browse "postgresql://user:pass@localhost:5432/mydb"
 ```
 
-Every command exits cleanly. No side effects outside the `.nybble/` directory.
+Arrow keys to navigate, `/` to filter, `q` to quit.
+
+### 2. Run SQL across multiple sources
+
+```bash
+nybble query "
+  SELECT c.name, COUNT(o.id) AS orders, SUM(o.total) AS revenue
+  FROM customers c JOIN orders o ON c.id = o.customer_id
+  GROUP BY c.name ORDER BY revenue DESC
+" \
+  --source customers=customers.csv \
+  --source orders=orders.parquet
+```
+
+### 3. Generate an ERD
+
+```bash
+# Produces a self-contained HTML file and opens it in your browser
+nybble erd \
+  --source customers=customers.csv \
+  --source orders=orders.parquet \
+  --source products=products.csv
+```
+
+No declared foreign keys? Nybble's 4-tier inference engine fills in the relationships automatically.
+
+### 4. Build a Knowledge Graph
+
+```bash
+# Entity graph exported as GraphML + JSON-LD + interactive HTML
+nybble kg \
+  --source customers=customers.csv \
+  --source orders=orders.parquet
+```
+
+### 5. Profile column statistics
+
+```bash
+nybble profile orders.csv
+```
+
+### 6. Compare two schema versions
+
+```bash
+nybble diff schema_v1.csv schema_v2.csv
+nybble diff "sqlite:///old.db" "sqlite:///new.db"
+```
+
+### 7. Start the web UI
+
+```bash
+pip install "datajoins-nybble[serve]"
+nybble serve --port 7700 --source mydb.sqlite
+```
+
+Open [http://localhost:7700](http://localhost:7700) for browser-based Browse, SQL Arena, ERD, and Knowledge Graph.
 
 ---
 
 ## Workspace Config (`nybble.yaml`)
 
-Instead of repeating `--source` flags on every command, declare your sources once in a
-`nybble.yaml` file. Any `nybble` command run in the same directory will load them
-automatically.
+Declare sources once. Every `nybble` command in the same directory loads them automatically — no `--source` flags required.
 
 ```yaml
 # nybble.yaml
@@ -182,178 +170,33 @@ streams:
 ```
 
 ```bash
-# All sources from nybble.yaml are loaded automatically - no --source flags needed
+# All sources loaded automatically — no --source flags needed
 nybble erd
 nybble kg
 nybble query "SELECT * FROM customers LIMIT 10"
 nybble repl
 
-# Or point to an explicit config file path
+# Or point to an explicit config
 nybble erd --config ./configs/staging.yaml
 ```
 
-- **`${ENV_VAR}`** tokens in the config are substituted from your shell environment at
-  load time. Nybble raises a clear error if a referenced variable is not set.
-- The config file is discovered by searching for `nybble.yaml`, `nybble.yml`,
-  `.nybble.yaml`, or `.nybble.yml` in the current working directory.
+- `${ENV_VAR}` tokens are substituted from shell environment at load time.
+- Config is auto-discovered by searching for `nybble.yaml`, `nybble.yml`, `.nybble.yaml`, or `.nybble.yml` in the current directory.
 - See [`nybble.yaml.example`](nybble.yaml.example) for a fully annotated reference.
 
 ---
 
-## MCP Server - AI Agent Integration
-
-Nybble ships a full [Model Context Protocol](https://modelcontextprotocol.io/) server
-that exposes the complete Nybble API to any MCP-compatible AI agent - Claude Desktop,
-Cursor, VS Code Copilot, Raycast, and others.
-
-```bash
-pip install "datajoins-nybble[mcp]"
-```
-
-**Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "nybble": { "command": "nybble-mcp" }
-  }
-}
-```
-
-**Claude Code** — register via CLI or `.mcp.json`:
-
-```bash
-# CLI (run once in your project directory)
-claude mcp add nybble -- nybble-mcp
-```
-
-```json
-// .mcp.json in your project root
-{
-  "mcpServers": {
-    "nybble": { "command": "nybble-mcp" }
-  }
-}
-```
-
-**Or start manually:**
-
-```bash
-nybble-mcp
-```
-
-**Available MCP tools (72 total):**
-
-The server exposes 72 tools across two categories:
-
-*Works offline from pip install (no server needed):*
-
-| Tool | Description |
-|---|---|
-| `nybble_load` | Load any source: file path, DB URI, S3/GCS URL, HTTP API |
-| `nybble_list_tables` | List all loaded sources |
-| `nybble_schema` | Column names and types for a loaded table |
-| `nybble_query` | Execute DuckDB SQL across all sources |
-| `nybble_explain` | Show DuckDB query execution plan |
-| `nybble_profile` | Column statistics (null%, cardinality, min/max/top value) |
-| `nybble_infer_schema` | Infer FK relationships - deterministic, zero LLM calls |
-| `nybble_kg_summary` | Knowledge-graph summary (node/edge counts, entity types) |
-| `nybble_kg_graph` | Full KG as node/edge lists |
-| `nybble_kg_search` | Free-text node search (semantic or substring) |
-| `nybble_kg_frd_scores` | Rank nodes by Frequency-Relative Degree score |
-| `nybble_kg_frd_expand` | BFS expansion from a seed node, ranked by FRD |
-| `nybble_kg_validate` | KG structural consistency checks |
-| `nybble_kg_export_pgq` | Generate DuckDB CREATE PROPERTY GRAPH DDL |
-| `nybble_diff` | Schema diff between two sources |
-| `nybble_erd` | Generate interactive ERD HTML, return path |
-| `nybble_kg` | Build and export Knowledge Graph, return paths |
-| `nybble_search_history` | Search the persistent query history log |
-
-*Requires `nybble serve` to be running (`nybble_serve_start` or `nybble serve`):*
-
-`nybble_serve_start`, `nybble_serve_status`, `nybble_sources_list`, `nybble_source_tables`, `nybble_browse_rows`, `nybble_run_query`, `nybble_col_profile`, `nybble_col_profile_detail`, `nybble_source_connect`, `nybble_source_process`, `nybble_source_status`, `nybble_source_delete`, `nybble_source_rename`, `nybble_aggregate`, `nybble_facets`, `nybble_autocomplete`, `nybble_freshness`, `nybble_triggers`, `nybble_ui_search`, `nybble_write_row`, `nybble_delete_row`, `nybble_erd_detail`, `nybble_history`, `nybble_audit`, `nybble_saved_queries`, `nybble_charts`, `nybble_metrics`, `nybble_joins`, `nybble_reports`, `nybble_dashboard`, `nybble_kg_ui_sources`, `nybble_kg_ui_search`, `nybble_kg_ui_graph`, `nybble_kg_ui_entity`, `nybble_kg_ui_columns`, `nybble_kg_configure_cols`, `nybble_kg_ui_expand`, `nybble_kg_ui_frd_scores`, `nybble_kg_ui_validate`, `nybble_kg_ui_propose_link`, `nybble_kg_ui_temporal`, `nybble_kg_ui_versions`, `nybble_kg_ui_diff`, `nybble_kg_ui_reindex`, `nybble_kg_ui_reset`, `nybble_kg_ui_status`, `nybble_kg_ui_capabilities`
-
-**How it works - no LLM calls on the Nybble side:**
-
-```
-AI agent (LLM decides what to call)
-    └─ nybble_load("sales.csv")     → resolver._load_file()   ← DuckDB CREATE VIEW
-    └─ nybble_query("SELECT ...")   → arena.query()           ← duckdb.execute()
-    └─ nybble_infer_schema()        → infer_fk.py Tier 1-4   ← column matching + stats
-    └─ nybble_kg_summary()          → kg._build_graph()       ← NetworkX + PageRank
-```
-
-The MCP extra adds ~6 transitive packages (`mcp`, `anyio`, `httpx`, `starlette`,
-`uvicorn`, `pydantic`). It is always optional - `pip install datajoins-nybble` stays lean.
-
----
-
-## Quick Start
-
-### Browse any data source in the terminal
-
-```bash
-nybble browse ./sales_data.csv
-nybble browse ./warehouse.parquet
-nybble browse "postgresql://user:pass@localhost:5432/mydb"
-```
-
-### Run SQL across multiple sources at once
-
-```bash
-nybble query "SELECT o.id, c.name, o.total
-              FROM orders o JOIN customers c ON o.customer_id = c.id
-              ORDER BY o.total DESC LIMIT 20" \
-  --source orders=orders.csv \
-  --source customers=customers.parquet
-```
-
-### Generate an ERD from a live database
-
-```bash
-# Produces a self-contained HTML file and opens it in your browser
-nybble erd --source "postgresql://user:pass@localhost/mydb"
-```
-
-### Build a Knowledge Graph
-
-```bash
-# Entity graph from two related files, exported as GraphML + JSON-LD + HTML
-nybble kg \
-  --source customers=customers.csv \
-  --source orders=orders.parquet
-```
-
-### Profile column statistics
-
-```bash
-nybble profile orders.csv
-```
-
-### Compare two schema versions
-
-```bash
-nybble diff schema_v1.csv schema_v2.csv
-nybble diff "sqlite:///old.db" "sqlite:///new.db"
-```
-
-### Generate a Markdown data report
-
-```bash
-nybble report --source orders.csv --output report.md
-nybble report --source mydb.sqlite --output docs/schema.html
-```
-
-### Python API
+## Python API
 
 ```python
 from nybble import load, query, erd, kg, kg_summary, profile_relation, schema_diff
 
-# Load any source - file, JSON, database URI, or HTTP URL
+# Load any source — file, DB URI, S3/GCS URL, or inline data
 customers = load("customers.csv")
 orders    = load("orders.parquet")
+live_db   = load("postgresql://user:pass@localhost/mydb")
 
-# Query across both sources using DuckDB SQL
+# Cross-source SQL via DuckDB
 result = query("""
     SELECT c.name, COUNT(o.id) AS order_count, SUM(o.total) AS revenue
     FROM customers c
@@ -361,39 +204,37 @@ result = query("""
     GROUP BY c.name
     ORDER BY revenue DESC
 """)
-print(result.to_polars())
+print(result.to_polars())   # also: .to_pandas(), .to_arrow(), .to_dicts()
 
-# Profile a table
+# Column statistics
 for col in profile_relation("customers"):
-    print(col.name, col.null_pct, col.distinct)
+    print(col.name, col.null_pct, col.distinct, col.top_value)
 
-# Compare two schemas
+# Schema diff
 diff = schema_diff("v1.csv", "v2.csv")
 print(diff.added, diff.removed, diff.changed)
 
-# Generate a self-contained ERD HTML file
+# Self-contained ERD HTML
 erd(output=".nybble/schema.html")
 
-# Build a semantic Knowledge Graph
+# Semantic Knowledge Graph
 result = kg()
-print(kg_summary())
-# {'node_count': 1840, 'edge_count': 4122, 'avg_degree': 4.48, ...}
+summary = kg_summary()
+# {'node_count': 1840, 'edge_count': 4122, 'entity_types': [...], ...}
 
-# Load from a nybble.yaml config file
+# Load from nybble.yaml
 from nybble import load_config, apply_config
 cfg = load_config("nybble.yaml")
-apply_config(cfg)   # all sources in config are now loaded
+apply_config(cfg)   # all declared sources are now available to query/erd/kg
 ```
 
 ---
 
-## Features
+## Source Types
 
-### Universal source loading
+Nybble's resolver accepts anything without configuration:
 
-Nybble's resolver accepts anything you throw at it without configuration:
-
-| Source type | Examples |
+| Source | Example |
 |---|---|
 | CSV / TSV | `customers.csv`, `data.tsv` |
 | Parquet | `events.parquet` |
@@ -403,93 +244,127 @@ Nybble's resolver accepts anything you throw at it without configuration:
 | SQLite | `local.db`, `sqlite:///path/to/db` |
 | PostgreSQL | `postgresql://user:pass@host/db` |
 | MySQL / MariaDB | `mysql://user:pass@host/db` |
+| SQL Server | `mssql+pyodbc://user:pass@host/db` |
+| Oracle | `oracle+oracledb://user:pass@host/db` |
+| MongoDB | `mongodb://user:pass@host/db` |
 | S3 / GCS / R2 | `s3://bucket/data.parquet`, `gs://bucket/file.csv` |
 | HTTP URL | `https://api.example.com/data.json` |
-| Inline Python | `load([{"id": 1, "name": "Alice"}, ...])` |
+| Inline Python | `load([{"id": 1, "name": "Alice"}])` |
 
-All sources register as virtual DuckDB tables in a shared, thread-safe, in-process
-session - no intermediate files, no network calls, no copies.
-
-### ERD generation with automatic FK inference - *Nybble Sense*
-
-When a schema has no declared foreign-key constraints (common in CSV exports, ORMs that
-enforce at the application layer, and cloud-sync snapshots), Nybble's four-tier inference
-engine fills the gap:
-
-1. **Tier 1** - Explicit constraints from database introspection (short-circuits here when found)
-2. **Tier 2** - Column name suffix matching (`_id`, `_fk`, `_key`, `_ref`, `_uuid`, `_code`)
-3. **Tier 3** - Column name equality across tables
-4. **Tier 4** - Statistical uniqueness sampling (≥95% unique source → candidate FK)
-
-Every inferred FK carries a confidence score. The ERD output is a single self-contained
-HTML file - no CDN dependencies, no server required to view it. Deep-linkable via URL
-parameters (`?highlight=<table>`, `?embed=1` for iframe embedding).
-
-### Knowledge Graph - *Nybble GraphAI*
-
-Nybble builds a semantic `MultiDiGraph` (NetworkX) from any set of loaded relations.
-Every row becomes a node. Every FK relationship becomes a directed edge. Co-occurring
-values across unlinked tables become inferred cross-source edges.
-
-**Export formats:**
-- **GraphML** - importable by Gephi, yEd, NetworkX
-- **JSON-LD** - schema.org vocabulary, consumable by AI/ML pipelines and graph databases
-- **Self-contained HTML** - interactive force-directed visualisation, no server required
-- **SQL/PGQ DDL** - `nybble kg --export pgq` emits DuckDB `CREATE PROPERTY GRAPH` DDL
-
-Node-level graph metrics are computed for every entity: PageRank, degree centrality,
-betweenness centrality, and community membership (Louvain algorithm).
-
-### SQL Arena
-
-Every source loaded by Nybble becomes a virtual DuckDB table, joinable with any other
-source in a single SQL statement. The `query()` function returns a `QueryResult` with
-conversion methods to Polars, Pandas, PyArrow, and plain Python dicts. Queries are
-persisted to `.nybble/queries.json` with `save_query()`; query history is persisted to
-`.nybble/history.jsonl`.
-
-The interactive REPL (`nybble repl`) supports meta-commands: `.tables` to list sources,
-`.save <name> <sql>` to persist a query, `.run <name>` to replay it.
-
-### Terminal browser
-
-`nybble browse` renders any source as a full-terminal data grid powered by Rich:
-keyboard navigation (`↑↓`, `PgUp/PgDn`, `g`/`G`), a live filter bar (`/`), column
-sorting, and a status bar showing source metadata, row count, active page, and current
-filters.
+All sources register as virtual DuckDB tables in a shared in-process session — no copies, no intermediate files.
 
 ---
 
-## Repository Layout
+## ERD — Nybble Sense
+
+When a schema has no declared foreign-key constraints (CSV exports, ORMs that enforce at the application layer, cloud-sync snapshots), Nybble's four-tier heuristic engine infers them:
+
+| Tier | Method | Notes |
+|---|---|---|
+| **1** | Explicit DB constraints | Short-circuits here when found |
+| **2** | Column name suffix matching | `_id`, `_fk`, `_key`, `_ref`, `_uuid`, `_code` |
+| **3** | Column name equality across tables | Same name = candidate join |
+| **4** | Statistical value containment | FK values ⊆ PK values, ≥ 85% threshold |
+
+Every inferred FK carries a confidence score. The output is a single self-contained HTML file — deep-linkable via `?highlight=<table>` and embeddable via `?embed=1`.
+
+---
+
+## Knowledge Graph — Nybble GraphAI
+
+Builds a semantic `MultiDiGraph` (NetworkX) from any set of loaded sources. Every row becomes a node; every FK relationship becomes a directed edge; co-occurring values across unlinked tables become inferred cross-source edges.
+
+**Export formats:**
+- **GraphML** — importable by Gephi, yEd, NetworkX
+- **JSON-LD** — schema.org vocabulary, consumable by AI/ML pipelines and graph databases
+- **Self-contained HTML** — interactive Cytoscape force-directed visualisation
+- **SQL/PGQ DDL** — `nybble kg --export pgq` emits DuckDB `CREATE PROPERTY GRAPH` DDL
+
+Node-level metrics computed for every entity: PageRank, degree centrality, betweenness centrality, and community membership (Louvain algorithm).
+
+```bash
+# Search the graph
+nybble kg search "Alice" --source customers.csv
+nybble kg search "shipped" --source orders.csv
+
+# Export DuckDB CREATE PROPERTY GRAPH DDL
+nybble kg pgq --source customers.csv --source orders.csv
+
+# Print summary JSON only
+nybble kg --summary-only --source customers.csv --source orders.csv
+```
+
+---
+
+## MCP Server — AI Agent Integration
+
+Nybble ships a full [Model Context Protocol](https://modelcontextprotocol.io/) server exposing 72 tools to any MCP-compatible agent — Claude Desktop, Claude Code, Cursor, VS Code Copilot, Raycast, and others.
+
+```bash
+pip install "datajoins-nybble[mcp]"
+```
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "nybble": { "command": "nybble-mcp" }
+  }
+}
+```
+
+**Claude Code:**
+
+```bash
+# Register once in your project directory
+claude mcp add nybble -- nybble-mcp
+```
+
+**Or start manually:**
+
+```bash
+nybble-mcp
+```
+
+### Available tools (72 total)
+
+**Works offline — no server needed (18 tools):**
+
+| Tool | Description |
+|---|---|
+| `nybble_load` | Load any source: file, DB URI, S3/GCS URL, HTTP API |
+| `nybble_list_tables` | List all loaded sources |
+| `nybble_schema` | Column names and types for a loaded table |
+| `nybble_query` | Execute DuckDB SQL across all loaded sources |
+| `nybble_explain` | DuckDB query execution plan |
+| `nybble_profile` | Column statistics: null%, cardinality, min/max/top value |
+| `nybble_infer_schema` | Infer FK relationships — deterministic, zero LLM calls |
+| `nybble_erd` | Generate interactive ERD HTML, return path |
+| `nybble_kg` | Build and export Knowledge Graph, return paths |
+| `nybble_kg_summary` | Node/edge counts, entity types |
+| `nybble_kg_graph` | Full KG as degree-sorted node and edge lists |
+| `nybble_kg_search` | Free-text node search (semantic or substring) |
+| `nybble_kg_frd_scores` | Rank nodes by Frequency-Relative Degree score |
+| `nybble_kg_frd_expand` | BFS expansion from a seed node, ranked by FRD |
+| `nybble_kg_validate` | KG structural consistency checks |
+| `nybble_kg_export_pgq` | Generate DuckDB CREATE PROPERTY GRAPH DDL |
+| `nybble_diff` | Schema diff between two sources |
+| `nybble_search_history` | Search persistent query history log |
+
+**Requires `nybble serve` (54 tools):** full Browse, SQL Arena, ERD studio, and KG UI tools — `nybble_sources_list`, `nybble_browse_rows`, `nybble_run_query`, `nybble_source_connect`, `nybble_erd_detail`, `nybble_kg_ui_*`, and more.
+
+**How it works:**
 
 ```
-nybble/                          ← repository root
-│
-├── nybble/                      ← pip package  (pip install datajoins-nybble)
-│   ├── resolver.py              ← universal source loader, DuckDB session
-│   ├── browse.py                ← Rich terminal browser
-│   ├── arena.py                 ← SQL REPL, query API, history
-│   ├── erd.py                   ← ERD HTML generator
-│   ├── infer_fk.py              ← Nybble Sense: FK inference engine
-│   ├── kg.py                    ← Nybble GraphAI: Knowledge Graph
-│   ├── config.py                ← nybble.yaml declarative config loader
-│   ├── diff.py                  ← schema diff between two sources
-│   ├── profiler.py              ← column-level statistics profiler
-│   ├── report.py                ← Markdown report builder
-│   ├── highlight_store.py       ← persistent cell-highlight rules
-│   ├── mcp_server.py            ← MCP server (AI agent integration)
-│   ├── cli.py                   ← `nybble` CLI entry point
-│   └── templates/               ← self-contained Jinja2 HTML templates
-│
-├── deploy/                      ← Dockerfile, docker-compose.yml, nginx.conf
-├── tests/                       ← pytest suite
-│
-├── nybble.yaml.example          ← fully annotated workspace config reference
-├── CHANGELOG.md
-├── LICENSE
-├── pyproject.toml
-└── README.md
+AI agent (LLM decides what to call)
+    └─ nybble_load("sales.csv")     → resolver._load_file()   ← DuckDB CREATE VIEW
+    └─ nybble_query("SELECT ...")   → arena.query()           ← duckdb.execute()
+    └─ nybble_infer_schema()        → infer_fk.py Tier 1-4   ← column matching + stats
+    └─ nybble_kg_summary()          → kg._build_graph()       ← NetworkX + PageRank
 ```
+
+No LLM calls on the Nybble side. Every tool is deterministic and reproducible.
 
 ---
 
@@ -499,68 +374,126 @@ nybble/                          ← repository root
 nybble [OPTIONS] COMMAND [ARGS]...
 
 Commands:
-  browse   Launch interactive terminal browser for any data source
-  diff     Compare schemas of two sources (added / removed / type-changed columns)
-  erd      Generate a self-contained interactive ERD HTML file
-  explain  Show DuckDB query execution plan for a SQL statement
-  history  Show recent query history, optionally filtered by search term
-  info     Print schema, row count, source type, and sample rows for a source
-  kg       Build and export a semantic Knowledge Graph
-  lineage  Build an SQL query lineage DAG and render it as an HTML graph
-  profile  Print column statistics (null%, cardinality, min, max, top value)
-  query    Execute SQL across all loaded sources
-  repl     Launch the interactive SQL REPL
-  report   Generate a Markdown or HTML data report: schema, samples, FK joins
-  serve    Start the Nybble web UI (Flask) without Docker
-  share    Share an ERD or Knowledge Graph as a public URL via GitHub Gist
+  browse           Interactive terminal browser — arrow keys, / filter, q quit
+  diff             Schema diff: added / removed / type-changed columns
+  erd              Self-contained interactive ERD HTML with FK inference
+  explain          DuckDB query execution plan (--analyze for actual timing)
+  history          Recent query history log (--search, --limit)
+  info             Schema, row count, source type, and sample rows
+  kg               Build and export a semantic Knowledge Graph
+  kg search        Search KG nodes by text (substring or semantic)
+  kg pgq           Emit DuckDB CREATE PROPERTY GRAPH DDL
+  kg configure-cols  Configure column roles (node/edge/weight/ignore)
+  lineage          Build SQL query lineage DAG → HTML graph
+  profile          Column statistics: null%, cardinality, min, max, top value
+  query            Execute SQL across all loaded sources
+  repl             Interactive SQL REPL (.tables, .save, .run meta-commands)
+  report           Markdown or HTML data report: schema + samples + FK joins
+  serve            Start the Nybble web UI (Browse, SQL, ERD, KG) on :7700
+  share            Share ERD or KG as a public URL via GitHub Gist or DataJoins
 
 Options:
   --version  Show version and exit.
   --help     Show help and exit.
 ```
 
-Every multi-source command (`query`, `erd`, `kg`, `explain`, `report`, `repl`, `serve`, `lineage`)
-accepts:
+Every multi-source command (`query`, `erd`, `kg`, `explain`, `report`, `repl`, `serve`, `lineage`) accepts:
 
-- `--source name=path` - pre-load a source (may be repeated)
-- `--config / -c PATH` - path to a `nybble.yaml` workspace config file; if omitted,
-  `nybble.yaml` in the current directory is loaded automatically when present
+- `--source name=path` — pre-load a source (repeatable)
+- `--config / -c PATH` — path to `nybble.yaml`; auto-discovered in current directory when present
 
 Run `nybble <command> --help` for full option details.
 
 ---
 
-## Self-Hosting with Docker
-
-Nybble ships a full Flask/nginx server for browser-based access:
+## Web UI (`nybble serve`)
 
 ```bash
-# Mode C - upload files and connect databases via the browser UI (default)
+pip install "datajoins-nybble[serve]"
+nybble serve --port 7700
+```
+
+The web UI runs locally at [http://localhost:7700](http://localhost:7700) and provides:
+
+- **Catalog** — upload files, connect databases (PostgreSQL, MySQL, SQLite, S3, MongoDB, and more), manage the source registry
+- **Browse** — paginated data grid with value facets, column filtering, and cell highlighting
+- **SQL Arena** — multi-tab SQL editor with query history, lineage DAG visualisation, and saved queries
+- **ERD Studio** — interactive Cytoscape ERD with layout controls, focus mode, and schema diff overlay
+- **Knowledge Graph** — Cytoscape force-directed KG with FRD semantic projection, node detail panel, link proposals, and re-indexing
+- **Reports** — executable data dictionaries with schema, samples, and auto-generated FK joins
+- **Dashboard** — pinned KPI tiles from saved queries
+
+---
+
+## Repository Layout
+
+```
+nybble/                          ← repository root
+│
+├── nybble/                      ← pip package (pip install datajoins-nybble)
+│   ├── resolver.py              ← universal source loader, DuckDB session
+│   ├── browse.py                ← Rich terminal browser
+│   ├── arena.py                 ← SQL REPL, query API, history
+│   ├── erd.py                   ← ERD HTML generator
+│   ├── infer_fk.py              ← Nybble Sense: FK inference engine (Tiers 1–4)
+│   ├── kg.py                    ← Nybble GraphAI: Knowledge Graph (NetworkX)
+│   ├── config.py                ← nybble.yaml declarative config loader
+│   ├── diff.py                  ← schema diff between two sources
+│   ├── profiler.py              ← column-level statistics profiler
+│   ├── report.py                ← Markdown/HTML report builder
+│   ← lineage.py                 ← SQL lineage DAG builder (sqlglot)
+│   ├── share.py                 ← GitHub Gist and DataJoins share backends
+│   ├── mcp_server.py            ← MCP server: 72 tools for AI agents
+│   ├── serve.py                 ← Flask web UI launcher
+│   ├── cli.py                   ← nybble CLI entry point
+│   ├── __main__.py              ← python -m nybble <command>
+│   └── templates/               ← self-contained Jinja2 HTML templates
+│
+├── server/                      ← Flask web UI server (included in wheel)
+│   ├── app/api_server.py        ← REST API and UI routes
+│   ├── app/templates/           ← Browse, SQL Arena, ERD, KG, Report pages
+│   ├── app/static/              ← bundled JS (Cytoscape, dagre, cytoscape-dagre)
+│   ├── ingestion/               ← upload pipeline, FK inference for serve
+│   ├── kg/                      ← KG store (KuZu), indexer, FRD engine
+│   └── pipeline/run_pipeline.py ← file ingestion pipeline
+│
+├── deploy/                      ← Dockerfile, docker-compose.yml, nginx.conf
+├── tests/                       ← pytest suite
+│
+├── nybble.yaml.example          ← fully annotated workspace config reference
+├── CHANGELOG.md
+├── KNOWN_ISSUES.md
+├── LICENSE
+├── pyproject.toml
+└── README.md
+```
+
+---
+
+## Docker Deployment
+
+For teams that prefer a containerised deployment:
+
+```bash
+# Default — upload files and connect databases via the browser UI
 docker compose -f deploy/docker-compose.yml up
 
-# Mode B - pre-load a database at startup
+# Pre-load a database at startup
 DB_FILE=/absolute/path/to/my.db docker compose -f deploy/docker-compose.yml up
 
-# Mode A - bake a database into a custom image at build time
+# Bake a database into a custom image at build time
 #   Place input.db in the repository root, then:
 docker build -f deploy/Dockerfile -t my-org/nybble-analytics .
 docker run -p 7700:80 my-org/nybble-analytics
 ```
 
-Open [http://localhost:7700](http://localhost:7700) for the full browser UI.
-
-Or run without Docker after `pip install "datajoins-nybble[serve]"`:
-
-```bash
-nybble serve --port 7700 --source mydb.sqlite
-```
+> **Note:** A pre-built `datajoins/nybble` image on Docker Hub is not yet available ([KNOWN_ISSUES #10](KNOWN_ISSUES.md)). The instructions above apply only to self-built images from this repository.
 
 ---
 
 ## Contributing
 
-Contributions are welcome. Before opening a pull request for a significant change,
-please open an issue first so the approach can be discussed.
+Contributions are welcome. Please open an issue before a pull request for any significant change.
 
 ```bash
 # Fork and clone
@@ -578,46 +511,46 @@ pip install ruff
 ruff check nybble/ tests/
 ```
 
-**Commit message format:** `type(scope): description`  
+**Commit format:** `type(scope): description`  
 Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
 
 Please ensure:
 - [ ] All existing tests pass (`pytest tests/`)
 - [ ] New behaviour is covered by tests
 - [ ] `ruff check` passes with no new warnings
-- [ ] Public API changes are reflected in `nybble/__init__.py`
+- [ ] Public API additions are reflected in `nybble/__init__.py`
 
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/)
-Code of Conduct.
+This project follows the [Contributor Covenant](https://www.contributor-covenant.org/) Code of Conduct.
 
 ---
 
 ## Roadmap
 
-**Shipped (v1.0.0):**
-- [x] `nybble browse` - full-terminal interactive data grid
-- [x] `nybble query` - cross-source DuckDB SQL with `table` / `csv` / `json` output
-- [x] `nybble erd` - self-contained interactive ERD HTML with 4-tier FK inference
-- [x] `nybble kg` - semantic Knowledge Graph with GraphML, JSON-LD, HTML, SQL/PGQ export
-- [x] `nybble kg search` - substring and semantic node search (sentence-transformers)
-- [x] `nybble kg pgq` - DuckDB `CREATE PROPERTY GRAPH` DDL export
-- [x] `nybble diff` - structural schema diff between two sources
-- [x] `nybble report` - Markdown + HTML data report builder
-- [x] `nybble serve` - start the Flask UI directly from the CLI
-- [x] `nybble profile` - column statistics panel (null%, cardinality, min/max/top)
-- [x] `nybble info` - schema, row count, source type, and sample rows
-- [x] `nybble explain` - DuckDB query execution plan
-- [x] `nybble history` - persistent query history log
-- [x] `nybble lineage` - SQL lineage DAG rendered as HTML graph
-- [x] `nybble repl` - interactive SQL REPL with `.save` / `.run` meta-commands
-- [x] `nybble share` - publish ERD/KG as a public URL via GitHub Gist
-- [x] `nybble.yaml` declarative workspace config (files, databases, HTTP APIs)
-- [x] MCP server (`nybble-mcp`) - AI agent integration (Claude, Cursor, VS Code)
-- [x] Python API - `load()`, `query()`, `erd()`, `kg()`, `kg_summary()`, `schema_diff()`
+**Shipped:**
+- [x] `nybble browse` — full-terminal interactive data grid
+- [x] `nybble query` — cross-source DuckDB SQL with `table` / `csv` / `json` output
+- [x] `nybble erd` — self-contained interactive ERD HTML with 4-tier FK inference
+- [x] `nybble kg` — semantic Knowledge Graph with GraphML, JSON-LD, HTML, SQL/PGQ export
+- [x] `nybble kg search` — substring and semantic node search (sentence-transformers)
+- [x] `nybble kg pgq` — DuckDB `CREATE PROPERTY GRAPH` DDL export
+- [x] `nybble diff` — structural schema diff between two sources
+- [x] `nybble report` — Markdown + HTML data report builder
+- [x] `nybble serve` — Flask web UI directly from the CLI
+- [x] `nybble profile` — column statistics: null%, cardinality, min/max/top
+- [x] `nybble info` — schema, row count, source type, and sample rows
+- [x] `nybble explain` — DuckDB query execution plan
+- [x] `nybble history` — persistent query history log
+- [x] `nybble lineage` — SQL lineage DAG rendered as HTML graph
+- [x] `nybble repl` — interactive SQL REPL with `.save` / `.run` meta-commands
+- [x] `nybble share` — publish ERD/KG as a public URL via GitHub Gist (`--yes` for CI)
+- [x] `nybble.yaml` — declarative workspace config: files, databases, HTTP APIs
+- [x] MCP server (`nybble-mcp`) — 72 tools for Claude, Cursor, VS Code Copilot
+- [x] Python API — `load()`, `query()`, `erd()`, `kg()`, `kg_summary()`, `schema_diff()`
+- [x] Web UI — Browse, SQL Arena, ERD Studio, Knowledge Graph, Reports, Dashboard
 
 **Upcoming:**
 - [ ] Native Snowflake, BigQuery, and ClickHouse source support
-- [ ] `nybble dashboard` - pin saved queries as auto-refreshing KPI tiles
+- [ ] `nybble dashboard` — pin saved queries as auto-refreshing KPI tiles
 - [ ] DuckDB-WASM in-browser query execution for the web UI
 - [ ] `nybble-sense` and `nybble-graphai` as independently versioned sub-packages
 
@@ -626,12 +559,11 @@ Code of Conduct.
 ## DataJoins Ecosystem
 
 Nybble is part of the [DataJoins](https://datajoins.com) open-source portfolio.
-Visit [datajoins.com](https://datajoins.com) for the full ecosystem.
 
 ---
 
 ## License
 
-Apache License 2.0 - Copyright © 2026 [DataJoins](https://datajoins.com)
+Apache License 2.0 — Copyright © 2026 [DataJoins](https://datajoins.com)
 
 See [LICENSE](LICENSE) for the full text.
