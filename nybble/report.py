@@ -741,12 +741,12 @@ def _fetch_sample(name: str, n: int) -> list[dict]:
     con = session()
     with _SESSION_LOCK:
         try:
-            _rel = con.sql(f'SELECT * FROM "{name}" LIMIT {n}').arrow()
-            arrow = _rel.read_all() if hasattr(_rel, "read_all") else _rel
+            cur = con.execute(f'SELECT * FROM "{name}" LIMIT {n}')
+            raw = cur.fetchall()
+            cols = [d[0] for d in (cur.description or [])]
         except Exception:
             return []
-    import polars as pl
-    return pl.from_arrow(arrow).to_dicts()
+    return [{c: row[i] for i, c in enumerate(cols)} for row in raw]
 
 
 def _md_escape(text: str) -> str:

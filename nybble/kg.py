@@ -81,14 +81,12 @@ def _duckdb_fetch_rows(relation_name: str, limit: int) -> list:
     con = session()
     with _SESSION_LOCK:
         try:
-            _rel = con.sql(
-                f'SELECT * FROM "{relation_name}" LIMIT {limit}'
-            ).arrow()
-            arrow = _rel.read_all() if hasattr(_rel, "read_all") else _rel
+            cur = con.execute(f'SELECT * FROM "{relation_name}" LIMIT {limit}')
+            raw = cur.fetchall()
+            cols = [d[0] for d in (cur.description or [])]
         except Exception:
             return []
-    import polars as pl
-    rows = pl.from_arrow(arrow).to_dicts()
+    rows = [{c: row[i] for i, c in enumerate(cols)} for row in raw]
     if len(rows) == limit:
         _logger.debug(
             "KG row cap applied: relation=%r capped at %d rows",

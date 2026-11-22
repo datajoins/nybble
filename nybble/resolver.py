@@ -1426,9 +1426,10 @@ class Relation:
         """Return the first *n* rows as a polars DataFrame."""
         con = session()
         with _SESSION_LOCK:
-            _rel = con.sql(f'SELECT * FROM "{self.name}" LIMIT {n}').arrow()
-            arrow = _rel.read_all() if hasattr(_rel, "read_all") else _rel
-        return pl.from_arrow(arrow)
+            cur = con.execute(f'SELECT * FROM "{self.name}" LIMIT {n}')
+            rows = cur.fetchall()
+            cols = [d[0] for d in (cur.description or [])]
+        return pl.DataFrame({c: [r[i] for r in rows] for i, c in enumerate(cols)})
 
     def to_polars(self, limit: Optional[int] = None) -> pl.DataFrame:
         """Materialise the full relation (or up to *limit* rows) as polars."""
@@ -1437,9 +1438,10 @@ class Relation:
             sql += f" LIMIT {limit}"
         con = session()
         with _SESSION_LOCK:
-            _rel = con.sql(sql).arrow()
-            arrow = _rel.read_all() if hasattr(_rel, "read_all") else _rel
-        return pl.from_arrow(arrow)
+            cur = con.execute(sql)
+            rows = cur.fetchall()
+            cols = [d[0] for d in (cur.description or [])]
+        return pl.DataFrame({c: [r[i] for r in rows] for i, c in enumerate(cols)})
 
     def __repr__(self) -> str:
         return (

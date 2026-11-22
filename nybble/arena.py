@@ -260,18 +260,24 @@ def _execute_single(sql: str, limit: Optional[int] = None) -> QueryResult:
 
     t0 = time.perf_counter()
     with _SESSION_LOCK:
-        rel = con.sql(exec_sql)
+        cur = con.execute(exec_sql)
         t1 = time.perf_counter()
-        # con.sql() returns None for DDL statements (CREATE, INSERT, etc.)
-        # For SELECT/WITH, .arrow() returns a RecordBatchReader in DuckDB 1.x;
-        # .read_all() materialises it into a pyarrow.Table.
-        if rel is None:
-            arrow = pa.table({})
-        else:
-            arrow = rel.arrow()
-            if hasattr(arrow, "read_all"):
-                arrow = arrow.read_all()
+        # fetchall() fully drains the cursor — no pending-result state left on
+        # the connection.  Build a pyarrow Table from raw Python rows so this
+        # works identically across all DuckDB versions (0.10 → 1.x).
+        raw_rows = cur.fetchall()
+        desc = cur.description  # list[(name, type_code, ...)] or None for DDL
     t2 = time.perf_counter()
+
+    if desc:
+        col_names = [d[0] for d in desc]
+        col_data: dict = {name: [] for name in col_names}
+        for row in raw_rows:
+            for name, val in zip(col_names, row):
+                col_data[name].append(val)
+        arrow = pa.table(col_data)
+    else:
+        arrow = pa.table({})
 
     plan_ms = (t1 - t0) * 1000
     exec_ms = (t2 - t1) * 1000
