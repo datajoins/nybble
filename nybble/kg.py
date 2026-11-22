@@ -83,7 +83,7 @@ def _duckdb_fetch_rows(relation_name: str, limit: int) -> list:
         try:
             arrow = con.execute(
                 f'SELECT * FROM "{relation_name}" LIMIT {limit}'
-            ).arrow()
+            ).arrow().read_all()
         except Exception:
             return []
     import polars as pl
