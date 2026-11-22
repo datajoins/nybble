@@ -249,7 +249,7 @@ def _share_datajoins(
 def share(
     source: Union[str, Path],
     *,
-    backend: str = "gist",
+    backend: Optional[str] = None,
     output: str = "erd",
     gist_token: Optional[str] = None,
     endpoint: str = _DEFAULT_DATAJOINS_ENDPOINT,
@@ -266,9 +266,10 @@ def share(
         Path to an existing self-contained HTML file **or** a data source
         path/connection string that is passed to :func:`nybble.erd` /
         :func:`nybble.kg` to produce the HTML first.
-    backend : ``"gist"`` | ``"datajoins"``
-        Which sharing backend to use.  Default is ``"gist"``.
-        The backend can also be set via the ``NYBBLE_SHARE_BACKEND`` env var.
+    backend : ``"gist"`` | ``"datajoins"`` | None
+        Which sharing backend to use.  When ``None`` (the default), the value
+        of the ``NYBBLE_SHARE_BACKEND`` environment variable is used, falling
+        back to ``"gist"``.
     output : ``"erd"`` | ``"kg"``
         When *source* is a data source (not a pre-rendered HTML file), which
         visualisation to generate before sharing.  Default is ``"erd"``.
@@ -284,8 +285,10 @@ def share(
         Requested TTL in hours (DataJoins backend only).  None = permanent.
     confirm : bool
         Set to ``True`` to acknowledge that data will be uploaded to a public
-        URL and suppress the upload warning.  Default is ``False``, which
-        emits a :class:`UserWarning` before uploading.
+        URL and suppress the :class:`UserWarning`.  Default is ``False``.
+        Note: the warning is advisory — the upload proceeds either way.
+        Pass ``confirm=True`` in scripts or notebooks that have already
+        obtained consent, or when sharing pre-anonymised exports.
     _html_override : str | None
         Internal: supply raw HTML directly (used in tests / programmatic use).
 
@@ -301,23 +304,8 @@ def share(
     RuntimeError
         If the upstream API call fails.
     """
-    # Warn before anything leaves the machine — matches the CLI confirmation
-    # prompt.  Pass confirm=True to suppress (e.g. in scripts that have
-    # already obtained consent or are sharing pre-anonymised exports).
-    if not confirm:
-        _dest = (
-            "a public GitHub Gist"
-            if (backend or "gist").lower().strip() == "gist"
-            else "share.datajoins.com"
-        )
-        warnings.warn(
-            f"nybble.share() will upload your data to {_dest}. "
-            "Pass confirm=True to suppress this warning.",
-            UserWarning,
-            stacklevel=2,
-        )
-
-    # Backend resolution: explicit arg → env var → default
+    # Backend resolution: explicit arg → env var → default.
+    # Resolved first so the upload warning names the correct destination.
     resolved_backend = (
         backend
         or os.environ.get("NYBBLE_SHARE_BACKEND", "gist")
@@ -327,6 +315,22 @@ def share(
         raise ValueError(
             f"Unknown share backend: {resolved_backend!r}. "
             "Choose 'gist' or 'datajoins'."
+        )
+
+    # Warn before anything leaves the machine — matches the CLI confirmation
+    # prompt.  Pass confirm=True to suppress (e.g. in scripts that have
+    # already obtained consent or are sharing pre-anonymised exports).
+    if not confirm:
+        _dest = (
+            "a public GitHub Gist"
+            if resolved_backend == "gist"
+            else "share.datajoins.com"
+        )
+        warnings.warn(
+            f"nybble.share() will upload your data to {_dest}. "
+            "Pass confirm=True to suppress this warning.",
+            UserWarning,
+            stacklevel=2,
         )
 
     # ── Obtain HTML content ──────────────────────────────────────────────────

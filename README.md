@@ -415,6 +415,12 @@ nybble serve --port 7700
 
 The web UI runs locally at [http://localhost:7700](http://localhost:7700) and provides:
 
+> **Internet connection required** — several UI pages (ERD Studio, Knowledge Graph,
+> Browse, Query) load JavaScript libraries from public CDNs (ELK, Chart.js, KaTeX,
+> sql-formatter). They will not render correctly offline. Cytoscape.js, dagre, and
+> cytoscape-dagre are already bundled in the wheel; full offline support is tracked
+> in [KNOWN_ISSUES #11](KNOWN_ISSUES.md).
+
 - **Catalog** — upload files, connect databases (PostgreSQL, MySQL, SQLite, S3, MongoDB, and more), manage the source registry
 - **Browse** — paginated data grid with value facets, column filtering, and cell highlighting
 - **SQL Arena** — multi-tab SQL editor with query history, lineage DAG visualisation, and saved queries

@@ -20,7 +20,7 @@ Public API
   profile_relation(name)               → list[ColumnProfile]
   build_report(source, *, ...) → NybbleReport (or str for legacy list arg)
   save_report(path, relations, ...)    → Path  (legacy)
-  share(source, *, backend, output, confirm=False, ...) → NybbleShareResult
+  share(source, *, backend=None, output, confirm=False, ...) → NybbleShareResult
   build_lineage_dag(queries_path, dialect) → dict
   dag_to_html(dag, title)              → str
   save_lineage_html(output_path, ...)  → Path
@@ -63,7 +63,7 @@ from nybble.report import build_report, save_report, NybbleReport, ReportSection
 from nybble.share import share, NybbleShareResult, register_token, resolve_token, get_token_registry
 from nybble.lineage import build_lineage_dag, dag_to_html, save_lineage_html
 
-__version__ = "1.0.9"
+__version__ = "1.0.10"
 __author__ = "DataJoins"
 __license__ = "Apache-2.0"
 

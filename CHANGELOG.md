@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.10] - 2026-11-22
+
+### Fixed
+
+- **`share()` warning named wrong backend when `NYBBLE_SHARE_BACKEND` env var is set**
+  (`nybble/share.py`): the upload warning was computed before backend resolution, so
+  `share(..., backend=None)` with `NYBBLE_SHARE_BACKEND=datajoins` warned
+  "GitHub Gist" but uploaded to share.datajoins.com.  Backend resolution now happens
+  first; the warning always names the actual destination.
+
+- **`backend` parameter type changed to `Optional[str] = None`** (`nybble/share.py`):
+  the previous default of `"gist"` meant `NYBBLE_SHARE_BACKEND` was only consulted
+  when callers explicitly passed `backend=None`.  The parameter now defaults to
+  `None`, making the env-var fallback reachable without a code change.
+
+### Changed
+
+- **KNOWN_ISSUES.md restructured**: fixed issues (#9, #10 partial, #15, #17–#20)
+  moved out of the Open section into a compact Fixed table.  Open section now contains
+  only issues with pending fixes: #4, #6, #7, #10, #11, #13b, #14, #16a, #16b.
+
+- **README Web UI section**: added explicit internet-connection note listing which
+  libraries still load from CDNs (ELK, Chart.js, KaTeX, sql-formatter) and which are
+  already bundled (Cytoscape.js, dagre, cytoscape-dagre).
+
+---
+
 ## [1.0.9] - 2026-11-22
 
 ### Added
