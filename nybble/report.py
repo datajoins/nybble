@@ -741,7 +741,8 @@ def _fetch_sample(name: str, n: int) -> list[dict]:
     con = session()
     with _SESSION_LOCK:
         try:
-            arrow = con.sql(f'SELECT * FROM "{name}" LIMIT {n}').arrow()
+            _rel = con.sql(f'SELECT * FROM "{name}" LIMIT {n}').arrow()
+            arrow = _rel.read_all() if hasattr(_rel, "read_all") else _rel
         except Exception:
             return []
     import polars as pl

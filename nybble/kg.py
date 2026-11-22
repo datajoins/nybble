@@ -81,9 +81,10 @@ def _duckdb_fetch_rows(relation_name: str, limit: int) -> list:
     con = session()
     with _SESSION_LOCK:
         try:
-            arrow = con.sql(
+            _rel = con.sql(
                 f'SELECT * FROM "{relation_name}" LIMIT {limit}'
             ).arrow()
+            arrow = _rel.read_all() if hasattr(_rel, "read_all") else _rel
         except Exception:
             return []
     import polars as pl

@@ -262,7 +262,15 @@ def _execute_single(sql: str, limit: Optional[int] = None) -> QueryResult:
     with _SESSION_LOCK:
         rel = con.sql(exec_sql)
         t1 = time.perf_counter()
-        arrow = rel.arrow()
+        # con.sql() returns None for DDL statements (CREATE, INSERT, etc.)
+        # For SELECT/WITH, .arrow() returns a RecordBatchReader in DuckDB 1.x;
+        # .read_all() materialises it into a pyarrow.Table.
+        if rel is None:
+            arrow = pa.table({})
+        else:
+            arrow = rel.arrow()
+            if hasattr(arrow, "read_all"):
+                arrow = arrow.read_all()
     t2 = time.perf_counter()
 
     plan_ms = (t1 - t0) * 1000
