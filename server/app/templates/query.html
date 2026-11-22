@@ -1,0 +1,2089 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ name }} - Query - Nybble</title>
+{% include '_base_styles.html' %}
+<style>
+
+/* ── Lineage topbar dropdown ─────────────────────────────────────── */
+#lineage-wrap { position: relative; flex-shrink: 0; }
+#lineage-drop {
+  display: none; position: absolute; top: calc(100% + 5px); right: 0;
+  background: #1c1f20; border: 1px solid #3a3d3e; border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7); min-width: 210px; z-index: 200; overflow: hidden;
+}
+#lineage-wrap.open #lineage-drop { display: block; }
+.ldrop-hdr { padding: 5px 12px 4px; font-size: var(--section-label-size, 10px); font-weight: 700; text-transform: uppercase; letter-spacing: var(--section-label-spacing, 0.06em); color: var(--text-dim); border-bottom: 1px solid #2e3234; }
+.ldrop-item { display: flex; align-items: center; gap: 8px; padding: 7px 12px; font-size: 11px; cursor: pointer; color: rgba(255,255,255,0.6); transition: background .1s; white-space: nowrap; overflow: hidden; }
+.ldrop-item:hover { background: rgba(167,139,250,0.08); color: #c4b5fd; }
+.ldrop-item.active { color: #a78bfa; background: rgba(167,139,250,0.1); }
+.ldrop-item span { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.ldrop-empty { padding: 10px 12px; font-size: 11px; color: rgba(255,255,255,0.2); font-style: italic; }
+
+/* ── Query sidebar - shell from _base_styles.html ────────────────── */
+/* Schema tree (expands under table-list) */
+#schema-tree { flex: 1; overflow-y: auto; padding: 4px 0; min-height: 0; }
+.tree-table { padding: 5px 12px; font-size: 12px; cursor: pointer; color: rgba(255,255,255,0.65); display: flex; align-items: center; gap: 6px; border-left: 2px solid transparent; transition: background .1s; }
+.tree-table:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.tree-table .tbl-n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-table .tbl-c { font-size: 10px; color: rgba(255,255,255,0.25); }
+.tree-cols { display: none; }
+.tree-cols.open { display: block; }
+.tree-col { padding: 3px 12px 3px 24px; font-size: 11px; cursor: pointer; color: rgba(255,255,255,0.45); display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-col:hover { color: #a78bfa; background: rgba(167,139,250,0.06); }
+.tree-col .col-type { font-size: 9px; color: rgba(255,255,255,0.2); font-family: Consolas, monospace; flex-shrink: 0; }
+.badge-pk { font-size: 8px; background: rgba(167,139,250,0.2); color: #a78bfa; padding: 1px 4px; border-radius: 3px; flex-shrink: 0; }
+/* Page-specific bottom sections */
+#saved-section { border-top: 1px solid var(--border); flex-shrink: 0; }
+#saved-list { max-height: 140px; overflow-y: auto; }
+.saved-item { padding: 5px 12px; font-size: 11px; cursor: pointer; color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+.saved-item:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.saved-item .saved-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.saved-item .del-btn { background: none; border: none; color: rgba(255,255,255,0.15); cursor: pointer; font-size: 13px; flex-shrink: 0; }
+.saved-item .del-btn:hover { color: #f87171; }
+.saved-item .lineage-btn { background: none; border: none; color: rgba(167,139,250,0.35); cursor: pointer; font-size: 12px; flex-shrink: 0; padding: 0 2px; line-height: 1; transition: color .12s; }
+.saved-item .lineage-btn:hover { color: #a78bfa; }
+.saved-item .lineage-btn.active { color: #a78bfa; }
+/* pin-to-dashboard / add-to-report icon buttons on saved query rows */
+.saved-item .sq-pin-btn, .saved-item .sq-rpt-btn {
+  background: none; border: none; cursor: pointer; flex-shrink: 0;
+  padding: 0 2px; line-height: 1; font-size: 11px; transition: color .1s;
+}
+.saved-item .sq-pin-btn { color: rgba(29,237,131,0.35); }
+.saved-item .sq-pin-btn:hover { color: #1ded83; }
+.saved-item .sq-pin-btn.pinned { color: #1ded83; }
+.saved-item .sq-rpt-btn { color: rgba(167,139,250,0.35); }
+.saved-item .sq-rpt-btn:hover { color: #a78bfa; }
+
+/* ── Tab strip (Phase M2 - multi-tab editor) ─────────────────────── */
+#tab-strip {
+  display: flex; align-items: stretch; background: #1a1d1e;
+  border-bottom: 1px solid #2e3234; flex-shrink: 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+#tab-strip::-webkit-scrollbar { display: none; }
+.editor-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px; height: 34px; font-size: 11px; cursor: pointer;
+  color: rgba(255,255,255,0.4); border-right: 1px solid #2e3234;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: background .1s, color .1s; flex-shrink: 0;
+  min-width: 80px; max-width: 180px; position: relative;
+}
+.editor-tab:hover { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); }
+.editor-tab.active { color: #e2e6f0; border-bottom-color: #a78bfa; background: #141616; }
+.editor-tab .tab-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.editor-tab .tab-close {
+  background: none; border: none; color: rgba(255,255,255,0.2);
+  cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px;
+  border-radius: 3px; flex-shrink: 0; display: flex; align-items: center;
+}
+.editor-tab .tab-close:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+.editor-tab.dirty .tab-name::after { content: ' ●'; color: #a78bfa; font-size: 8px; vertical-align: super; }
+#tab-new-btn {
+  display: flex; align-items: center; padding: 0 10px; height: 34px;
+  color: rgba(255,255,255,0.3); cursor: pointer; font-size: 16px; flex-shrink: 0;
+  transition: color .1s;
+}
+#tab-new-btn:hover { color: #1ded83; }
+
+/* ── Editor + Results panel ──────────────────────────────────────── */
+#editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+#split-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+#editor-wrap { flex: none; height: 220px; min-height: 80px; display: flex; flex-direction: column; overflow: hidden; border-bottom: 3px solid #2e3234; position: relative; }
+#params-bar { display: none; flex-wrap: wrap; gap: 8px; padding: 6px 10px; background: #1c1f20; border-bottom: 1px solid #2e3234; flex-shrink: 0; }
+#params-bar.has-params { display: flex; }
+.param-widget { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.param-widget label { color: rgba(255,255,255,0.4); font-size: 11px; }
+.param-widget input { background: #141618; border: 1px solid #2e3234; color: #e2e6f0; font-size: 12px; padding: 4px 8px; border-radius: 4px; outline: none; width: 140px; }
+.param-widget input:focus { border-color: rgba(29,237,131,0.4); }
+
+/* CodeMirror 6 host container */
+#cm6-host {
+  flex: 1; overflow: hidden; font-size: 13px; min-height: 0;
+  font-family: Consolas, "Cascadia Code", "Fira Mono", "Courier New", monospace;
+}
+/* CM6 dark theme overrides */
+.cm-editor { height: 100%; background: #141616 !important; }
+.cm-editor.cm-focused { outline: none; }
+.cm-scroller { overflow: auto; font-size: 13px; line-height: 1.6; }
+.cm-content { caret-color: #1ded83; }
+.cm-gutters { background: #1c1f20 !important; border-right: 1px solid #2e3234 !important; color: rgba(255,255,255,0.2) !important; }
+.cm-activeLineGutter { background: rgba(167,139,250,0.08) !important; }
+.cm-activeLine { background: rgba(255,255,255,0.025) !important; }
+.cm-selectionBackground { background: rgba(167,139,250,0.25) !important; }
+.cm-cursor { border-left-color: #1ded83 !important; }
+.cm-matchingBracket { background: rgba(29,237,131,0.15) !important; color: #1ded83 !important; outline: 1px solid rgba(29,237,131,0.4); }
+/* CM6 autocomplete dropdown */
+.cm-tooltip { background: #1c1f20 !important; border: 1px solid #2e3234 !important; border-radius: 5px !important; box-shadow: 0 4px 16px rgba(0,0,0,0.55) !important; }
+.cm-tooltip-autocomplete > ul { font-family: Consolas, monospace; font-size: 12px; max-height: 240px; overflow-y: auto; }
+.cm-tooltip-autocomplete > ul > li { padding: 4px 12px !important; color: #c9d1d9 !important; }
+.cm-tooltip-autocomplete > ul > li[aria-selected] { background: rgba(167,139,250,0.22) !important; color: #c4b5fd !important; }
+.cm-completionLabel { color: #e2e6f0; }
+.cm-completionDetail { color: rgba(255,255,255,0.3); font-size: 10px; margin-left: 8px; }
+/* SQL keyword colours */
+.ͼ1 .tok-keyword { color: #c084fc; }
+.ͼ1 .tok-string  { color: #86efac; }
+.ͼ1 .tok-number  { color: #7dd3fc; }
+.ͼ1 .tok-comment { color: rgba(255,255,255,0.3); font-style: italic; }
+.ͼ1 .tok-operator { color: #f9a8d4; }
+.ͼ1 .tok-punctuation { color: rgba(255,255,255,0.5); }
+/* CM6 lint gutter - match dark theme */
+.cm-lint-marker-warning { color: #fbbf24 !important; }
+.cm-lint-marker-error   { color: #f87171 !important; }
+.cm-lintRange-warning { text-decoration: underline wavy #fbbf24; text-underline-offset: 2px; }
+.cm-lintRange-error   { text-decoration: underline wavy #f87171; text-underline-offset: 2px; }
+.cm-gutterElement .cm-lint-marker { opacity: 0.8; }
+/* CM6 lint tooltip */
+.cm-tooltip.cm-tooltip-lint { font-size: 11px; padding: 4px 8px; background: #1c1f20 !important;
+  border: 1px solid #fbbf24 !important; border-radius: 4px !important; color: #fbbf24 !important; }
+
+#drag-handle { height: 6px; background: #1c1f20; cursor: row-resize; flex-shrink: 0; border-top: 1px solid #2e3234; border-bottom: 1px solid #2e3234; display: flex; align-items: center; justify-content: center; }
+#drag-handle::after { content: ''; width: 32px; height: 2px; background: rgba(255,255,255,0.15); border-radius: 1px; }
+#drag-handle:hover { background: rgba(167,139,250,0.1); }
+
+/* Results pane */
+#results-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; position: relative; }
+#results-toolbar { padding: 6px 10px; background: #1c1f20; border-bottom: 1px solid #2e3234; flex-shrink: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.results-stat { font-size: 11px; color: rgba(255,255,255,0.4); }
+.ctrl-btn { height: 26px; padding: 0 10px; background: none; border: 1px solid #2e3234; color: rgba(255,255,255,0.45); cursor: pointer; border-radius: 4px; font-size: 11px; transition: all .12s; white-space: nowrap; }
+.ctrl-btn:hover { border-color: rgba(255,255,255,0.25); color: #e2e6f0; }
+/* ── Results toolbar dropdown menus (Download / Copy Data) ── */
+.tb-dropdown-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+.tb-dropdown-btn  { gap: 4px; }
+.tb-caret { transition: transform .15s; flex-shrink: 0; }
+.tb-dropdown-wrap.open .tb-caret { transform: rotate(180deg); }
+.tb-dropdown-wrap.open .ctrl-btn { border-color: rgba(255,255,255,0.25); color: #e2e6f0; }
+.tb-dropdown-menu {
+  display: none; position: fixed; z-index: 9000;
+  background: #1c1f20; border: 1px solid #3a3d3e;
+  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.65);
+  padding: 4px 0; min-width: 170px;
+}
+.tb-dropdown-wrap.open .tb-dropdown-menu { display: block; }
+.tb-dropdown-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 14px; font-size: 12px;
+  background: none; border: none; color: rgba(255,255,255,0.65);
+  cursor: pointer; text-align: left; white-space: nowrap;
+  transition: background .1s, color .1s;
+}
+.tb-dropdown-item:hover { background: rgba(255,255,255,0.06); color: #e2e6f0; }
+.tb-dropdown-item svg { flex-shrink: 0; color: rgba(255,255,255,0.35); }
+.tb-dropdown-item:hover svg { color: rgba(255,255,255,0.7); }
+.tb-dd-hint { font-size: 10px; color: rgba(255,255,255,0.25); margin-left: auto; padding-left: 10px; }
+/* R1: Row-limit selector */
+.limit-select { height:26px; background:#1c1f20; border:1px solid #2e3234; color:rgba(255,255,255,0.45); border-radius:4px; font-size:11px; padding:0 4px; cursor:pointer; }
+.limit-select:hover { border-color:rgba(255,255,255,0.25); color:#e2e6f0; }
+/* R2: Filter bar */
+#filter-bar { display:none; padding:4px 10px; background:#1c1f20; border-bottom:1px solid #2e3234; flex-shrink:0; gap:8px; align-items:center; }
+#filter-bar.visible { display:flex; }
+#filter-input { flex:1; height:24px; background:#141616; border:1px solid #2e3234; color:#e2e6f0; border-radius:4px; font-size:11px; padding:0 8px; outline:none; font-family:Consolas,monospace; }
+#filter-input:focus { border-color:rgba(167,139,250,0.4); }
+#filter-stat { font-size:10px; color:rgba(255,255,255,0.3); white-space:nowrap; }
+/* R3: EXPLAIN panel - inline, replaces results grid when open */
+#explain-panel { display:none; flex:1; min-height:0; flex-direction:column; overflow:hidden; border-top:1px solid rgba(251,191,36,0.2); }
+#explain-panel.open { display:flex; }
+#explain-hdr { padding:5px 12px; border-bottom:1px solid #2e3234; flex-shrink:0; background:#1c1f20; display:flex; align-items:center; gap:10px; }
+#explain-hdr-title { flex:1; font-size:11px; font-weight:600; color:#fbbf24; }
+#explain-close { background:none; border:none; color:rgba(255,255,255,0.3); cursor:pointer; font-size:16px; line-height:1; flex-shrink:0; padding:0 2px; }
+#explain-close:hover { color:#fff; }
+#explain-body { flex:1; overflow:auto; padding:10px 14px; font-family:Consolas,"Courier New",monospace; font-size:12px; line-height:1.7; color:#c8ccd4; }
+.explain-row { display:flex; gap:8px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.explain-row:last-child { border-bottom:none; }
+.explain-depth { flex-shrink:0; color:rgba(255,255,255,0.2); font-size:10px; min-width:28px; text-align:right; }
+.explain-op { color:#c084fc; font-weight:600; flex-shrink:0; min-width:160px; }
+.explain-detail { color:rgba(255,255,255,0.55); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.explain-raw { white-space:pre-wrap; word-break:break-all; color:rgba(255,255,255,0.45); font-size:11px; }
+#stale-banner { display: none; padding: 4px 14px; font-size: 11px; background: rgba(251,191,36,0.08); color: #fbbf24; border-bottom: 1px solid rgba(251,191,36,0.2); flex-shrink: 0; }
+#stale-banner.visible { display: block; }
+#error-panel { display: none; padding: 10px 14px; background: rgba(248,113,113,0.08); border-bottom: 1px solid rgba(248,113,113,0.2); font-size: 12px; color: #f87171; font-family: Consolas, monospace; white-space: pre-wrap; word-break: break-all; flex-shrink: 0; max-height: 80px; overflow-y: auto; }
+#error-panel.open { display: block; }
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.15); border-top-color: #1ded83; border-radius: 50%; animation: spin .8s linear infinite; display: none; flex-shrink: 0; }
+.spinner.active { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#results-grid-wrap { flex: 1; min-height: 0; overflow: auto; }
+#results-grid-wrap::-webkit-scrollbar { height: 0; }
+/* Mirror horizontal scrollbar - flex item at bottom of #results-panel */
+#q-hscroll-bar {
+  display: none; flex-shrink: 0;
+  height: 12px; overflow-x: scroll; overflow-y: hidden;
+  border-top: 1px solid #2e3234;
+  background: #1c1f20;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(167,139,250,0.35) transparent;
+}
+#q-hscroll-bar.visible { display: block; }
+#q-hscroll-bar::-webkit-scrollbar { height: 8px; }
+#q-hscroll-bar::-webkit-scrollbar-track { background: transparent; }
+#q-hscroll-bar::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.35); border-radius: 4px; }
+#q-hscroll-bar::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.6); }
+#q-hscroll-inner { height: 1px; }
+#results-table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12px; }
+#results-table th, #results-table td { padding: 5px 10px; border-bottom: 1px solid #2e3234; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+#results-table thead tr th { position: sticky; top: 0; background: #1c1f20; font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); text-align: left; border-bottom: 1px solid #3a3d3e; z-index: 5; }
+.col-type-badge { font-size: 9px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.3); padding: 1px 4px; border-radius: 3px; font-family: Consolas, monospace; margin-left: 4px; }
+#results-table td { color: #c8ccd4; cursor: pointer; }
+#results-table td.numeric { text-align: right; color: #7dd3fc; }
+.null-pill { display: inline-block; font-size: 9px; padding: 1px 5px; border-radius: 10px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.3); font-style: italic; }
+.json-expand summary { cursor: pointer; color: rgba(255,255,255,0.4); font-size: 10px; }
+.json-expand pre { font-size: 10px; color: #86efac; white-space: pre-wrap; word-break: break-all; margin-top: 4px; max-height: 140px; overflow-y: auto; }
+#results-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.row-highlight-low  { background: rgba(29,237,131,0.04); }
+.row-highlight-mid  { background: rgba(167,139,250,0.06); }
+.row-highlight-high { background: rgba(248,113,113,0.07); }
+
+/* Semantic badges */
+.sem-badge { display:inline-flex;align-items:center;gap:3px;font-size:9px;padding:1px 5px;border-radius:10px;font-weight:600;letter-spacing:.03em;vertical-align:middle;font-style:normal;white-space:nowrap; }
+.sem-email  { background:rgba(96,165,250,0.12);  color:#60a5fa; }
+.sem-url    { background:rgba(52,211,153,0.12);  color:#34d399; }
+.sem-phone  { background:rgba(167,139,250,0.12); color:#a78bfa; }
+.sem-bool-t { background:rgba(29,237,131,0.12);  color:#1ded83; }
+.sem-bool-f { background:rgba(248,113,113,0.12); color:#f87171; }
+.sem-img    { background:rgba(251,191,36,0.12);  color:#fbbf24; }
+.sem-uuid   { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.35); }
+.sem-ip     { background:rgba(167,139,250,0.08); color:#c4b5fd; }
+
+/* Cell pane */
+#cell-pane { position:fixed;top:0;right:-340px;width:340px;height:100%;background:#1c1f20;border-left:1px solid #2e3234;display:flex;flex-direction:column;z-index:300;transition:right .2s ease;overflow:hidden; }
+#cell-pane.open { right:0; }
+#cell-pane-hdr { padding:10px 14px;border-bottom:1px solid #2e3234;flex-shrink:0;display:flex;align-items:center;justify-content:space-between; }
+#cell-pane-col { font-size:12px;font-weight:600;color:#e2e6f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+#cell-pane-close { background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:18px;line-height:1;flex-shrink:0;padding:2px 4px; }
+#cell-pane-close:hover { color:#fff; }
+#cell-pane-actions { padding:6px 14px;border-bottom:1px solid #2e3234;flex-shrink:0;display:flex;gap:6px;flex-wrap:wrap; }
+.cpane-btn { height:26px;padding:0 10px;background:none;border:1px solid #2e3234;color:rgba(255,255,255,0.45);cursor:pointer;border-radius:4px;font-size:11px;transition:all .12s;white-space:nowrap; }
+.cpane-btn:hover { border-color:rgba(255,255,255,0.25);color:#e2e6f0; }
+.cpane-btn.primary { border-color:rgba(29,237,131,0.4);color:#1ded83; }
+.cpane-btn.primary:hover { background:rgba(29,237,131,0.08); }
+#cell-pane-body { flex:1;overflow-y:auto;padding:12px 14px; }
+#cell-pane-body pre { font-family:Consolas,monospace;font-size:12px;line-height:1.6;color:#86efac;white-space:pre-wrap;word-break:break-all;background:#0d0f10;padding:10px 12px;border-radius:4px;border:1px solid #2e3234; }
+#cell-pane-body .cell-raw { font-size:13px;color:#e2e6f0;line-height:1.7;word-break:break-all;white-space:pre-wrap; }
+#cell-pane-body .cell-meta { margin-top:10px;font-size:10px;color:rgba(255,255,255,0.3);display:flex;gap:12px;flex-wrap:wrap; }
+
+/* History panel */
+#history-panel { display:none;position:absolute;top:44px;right:0;width:340px;bottom:0;background:#1c1f20;border-left:1px solid #2e3234;z-index:50;flex-direction:column;overflow:hidden; }
+#history-panel.open { display:flex; }
+#history-header { padding:8px 12px;border-bottom:1px solid #2e3234;font-size:11px;color:rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:space-between; }
+#history-header button { background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:16px; }
+#history-actions { padding:4px 12px;border-bottom:1px solid #2e3234;display:flex;gap:6px; }
+#history-actions button { background:none;border:1px solid #2e3234;color:rgba(255,255,255,0.3);cursor:pointer;font-size:10px;padding:2px 8px;border-radius:3px; }
+#history-actions button:hover { color:rgba(255,255,255,0.65);border-color:rgba(255,255,255,0.2); }
+#history-list { flex:1;overflow-y:auto;padding:4px 0; }
+.hist-item { padding:5px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;flex-direction:column;gap:2px; }
+.hist-item:hover { background:rgba(255,255,255,0.05); }
+.hist-sql { font-family:Consolas,monospace;font-size:11px;color:rgba(255,255,255,0.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.hist-item:hover .hist-sql { color:#e2e6f0; }
+.hist-ts { font-size:9px;color:rgba(255,255,255,0.2); }
+
+/* Lineage pane */
+#lineage-pane { display:none;position:absolute;top:0;right:0;width:48%;min-width:320px;max-width:700px;bottom:0;z-index:60;background:#1c1f20;border-left:1px solid #2e3234;flex-direction:column;overflow:hidden; }
+#lineage-pane.open { display:flex; }
+#lineage-hdr { padding:7px 12px;border-bottom:1px solid #2e3234;flex-shrink:0;background:#232526;display:flex;align-items:center;gap:8px; }
+#lineage-hdr-title { flex:1;font-size:11px;font-weight:600;color:#c4b5fd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+#lineage-hdr-meta { font-size:10px;color:rgba(255,255,255,0.25);white-space:nowrap; }
+#lineage-close { background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0;padding:0 2px; }
+#lineage-close:hover { color:#fff; }
+#lineage-body { flex-shrink:0;overflow-y:auto;padding:10px 12px;max-height:45%;border-bottom:1px solid #2e3234; }
+#lineage-sql-block { font-family:Consolas,"Courier New",monospace;font-size:11px;color:rgba(255,255,255,0.5);background:#141616;border:1px solid #2e3234;border-radius:4px;padding:8px 10px;white-space:pre-wrap;word-break:break-all;margin-bottom:10px;max-height:90px;overflow-y:auto; }
+#lineage-tables-hdr { font-size:var(--section-label-size,10px);font-weight:700;text-transform:uppercase;letter-spacing:var(--section-label-spacing,0.06em);color:var(--text-dim);margin-bottom:6px; }
+#lineage-tables-list { list-style:none;padding:0;margin:0; }
+#lineage-tables-list li { display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:3px;margin-bottom:2px;background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.10);font-size:11px;color:#c4b5fd;font-family:Consolas,"Courier New",monospace; }
+#lineage-tables-list li.li-hop { color:rgba(167,139,250,0.55);font-style:italic; }
+#lineage-tables-list li svg { flex-shrink:0;opacity:0.4; }
+#lineage-empty { padding:22px 14px;text-align:center;font-size:11px;color:rgba(255,255,255,0.25);display:none;flex-direction:column;align-items:center;gap:8px; }
+#lineage-empty.visible { display:flex; }
+#lineage-erd-wrap { flex:1;overflow:hidden;position:relative;background:#141616;display:none;min-height:0; }
+#lineage-erd-wrap.visible { display:flex;flex-direction:column; }
+#lineage-erd-loading { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#141616;font-size:11px;color:rgba(255,255,255,0.3);gap:8px;z-index:2; }
+#lineage-erd-loading.hidden { display:none; }
+#lineage-cy-wrap { flex:1;position:relative;overflow:hidden;min-height:0; }
+#lineage-cy { width:100%;height:100%;background:#141616; }
+#lineage-cy-overlay { position:absolute;inset:0;pointer-events:none; }
+
+/* Shortcut dialog */
+#shortcut-dialog { display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.7);align-items:center;justify-content:center; }
+#shortcut-dialog.open { display:flex; }
+#shortcut-box { background:#1c1f20;border:1px solid #2e3234;border-radius:8px;padding:20px 24px;width:400px;max-width:96vw; }
+#shortcut-box h3 { font-size:13px;margin-bottom:12px;color:rgba(255,255,255,0.6); }
+.sc-row { display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:12px;color:rgba(255,255,255,0.55);border-bottom:1px solid rgba(255,255,255,0.06); }
+.sc-row:last-child { border-bottom:none; }
+.sc-key { font-family:Consolas,monospace;font-size:11px;background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px;color:#a78bfa; }
+
+::-webkit-scrollbar { width:6px;height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12);border-radius:3px; }
+</style>
+</head>
+<body>
+{% set active_nav = 'sources' %}
+{% include '_global_nav.html' %}
+<script>
+/* gnav: schema name + stats for query page */
+(function() {
+  var el = document.getElementById('gnav-source-count');
+  if (!el) return;
+  el.style.cssText = 'display:inline-flex;align-items:center;gap:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--text-muted);background:none;border:none;padding:0;border-radius:0;font-size:12px;letter-spacing:0;';
+  var tc = {{ tables | length }};
+  var fkc = 0;
+  {% for t in tables %}{% for c in t.columns %}{% if c.fk %}fkc++;{% endif %}{% endfor %}{% endfor %}
+  el.innerHTML =
+    '<span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:280px;" title="{{ name | e }}">{{ name | e }}</span>' +
+    '<span style="color:var(--border2);padding:0 6px;flex-shrink:0;">·</span>' +
+    '<span style="white-space:nowrap;flex-shrink:0;color:var(--text-muted);">' + tc + ' table' + (tc !== 1 ? 's' : '') + ' \xb7 ' + fkc + ' FK</span>';
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+})();
+</script>
+
+<div id="app">
+
+  <!-- Contextual bar (Query - page actions + dynamic info) -->
+  <div id="topbar">
+    <!-- Tab strip -->
+    <a class="tbtn" href="{{ base_path }}/erd/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="17" x2="20" y2="17"/><line x1="17" y1="14" x2="17" y2="20"/></svg>
+      ERD
+    </a>
+    <a class="tbtn" href="{{ base_path }}/browse/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+      Browse
+    </a>
+    <a class="tbtn active" href="{{ base_path }}/query/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      Query
+    </a>
+    <a class="tbtn" href="{{ base_path }}/report/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Reports
+    </a>
+    <a class="tbtn" href="{{ base_path }}/dashboard/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <!-- Spacer pushes actions to the right (consistent with ERD) -->
+    <div class="tb-spacer"></div>
+    <div class="tb-sep"></div>
+    <!-- Lineage dropdown -->
+    <div id="lineage-wrap">
+      <button class="tbtn" id="btn-lineage-drop" onclick="toggleLineageDrop()" title="View query lineage ERD">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        Lineage
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div id="lineage-drop">
+        <div class="ldrop-hdr">Open lineage for saved query</div>
+        <div id="lineage-drop-items"><div class="ldrop-empty">No saved queries yet</div></div>
+      </div>
+    </div>
+    <div class="tb-sep"></div>
+    <!-- Action buttons -->
+    <button class="tbtn" id="btn-format" onclick="formatSQL()" title="Format SQL (Shift+Alt+F)">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 6h16M4 12h10M4 18h6"/>
+      </svg>
+      Format
+    </button>
+    <button class="tbtn" id="btn-use-cte" onclick="useAsCTE()" title="Wrap query as CTE">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      CTE
+    </button>
+    <button class="tbtn run-btn" id="btn-run" onclick="runQuery()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Run <span class="shortcut-hint">Ctrl+Enter</span>
+    </button>
+    <button class="tbtn" id="btn-history" onclick="toggleHistory()" title="Query history">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </button>
+    <button class="tbtn" id="btn-qbb" onclick="NF5.open()" title="Query Bookmark Board">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      Board
+    </button>
+    <button class="tbtn" id="btn-share" onclick="shareQuery()" title="Share URL">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    </button>
+    <button class="tbtn" onclick="toggleShortcuts()" title="Keyboard shortcuts">?</button>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- Left sidebar -->
+    <div id="sidebar">
+      <button id="sidebar-toggle-btn" title="Toggle sidebar" onclick="toggleQuerySidebar()">&#8249;</button>
+      <div id="sidebar-header">
+        <span class="sb-title">Schema</span>
+      </div>
+      <div id="sb-search-wrap">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input id="sb-search-input" type="search" placeholder="Filter tables…" autocomplete="off" spellcheck="false" oninput="filterQuerySidebarTables(this.value)"/>
+        <button id="sb-search-clear" onclick="clearQuerySidebarSearch()" title="Clear">&#x2715;</button>
+      </div>
+      {% if source == 'join' %}
+      <div id="join-hint" style="padding:5px 12px 4px;font-size:10px;color:rgba(167,139,250,0.65);border-bottom:1px solid var(--border);flex-shrink:0;line-height:1.5;">
+        Tables prefixed as <code style="font-family:monospace;">alias.table</code>
+      </div>
+      {% endif %}
+      <div id="schema-tree"></div>
+      <div id="saved-section" class="sb-section-divider">
+        <div class="sb-section-hdr">
+          Saved Queries
+          <button class="sb-sec-action" onclick="saveCurrentQuery()" title="Save current query">&#43;</button>
+        </div>
+        <div id="saved-list"></div>
+      </div>
+    </div>
+
+    <!-- Editor + Results -->
+    <div id="editor-panel">
+      <!-- Phase M2: Tab strip -->
+      <div id="tab-strip">
+        <!-- tabs inserted by JS -->
+        <div id="tab-new-btn" onclick="tabNew()" title="New tab (Ctrl+T)">&#43;</div>
+      </div>
+
+      <div id="split-container">
+        <!-- Editor top pane -->
+        <div id="editor-wrap">
+          <div id="params-bar"></div>
+          <!-- CodeMirror 6 host -->
+          <div id="cm6-host"></div>
+          <!-- Fallback plain textarea shown only if CM6 fails to load -->
+          <textarea id="sql-fallback" spellcheck="false" autocomplete="off"
+            placeholder="Write SQL here… (CM6 editor failed to load)"
+            style="display:none;width:100%;height:100%;box-sizing:border-box;
+                   background:#141616;color:#e2e6f0;border:none;outline:none;
+                   resize:none;font-family:Consolas,monospace;font-size:13px;
+                   line-height:1.6;padding:8px 12px;"></textarea>
+        </div>
+
+        <!-- Drag handle -->
+        <div id="drag-handle"></div>
+
+        <!-- Results bottom pane -->
+        <div id="results-panel">
+          <div id="stale-banner">&#9888; SQL changed since last run - results may be outdated. Press Ctrl+Enter to re-run.</div>
+          <div id="error-panel"></div>
+          <div id="results-toolbar">
+            <div class="spinner" id="spinner"></div>
+            <span class="results-stat" id="results-stat">No results yet</span>
+            <div style="flex:1"></div>
+            <!-- R1: Row limit -->
+            <select class="limit-select" id="row-limit-sel" title="Max rows returned" onchange="_onLimitChange()">
+              <option value="100">100 rows</option>
+              <option value="500">500 rows</option>
+              <option value="1000" selected>1000 rows</option>
+              <option value="5000">5000 rows</option>
+              <option value="0">All rows</option>
+            </select>
+            <!-- R2: Filter toggle -->
+            <button class="ctrl-btn" id="btn-filter" onclick="toggleFilter()" title="Filter results (Ctrl+F)">&#128269; Filter</button>
+            <!-- R3: Explain -->
+            <button class="ctrl-btn" id="btn-explain" onclick="runExplain()" title="Show query execution plan (Ctrl+E)">&#9881; Explain</button>
+            <!-- Download dropdown -->
+            <div class="tb-dropdown-wrap" id="q-dl-wrap">
+              <button class="ctrl-btn tb-dropdown-btn" onclick="tbDropToggle('q-dl-wrap')" title="Download results">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+                <svg class="tb-caret" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="tb-dropdown-menu">
+                <button class="tb-dropdown-item" onclick="exportResultCSV();tbDropClose('q-dl-wrap')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  CSV <span class="tb-dd-hint">Comma-separated</span>
+                </button>
+                <button class="tb-dropdown-item" onclick="exportResultXLSX();tbDropClose('q-dl-wrap')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  XLSX <span class="tb-dd-hint">Excel workbook</span>
+                </button>
+                <button class="tb-dropdown-item" onclick="exportResultJSON();tbDropClose('q-dl-wrap')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  JSON <span class="tb-dd-hint">Array of objects</span>
+                </button>
+              </div>
+            </div>
+            <!-- Copy Data dropdown -->
+            <div class="tb-dropdown-wrap" id="q-cp-wrap">
+              <button class="ctrl-btn tb-dropdown-btn" onclick="tbDropToggle('q-cp-wrap')" title="Copy results to clipboard">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy Data
+                <svg class="tb-caret" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="tb-dropdown-menu">
+                <button class="tb-dropdown-item" onclick="copyResultMarkdown();tbDropClose('q-cp-wrap')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Markdown <span class="tb-dd-hint">Table format</span>
+                </button>
+                <button class="tb-dropdown-item" onclick="copyResultJSONObj();tbDropClose('q-cp-wrap')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  JSON <span class="tb-dd-hint">Array of objects</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- R2: Filter bar (hidden until toggled) -->
+          <div id="filter-bar">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="filter-input" type="text" placeholder="Filter visible rows… (regex supported)" oninput="applyFilter()" autocomplete="off" spellcheck="false"/>
+            <span id="filter-stat"></span>
+            <button class="ctrl-btn" onclick="toggleFilter()" style="flex-shrink:0;" aria-label="Close filter bar" title="Close filter">&#10005;</button>
+          </div>
+          <!-- R3: Explain panel - inline, shown instead of results grid -->
+          <div id="explain-panel">
+            <div id="explain-hdr">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="flex-shrink:0;">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span id="explain-hdr-title">Query Plan</span>
+              <button id="explain-close" title="Close (Esc)" aria-label="Close query plan" onclick="closeExplain()">&#10005;</button>
+            </div>
+            <div id="explain-body">
+              <div id="explain-content" style="color:rgba(255,255,255,0.25);font-style:italic;">Run EXPLAIN to see the query execution plan.</div>
+            </div>
+          </div>
+          <div id="results-grid-wrap">
+            <table id="results-table"></table>
+          </div>
+          <!-- Mirror horizontal scrollbar - flex sibling, grows from 0 to 12px -->
+          <div id="q-hscroll-bar"><div id="q-hscroll-inner"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History panel (slides in from right) -->
+    <div id="history-panel">
+      <div id="history-header">
+        Query History
+        <button onclick="toggleHistory()" aria-label="Close query history" title="Close history">&#10005;</button>
+      </div>
+      <div id="history-actions">
+        <button onclick="clearHistory()">Clear all</button>
+      </div>
+      <div id="history-list"></div>
+    </div>
+
+    <!-- Lineage pane (right panel) -->
+    <div id="lineage-pane">
+      <div id="lineage-hdr">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span id="lineage-hdr-title">Query Lineage</span>
+        <span id="lineage-hdr-meta"></span>
+        <button id="lineage-close" title="Close lineage pane (Esc)" aria-label="Close lineage pane" onclick="closeLineage()">&#10005;</button>
+      </div>
+      <div id="lineage-body">
+        <div id="lineage-empty">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <span>No tables detected in this query.</span>
+          <span style="font-size:10px;">Add FROM / JOIN clauses and the referenced tables will appear here.</span>
+        </div>
+        <pre id="lineage-sql-block" style="display:none"></pre>
+        <div id="lineage-tables-hdr" style="display:none">Tables in scope (direct + 1-hop FK)</div>
+        <ul id="lineage-tables-list"></ul>
+      </div>
+      <div id="lineage-erd-wrap">
+        <div id="lineage-erd-loading">
+          <div class="spinner active"></div>
+          Building ERD&hellip;
+        </div>
+        <div id="lineage-cy-wrap">
+          <div id="lineage-cy"></div>
+          <canvas id="lineage-cy-overlay"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Cell detail pane -->
+<div id="cell-pane">
+  <div id="cell-pane-hdr">
+    <span id="cell-pane-col">-</span>
+    <button id="cell-pane-close" title="Close (Esc)" aria-label="Close cell detail pane" onclick="closeCellPane()">&#10005;</button>
+  </div>
+  <div id="cell-pane-actions">
+    <button class="cpane-btn primary" onclick="cpaneCopy()">&#9003; Copy</button>
+    <button class="cpane-btn" onclick="cpaneQuery()" title="Open in query editor">&#9654; Query</button>
+  </div>
+  <div id="cell-pane-body"></div>
+</div>
+
+<!-- Shortcut dialog -->
+<div id="shortcut-dialog">
+  <div id="shortcut-box">
+    <h3>Keyboard Shortcuts</h3>
+    <div class="sc-row"><span>Run query</span><span class="sc-key">Ctrl+Enter</span></div>
+    <div class="sc-row"><span>New tab</span><span class="sc-key">Ctrl+T</span></div>
+    <div class="sc-row"><span>Close tab</span><span class="sc-key">Ctrl+W</span></div>
+    <div class="sc-row"><span>Format SQL</span><span class="sc-key">Shift+Alt+F</span></div>
+    <div class="sc-row"><span>Toggle Charts panel</span><span class="sc-key">Ctrl+Shift+C</span></div>
+    <div class="sc-row"><span>Toggle history</span><span class="sc-key">Ctrl+H</span></div>
+    <div class="sc-row"><span>Filter results</span><span class="sc-key">Ctrl+F</span></div>
+    <div class="sc-row"><span>Show query plan</span><span class="sc-key">Ctrl+E</span></div>
+    <div class="sc-row"><span>SQL autocomplete</span><span class="sc-key">Ctrl+Space</span></div>
+    <div class="sc-row"><span>Show lint / diagnostics</span><span class="sc-key">Ctrl+Shift+M</span></div>
+    <div class="sc-row"><span>Close panels</span><span class="sc-key">Escape</span></div>
+    <div class="sc-row"><span>Wrap as CTE</span><span class="sc-key">CTE button</span></div>
+    <div style="margin-top:14px;text-align:right;"><button class="ctrl-btn" onclick="toggleShortcuts()">Close</button></div>
+  </div>
+</div>
+
+<!-- Cytoscape + ELK (lineage ERD) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.29.2/cytoscape.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.10.0/lib/elk.bundled.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-elk@2.2.0/dist/cytoscape-elk.js" crossorigin="anonymous"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<!-- Phase M3: sql-formatter (CDN UMD build, no Node.js required) -->
+<script src="https://cdn.jsdelivr.net/npm/sql-formatter@15.4.9/dist/sql-formatter.min.js" crossorigin="anonymous"></script>
+
+<!-- Phase M1: CodeMirror 6 - pinned ESM via esm.sh (shared deps, CORS-safe, COEP-safe) -->
+<script type="module">
+// ── CodeMirror 6 ESM imports - all use ?deps= to share the same @codemirror/state ─
+// Without the ?deps= pin, esm.sh may resolve different internal copies of
+// @codemirror/state for each package, causing "EditorView from wrong bundle" errors.
+import { EditorView, keymap, lineNumbers, highlightActiveLine,
+         highlightActiveLineGutter, drawSelection, dropCursor,
+         rectangularSelection, crosshairCursor } from 'https://esm.sh/@codemirror/view@6.43.11?deps=@codemirror/state@6.7.4';
+import { EditorState, Compartment }              from 'https://esm.sh/@codemirror/state@6.7.4';
+import { defaultKeymap, history, historyKeymap,
+         indentWithTab }                          from 'https://esm.sh/@codemirror/commands@6.11.0?deps=@codemirror/state@6.7.4';
+import { sql, SQLite }                            from 'https://esm.sh/@codemirror/lang-sql@6.10.0?deps=@codemirror/state@6.7.4';
+import { autocompletion, closeBrackets,
+         closeBracketsKeymap, completionKeymap }  from 'https://esm.sh/@codemirror/autocomplete@6.20.3?deps=@codemirror/state@6.7.4';
+import { syntaxHighlighting, defaultHighlightStyle,
+         bracketMatching }                        from 'https://esm.sh/@codemirror/language@6.12.4?deps=@codemirror/state@6.7.4';
+import { lintKeymap, linter, lintGutter,
+         openLintPanel }                          from 'https://esm.sh/@codemirror/lint@6.9.7?deps=@codemirror/state@6.7.4';
+import { oneDark }                                from 'https://esm.sh/@codemirror/theme-one-dark@6.1.3?deps=@codemirror/state@6.7.4';
+
+// ── Server-side data injected via Jinja ──────────────────────────────────────
+const KEY    = {{ key | tojson }};
+const SCHEMA = {{ schema_json | safe }};
+const SOURCE = {{ source | tojson }};
+window.BASE_PATH = {{ base_path | tojson }};
+window.KEY       = KEY;   // expose to classic scripts (NF5 board persistence)
+
+// ── Build schema map for CM6 SQL autocomplete ────────────────────────────────
+// CM6's sql() extension accepts a `schema` map: { tableName: [col, col, …] }
+let schemaMap = {};
+SCHEMA.forEach(t => { schemaMap[t.name] = t.columns.map(c => c.name); });
+
+// Compartment allows hot-swapping the SQL schema without rebuilding the editor
+const sqlSchemaComp = new Compartment();
+
+function buildSqlExtension() {
+  return sql({
+    dialect:           SQLite,
+    schema:            schemaMap,
+    upperCaseKeywords: false,
+    tables:            Object.keys(schemaMap).map(name => ({ label: name, type: 'class' })),
+  });
+}
+
+// ── Rank 13: SQL inline linter (Monaco-style diagnostics via CM6 lint) ───────
+// Uses sql-formatter (already loaded as window.sqlFormatter) to detect syntax
+// errors in the editor.  On parse failure, emits a Diagnostic covering the
+// entire statement so the red squiggle and gutter dot appear.
+// Debounced at 600 ms so it does not fire on every keystroke.
+function _buildSqlLinter() {
+  return linter(view => {
+    const doc  = view.state.doc.toString().trim();
+    if (!doc) return [];
+    // Only lint if sql-formatter is available (CDN-loaded)
+    const fmt = window.sqlFormatter;
+    if (!fmt || typeof fmt.format !== 'function') return [];
+    try {
+      fmt.format(doc, { language: 'sql' });
+      return [];   // no error
+    } catch (err) {
+      // sql-formatter throws with a message like "Parse error at line N col M"
+      const msg = (err && err.message) ? err.message : 'SQL syntax error';
+      // Try to extract line/col from the message; fall back to start of doc
+      let from = 0, to = Math.min(doc.length, 80);
+      const lineMatch = msg.match(/line\s+(\d+)/i);
+      const colMatch  = msg.match(/col(?:umn)?\s+(\d+)/i);
+      if (lineMatch) {
+        const lineNum = parseInt(lineMatch[1], 10) - 1;  // 0-based
+        const line = view.state.doc.line(Math.min(lineNum + 1, view.state.doc.lines));
+        from = line.from;
+        to   = line.to;
+        if (colMatch) {
+          const col = parseInt(colMatch[1], 10) - 1;
+          from = Math.min(from + col, line.to);
+          to   = Math.min(from + 1, line.to);
+        }
+      }
+      return [{ from, to, severity: 'warning', message: msg }];
+    }
+  }, { delay: 600 });
+}
+
+// ── Phase M2: Multi-tab state ────────────────────────────────────────────────
+const TAB_SS_KEY = 'erd_tabs_' + KEY;   // sessionStorage persistence key
+let _tabs     = [];   // [{ id, name, sql, dirty }]
+let _activeId = null; // currently-active tab id
+let _viewMap  = {};   // tabId → EditorView  (one CM6 instance per tab)
+let _editorHost = null;
+
+function _tabId() { return 't' + Date.now() + Math.random().toString(36).slice(2,6); }
+
+function _saveTabs() {
+  const snapshot = _tabs.map(t => ({ id: t.id, name: t.name, sql: _getTabSQL(t.id) }));
+  try { sessionStorage.setItem(TAB_SS_KEY, JSON.stringify(snapshot)); } catch(e) {}
+}
+
+function _loadTabs() {
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(TAB_SS_KEY) || 'null');
+    if (Array.isArray(raw) && raw.length) return raw;
+  } catch(e) {}
+  return null;
+}
+
+function _getTabSQL(id) {
+  const v = _viewMap[id];
+  return v ? v.state.doc.toString() : (_tabs.find(t=>t.id===id)||{}).sql || '';
+}
+
+function _setTabSQL(id, sql) {
+  const v = _viewMap[id];
+  if (!v) return;
+  v.dispatch({ changes: { from:0, to: v.state.doc.length, insert: sql } });
+}
+
+// Returns the EditorView for the active tab (creates it if needed)
+function _getOrCreateView(tab) {
+  if (_viewMap[tab.id]) return _viewMap[tab.id];
+
+  // URL ?sql= param is handled at boot time (see below); skip here
+  let initialDoc = tab.sql || '';
+
+  const startState = EditorState.create({
+    doc: initialDoc,
+    extensions: [
+      lineNumbers(),
+      highlightActiveLineGutter(),
+      highlightActiveLine(),
+      history(),
+      drawSelection(),
+      dropCursor(),
+      rectangularSelection(),
+      crosshairCursor(),
+      bracketMatching(),
+      closeBrackets(),
+      oneDark,
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+      autocompletion(),
+      lintGutter(),
+      _buildSqlLinter(),
+      sqlSchemaComp.of(buildSqlExtension()),
+      keymap.of([
+        { key: 'Ctrl-Enter',   mac: 'Cmd-Enter',   run: () => { runQuery(); return true; } },
+        { key: 'Ctrl-t',       mac: 'Cmd-t',       run: () => { tabNew(); return true; } },
+        { key: 'Ctrl-w',       mac: 'Cmd-w',       run: () => { if (_tabs.length > 1) tabClose(_activeId); return true; } },
+        { key: 'Shift-Alt-f',                       run: () => { formatSQL(); return true; } },
+        // Rank 13: Ctrl+Shift+M opens the lint/diagnostics panel
+        { key: 'Ctrl-Shift-m', mac: 'Cmd-Shift-m', run: view => { openLintPanel(view); return true; } },
+        ...closeBracketsKeymap,
+        ...defaultKeymap,
+        ...historyKeymap,
+        ...completionKeymap,
+        ...lintKeymap,
+        indentWithTab,
+      ]),
+      EditorView.updateListener.of(upd => {
+        if (upd.docChanged) {
+          const t = _tabs.find(x => x.id === tab.id);
+          if (t) { t.dirty = true; _renderTabStrip(); }
+          updateParamWidgets();
+          markStale();
+        }
+      }),
+      EditorView.theme({
+        '&': { height: '100%', background: '#141616' },
+        '.cm-scroller': { fontFamily: 'Consolas, "Cascadia Code", "Fira Mono", monospace', fontSize: '13px', lineHeight: '1.6' },
+      }),
+    ],
+  });
+
+  const view = new EditorView({ state: startState, parent: null });
+  view.dom.style.height = '100%';
+  _viewMap[tab.id] = view;
+  return view;
+}
+
+// ── Tab management ────────────────────────────────────────────────────────────
+function tabNew(sqlContent) {
+  const id   = _tabId();
+  const name = 'Query ' + (_tabs.length + 1);
+  _tabs.push({ id, name, sql: sqlContent || '', dirty: false });
+  tabSwitch(id);
+  _saveTabs();
+}
+
+function tabClose(id) {
+  if (_tabs.length <= 1) { showToast('Cannot close last tab', 'info'); return; }
+  const idx = _tabs.findIndex(t => t.id === id);
+  // Destroy the CM6 view to free memory
+  if (_viewMap[id]) { _viewMap[id].destroy(); delete _viewMap[id]; }
+  _tabs.splice(idx, 1);
+  const newActive = _tabs[Math.min(idx, _tabs.length - 1)].id;
+  _activeId = null;   // force re-mount
+  tabSwitch(newActive);
+  _saveTabs();
+}
+
+function tabSwitch(id) {
+  if (_activeId === id) return;
+
+  // Detach the current view from the DOM
+  if (_activeId && _viewMap[_activeId]) {
+    const oldView = _viewMap[_activeId];
+    if (oldView.dom.parentNode) oldView.dom.parentNode.removeChild(oldView.dom);
+  }
+
+  _activeId = id;
+  const tab  = _tabs.find(t => t.id === id);
+  if (!tab) return;
+
+  const view = _getOrCreateView(tab);
+  // Mount into the host div
+  if (_editorHost && !_editorHost.contains(view.dom)) {
+    _editorHost.appendChild(view.dom);
+    // Re-measure after mount so CM6 computes correct line heights
+    requestAnimationFrame(() => view.requestMeasure());
+  }
+  view.focus();
+  tab.dirty = false;
+  _renderTabStrip();
+  // Sync stale banner and params for the newly active tab
+  updateParamWidgets();
+  markStale();
+  _saveTabs();
+}
+
+function _renderTabStrip() {
+  const strip = document.getElementById('tab-strip');
+  if (!strip) return;
+  const newBtn = document.getElementById('tab-new-btn');
+  // Remove old tab elements (keep #tab-new-btn)
+  strip.querySelectorAll('.editor-tab').forEach(el => el.remove());
+
+  _tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'editor-tab' + (tab.id === _activeId ? ' active' : '') + (tab.dirty ? ' dirty' : '');
+    el.dataset.id = tab.id;
+    el.innerHTML = `<span class="tab-name" title="${esc(tab.name)}">${esc(tab.name)}</span>
+      <button class="tab-close" title="Close tab">&#10005;</button>`;
+    el.addEventListener('click', e => {
+      if (e.target.classList.contains('tab-close')) { tabClose(tab.id); }
+      else { tabSwitch(tab.id); }
+    });
+    el.addEventListener('dblclick', e => {
+      if (e.target.classList.contains('tab-close')) return;
+      const newName = prompt('Rename tab:', tab.name);
+      if (newName && newName.trim()) { tab.name = newName.trim(); _renderTabStrip(); _saveTabs(); }
+    });
+    strip.insertBefore(el, newBtn);
+  });
+
+  // Update ctx-info zone with active tab name
+  const activeTab = _tabs.find(t => t.id === _activeId);
+  const ctxName = document.getElementById('ctx-query-name');
+  const ctxSep  = document.querySelector('.ctx-query-sep');
+  if (ctxName && activeTab) {
+    ctxName.textContent = activeTab.name;
+    if (ctxSep) ctxSep.style.display = '';
+  }
+}
+
+// ── Active view accessor ──────────────────────────────────────────────────────
+function _activeView() { return _viewMap[_activeId] || null; }
+
+let _fallbackActive = false;
+
+function _getSQL() {
+  if (_fallbackActive) return (document.getElementById('sql-fallback') || {value:''}).value;
+  const v = _activeView();
+  return v ? v.state.doc.toString() : '';
+}
+
+function _setSQL(sql) {
+  if (_fallbackActive) { const fb = document.getElementById('sql-fallback'); if (fb) fb.value = sql; return; }
+  const v = _activeView();
+  if (!v) return;
+  v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: sql } });
+}
+
+function _insertAtCursor(text) {
+  if (_fallbackActive) {
+    const fb = document.getElementById('sql-fallback'); if (!fb) return;
+    const s = fb.selectionStart, e = fb.selectionEnd;
+    fb.value = fb.value.slice(0, s) + text + fb.value.slice(e);
+    fb.selectionStart = fb.selectionEnd = s + text.length; fb.focus(); return;
+  }
+  const v = _activeView();
+  if (!v) return;
+  const sel = v.state.selection.main;
+  v.dispatch({ changes: { from: sel.from, to: sel.to, insert: text } });
+  v.focus();
+}
+
+// ── Fetch autocomplete data from /api/autocomplete/<key> ─────────────────────
+function _fetchAutocomplete() {
+  const bp = window.BASE_PATH || '';
+  fetch(`${bp}/api/autocomplete/${encodeURIComponent(KEY)}`)
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(d => {
+      if (!d || d.error) return;
+      (d.tables || []).forEach(tbl => {
+        if (!schemaMap[tbl]) schemaMap[tbl] = [];
+        if (d.columns && d.columns[tbl]) {
+          const existing = new Set(schemaMap[tbl]);
+          d.columns[tbl].forEach(c => { if (!existing.has(c)) schemaMap[tbl].push(c); });
+        }
+      });
+      // Hot-swap SQL schema compartment in every open view
+      Object.values(_viewMap).forEach(view => {
+        view.dispatch({ effects: sqlSchemaComp.reconfigure(buildSqlExtension()) });
+      });
+    })
+    .catch(() => {});
+}
+
+// ── Resizable split ──────────────────────────────────────────────────────────
+let _dragging = false, _dragStart = 0, _editorH = 0;
+const STORAGE_KEY = 'erd_qsplit_' + KEY;
+
+function initSplit() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  const editorWrap = document.getElementById('editor-wrap');
+  const h = saved ? Math.max(120, parseInt(saved, 10) || 220) : 220;
+  editorWrap.style.height = h + 'px';
+}
+
+document.getElementById('drag-handle').addEventListener('pointerdown', e => {
+  _dragging = true; _dragStart = e.clientY;
+  _editorH  = document.getElementById('editor-wrap').offsetHeight;
+  document.body.style.userSelect = 'none';
+  e.currentTarget.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', e => {
+  if (!_dragging) return;
+  const newH = Math.max(80, _editorH + (e.clientY - _dragStart));
+  document.getElementById('editor-wrap').style.height = newH + 'px';
+});
+document.addEventListener('pointerup', () => {
+  if (!_dragging) return;
+  _dragging = false;
+  document.body.style.userSelect = '';
+  localStorage.setItem(STORAGE_KEY, document.getElementById('editor-wrap').offsetHeight);
+});
+
+// ── Schema tree sidebar ───────────────────────────────────────────────────────
+function buildSchemaTree() {
+  const tree = document.getElementById('schema-tree');
+  const isJoin = SOURCE === 'join';
+  if (isJoin) {
+    const groups = {}, order = [];
+    SCHEMA.forEach(t => {
+      const dot = t.name.indexOf('.');
+      const alias = dot >= 0 ? t.name.slice(0, dot) : '_';
+      if (!groups[alias]) { groups[alias] = []; order.push(alias); }
+      groups[alias].push(t);
+    });
+    tree.innerHTML = order.map(alias => `
+      <div class="tree-alias-group">
+        <div class="tree-alias-hdr" style="padding:6px 12px 4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(167,139,250,0.65);border-bottom:1px solid #2e3234;">${esc(alias)}</div>
+        ${groups[alias].map(t => {
+          const shortName = t.name.includes('.') ? t.name.split('.').slice(1).join('.') : t.name;
+          return `<div><div class="tree-table" data-tbl="${esc(t.name)}" onclick="toggleTreeTable(this)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="tbl-n" title="${esc(t.name)}">${esc(shortName)}</span><span class="tbl-c">${t.columns.length}</span>
+          </div>
+          <div class="tree-cols" id="tree-cols-${esc(t.name)}">
+            ${t.columns.map(c=>`<div class="tree-col" data-col="${esc(c.name)}" data-tbl="${esc(t.name)}" onclick="insertColumn(this)">
+              ${c.pk?'<span class="badge-pk">PK</span>':''}
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</span>
+              <span class="col-type">${esc(c.type)}</span>
+            </div>`).join('')}
+          </div></div>`;
+        }).join('')}
+      </div>`).join('');
+    return;
+  }
+  tree.innerHTML = SCHEMA.map(t => `
+    <div>
+      <div class="tree-table" data-tbl="${esc(t.name)}" onclick="toggleTreeTable(this)">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="tbl-n">${esc(t.name)}</span><span class="tbl-c">${t.columns.length}</span>
+      </div>
+      <div class="tree-cols" id="tree-cols-${esc(t.name)}">
+        ${t.columns.map(c=>`<div class="tree-col" data-col="${esc(c.name)}" data-tbl="${esc(t.name)}" onclick="insertColumn(this)">
+          ${c.pk?'<span class="badge-pk">PK</span>':''}
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</span>
+          <span class="col-type">${esc(c.type)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function toggleTreeTable(el) {
+  const tbl  = el.dataset.tbl;
+  const cols = document.getElementById('tree-cols-' + tbl);
+  if (!cols) return;
+  cols.classList.toggle('open');
+  insertSelect(tbl);
+}
+
+function insertSelect(tblName) {
+  // If no active view yet (edge case on slow CDN load), do nothing
+  if (!_activeView()) return;
+  let sqlRef;
+  if (SOURCE === 'join' && tblName.includes('.')) {
+    const dot = tblName.indexOf('.');
+    sqlRef = `${tblName.slice(0,dot)}."${tblName.slice(dot+1)}"`;
+  } else {
+    sqlRef = `"${tblName}"`;
+  }
+  _setSQL(`SELECT * FROM ${sqlRef} LIMIT 100`);
+}
+
+function insertColumn(el) {
+  if (!_activeView()) return;
+  _insertAtCursor('"' + el.dataset.col + '"');
+}
+
+// ── Phase M3: SQL Formatter ───────────────────────────────────────────────────
+function formatSQL() {
+  const current = _getSQL().trim();
+  if (!current) return;
+  try {
+    // sql-formatter UMD exposes window.sqlFormatter
+    const fmt = window.sqlFormatter;
+    if (!fmt) { showToast('sql-formatter not loaded', 'error'); return; }
+    const formatted = fmt.format(current, {
+      language:    'sql',
+      tabWidth:    2,
+      keywordCase: 'upper',
+      linesBetweenQueries: 1,
+    });
+    _setSQL(formatted);
+    showToast('SQL formatted', 'success');
+  } catch(e) {
+    showToast('Format failed: ' + e.message, 'error');
+  }
+}
+
+// ── Parameter widgets ─────────────────────────────────────────────────────────
+function updateParamWidgets() {
+  const sql  = _getSQL();
+  const matches = [...sql.matchAll(/\{\{(\w+)\}\}/g)];
+  const names   = [...new Set(matches.map(m => m[1]))];
+  const bar     = document.getElementById('params-bar');
+  if (!names.length) { bar.classList.remove('has-params'); bar.innerHTML = ''; return; }
+  bar.classList.add('has-params');
+  const existing = {};
+  bar.querySelectorAll('input[data-param]').forEach(i => { existing[i.dataset.param] = i.value; });
+  bar.innerHTML = names.map(n => `<div class="param-widget"><label>${esc(n)}</label>
+    <input type="text" data-param="${esc(n)}" value="${esc(existing[n]||'')}" placeholder="${esc(n)}"/></div>`).join('');
+}
+
+function getParams() {
+  const params = {};
+  document.querySelectorAll('#params-bar input[data-param]').forEach(i => { params[i.dataset.param] = i.value; });
+  return params;
+}
+
+function interpolateSQL(sql) {
+  return sql.replace(/\{\{(\w+)\}\}/g, (m, n) => {
+    const inp = document.querySelector(`#params-bar input[data-param="${n}"]`);
+    return inp ? inp.value : m;
+  });
+}
+
+// ── Stale banner ──────────────────────────────────────────────────────────────
+// Per-tab stale tracking
+const _lastRunSqlMap = {};
+function _getLastRunSql() { return _lastRunSqlMap[_activeId] || null; }
+function _setLastRunSql(sql) { if (_activeId) _lastRunSqlMap[_activeId] = sql; }
+
+function markStale() {
+  const last = _getLastRunSql();
+  if (last !== null && _getSQL().trim() !== last) {
+    document.getElementById('stale-banner').classList.add('visible');
+  } else {
+    document.getElementById('stale-banner').classList.remove('visible');
+  }
+}
+
+// ── Per-tab result storage ────────────────────────────────────────────────────
+const _tabResults = {};   // tabId → { cols, rows }
+let lastCols = [], lastResultRows = [];
+let _lastQueryTable = null;
+
+function _saveTabResults(cols, rows) {
+  if (_activeId) _tabResults[_activeId] = { cols, rows };
+}
+
+function _extractTableFromSQL(sql) {
+  if (!sql) return null;
+  const stripped = sql.replace(/^\s*WITH\b[\s\S]*?\)\s*/i, '');
+  // Match the full table reference after FROM, including:
+  //   "quoted"            → captured in group 1
+  //   `backtick`          → captured in group 2
+  //   alias."quoted"      → captured in group 3 + 4  (join schema pattern)
+  //   alias.unquoted      → captured in group 3 + 5
+  //   plain_word          → captured in group 6
+  const m = stripped.match(
+    /\bFROM\s+(?:"([^"]+)"|`([^`]+)`|(\w+)\."([^"]+)"|(\w+)\.(\w+)|(\w+))/i
+  );
+  if (!m) return null;
+  if (m[1]) return m[1];                    // "quoted"
+  if (m[2]) return m[2];                    // `backtick`
+  if (m[3] && m[4]) return m[3] + '.' + m[4]; // alias."Table"
+  if (m[5] && m[6]) return m[5] + '.' + m[6]; // alias.table
+  if (m[7]) return m[7];                    // plain_word
+  return null;
+}
+
+// Build a correctly-quoted FROM table reference.
+// For join schemas (alias.table or alias."Table") keep the alias prefix
+// unquoted and quote only the table name part.
+function _quoteTableRef(tbl) {
+  if (!tbl) return '"table"';
+  const dot = tbl.indexOf('.');
+  if (dot !== -1) {
+    const alias = tbl.slice(0, dot);
+    const name  = tbl.slice(dot + 1);
+    // name may already include quotes from extraction; strip them before re-quoting
+    const bare  = name.replace(/^"|"$/g, '');
+    return `${alias}."${bare}"`;
+  }
+  return `"${tbl}"`;
+}
+
+// ── DuckDB-WASM ───────────────────────────────────────────────────────────────
+let _duckDB = null, _duckConn = null, _wasmFile = null, _dbFileSizeMb = null;
+
+function _queryLooksAnalytical(sql) {
+  const up = sql.toUpperCase();
+  return up.includes('GROUP BY')||up.includes('HAVING')||up.includes('COUNT(')||
+         up.includes('SUM(')||up.includes('AVG(')||up.includes('MIN(')||
+         up.includes('MAX(')||up.includes('WINDOW')||up.includes('OVER (')||up.includes('DISTINCT');
+}
+
+async function _fetchDbSize() {
+  if (SOURCE==='connstring'||SOURCE==='join'||SOURCE==='duckdb') { _dbFileSizeMb=-1; return; }
+  try {
+    const res = await fetch(`/api/sqlite_size/${KEY}`);
+    if (!res.ok) { _dbFileSizeMb=-1; return; }
+    const d = await res.json();
+    _dbFileSizeMb = d.size_bytes!=null ? d.size_bytes/1048576 : -1;
+  } catch(e) { _dbFileSizeMb=-1; }
+}
+
+function _shouldUseDuckDB(sql) {
+  if (SOURCE==='connstring'||SOURCE==='join'||SOURCE==='duckdb') return false;
+  if (_dbFileSizeMb===null||_dbFileSizeMb<0||_dbFileSizeMb>=200) return false;
+  return _queryLooksAnalytical(sql);
+}
+
+async function _runQueryWASM(sql) {
+  if (!_duckDB) {
+    const { default: initDuckDB, DuckDB } = await import('https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm');
+    const BUNDLES = {
+      mvp: { mainModule:'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/dist/duckdb-mvp.wasm', mainWorker:'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/dist/duckdb-browser-mvp.worker.js' },
+      eh:  { mainModule:'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/dist/duckdb-eh.wasm',  mainWorker:'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/dist/duckdb-browser-eh.worker.js' },
+    };
+    const bundle = await initDuckDB.selectBundle(BUNDLES);
+    _duckDB = new DuckDB(null, new Worker(bundle.mainWorker));
+    await _duckDB.instantiate(bundle.mainModule);
+    _duckConn = await _duckDB.connect();
+  }
+  if (!_wasmFile && SOURCE!=='connstring') {
+    const resp = await fetch(`/api/sqlite_file/${KEY}`);
+    if (!resp.ok) throw new Error('Could not load SQLite file');
+    _wasmFile = KEY+'.db';
+    await _duckDB.registerFileBuffer(_wasmFile, new Uint8Array(await resp.arrayBuffer()));
+  }
+  const result = await _duckConn.query(sql);
+  const cols = result.schema.fields.map(f=>f.name);
+  const rows = result.toArray().map(row=>cols.map(c=>{
+    const v=row[c]; return (v===null||v===undefined)?null:(typeof v==='bigint'?Number(v):v);
+  }));
+  return { columns:cols, rows, row_count:rows.length, truncated:false, elapsed_ms:0 };
+}
+
+async function runQuery() {
+  const rawSql = _getSQL().trim();
+  if (!rawSql) return;
+  const sql = interpolateSQL(rawSql);
+  if (!sql) return;
+
+  _setLastRunSql(rawSql);
+  _lastQueryTable = _extractTableFromSQL(sql);
+  document.getElementById('stale-banner').classList.remove('visible');
+  addToHistory(rawSql);
+  document.getElementById('spinner').classList.add('active');
+  document.getElementById('error-panel').classList.remove('open');
+  document.getElementById('results-stat').textContent = 'Running…';
+  document.getElementById('results-table').innerHTML = '';
+
+  let data;
+  try {
+    if (_shouldUseDuckDB(sql)) {
+      try { data = await _runQueryWASM(sql); }
+      catch(e) {
+        const resp = await fetch(`/api/query/${KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql,params:getParams(),limit:_rowLimit})});
+        data = await resp.json();
+      }
+    } else {
+      const resp = await fetch(`/api/query/${KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql,params:getParams(),limit:_rowLimit})});
+      data = await resp.json();
+    }
+  } catch(e) { showError(e.message); return; }
+  finally { document.getElementById('spinner').classList.remove('active'); }
+
+  if (data.error) { showError(data.error); return; }
+  lastCols = data.columns||[]; lastResultRows = data.rows||[];
+  _saveTabResults(lastCols, lastResultRows);
+  renderResults(lastCols, lastResultRows, data.truncated, data.elapsed_ms);
+  updateQPlotSelects(lastCols);
+}
+
+function showError(msg) {
+  const p = document.getElementById('error-panel');
+  p.textContent = msg; p.classList.add('open');
+  document.getElementById('results-stat').textContent = 'Error';
+}
+
+// ── Render results ────────────────────────────────────────────────────────────
+function renderResults(cols, rows, truncated, elapsed_ms) {
+  const table = document.getElementById('results-table');
+  const numCols = cols.map((c,i)=>rows.every(r=>r[i]===null||isNumeric(r[i])));
+  const numRanges = cols.map((c,i)=>{
+    if (!numCols[i]) return null;
+    const vals=rows.map(r=>Number(r[i])).filter(v=>!isNaN(v));
+    return vals.length?{min:Math.min(...vals),max:Math.max(...vals)}:null;
+  });
+  const thead=`<thead><tr>${['', ...cols].map((c,i)=>{
+    if(i===0) return '<th style="width:28px;"></th>';
+    const ci=i-1;
+    return `<th>${esc(c)}${numCols[ci]?'<span class="col-type-badge">NUM</span>':''}</th>`;
+  }).join('')}</tr></thead>`;
+  let tbody='<tbody>';
+  rows.forEach((row,ri)=>{
+    let rowClass='';
+    for(let ci=0;ci<cols.length;ci++){
+      if(numCols[ci]&&numRanges[ci]&&row[ci]!==null){
+        const span=numRanges[ci].max-numRanges[ci].min;
+        if(span>0){const r=(Number(row[ci])-numRanges[ci].min)/span;rowClass=r>0.66?'row-highlight-high':r>0.33?'row-highlight-mid':'row-highlight-low';}
+        break;
+      }
+    }
+    tbody+=`<tr class="${rowClass}"><td style="color:rgba(255,255,255,0.2);font-size:10px;text-align:right;">${ri+1}</td>`;
+    row.forEach((cell,ci)=>{
+      if(cell===null||cell===undefined){tbody+=`<td class="null-cell" data-ri="${ri}" data-ci="${ci}"><span class="null-pill">NULL</span></td>`;return;}
+      if(typeof cell==='string'&&cell.length>20&&(cell[0]==='{' ||cell[0]==='[')){
+        try{JSON.parse(cell);tbody+=`<td data-ri="${ri}" data-ci="${ci}"><details class="json-expand"><summary>JSON ▾</summary><pre>${esc(JSON.stringify(JSON.parse(cell),null,2))}</pre></details></td>`;return;}catch(e){}
+      }
+      const sem=_semanticType(cols[ci],cell);
+      const fmt=fmtValue(cols[ci],cell);
+      const display=String(fmt).length>60?String(fmt).slice(0,60)+'…':String(fmt);
+      tbody+=`<td class="${numCols[ci]?'numeric':''}" data-ri="${ri}" data-ci="${ci}" title="Click to inspect">${sem?`<span class="sem-badge sem-${sem.cls}">${sem.label}</span> `:''}${esc(display)}</td>`;
+    });
+    tbody+='</tr>';
+  });
+  tbody+='</tbody>';
+  table.innerHTML=thead+tbody;
+  table.querySelectorAll('td[data-ri]').forEach(td=>{
+    td.addEventListener('click',e=>{e.stopPropagation();openCellPane(cols[parseInt(td.dataset.ci)],rows[parseInt(td.dataset.ri)]?.[parseInt(td.dataset.ci)],parseInt(td.dataset.ci));});
+  });
+  let stat=`${rows.length} row${rows.length!==1?'s':''}`;
+  if(truncated) stat+=' (truncated)';
+  if(elapsed_ms!==undefined) stat+=` · ${elapsed_ms}ms`;
+  document.getElementById('results-stat').textContent=stat;
+  // Double rAF: first frame commits the DOM, second measures actual layout
+  requestAnimationFrame(() => requestAnimationFrame(syncQHScrollBar));
+}
+
+function syncQHScrollBar() {
+  const gw  = document.getElementById('results-grid-wrap');
+  const bar = document.getElementById('q-hscroll-bar');
+  const inn = document.getElementById('q-hscroll-inner');
+  if (!gw || !bar || !inn) return;
+  const scrollW = gw.scrollWidth;
+  const clientW = gw.clientWidth;
+  const overflows = scrollW > clientW + 2;
+  bar.classList.toggle('visible', overflows);
+  inn.style.width = scrollW + 'px';
+  // Re-wire bidirectional sync
+  if (gw._qhbarSync) gw.removeEventListener('scroll', gw._qhbarSync);
+  if (bar._qhbarSync) bar.removeEventListener('scroll', bar._qhbarSync);
+  if (!overflows) return;
+  const lock = { busy: false };
+  gw._qhbarSync = () => {
+    if (lock.busy) return;
+    lock.busy = true; bar.scrollLeft = gw.scrollLeft; lock.busy = false;
+  };
+  bar._qhbarSync = () => {
+    if (lock.busy) return;
+    lock.busy = true; gw.scrollLeft = bar.scrollLeft; lock.busy = false;
+  };
+  bar.scrollLeft = gw.scrollLeft;
+  gw.addEventListener('scroll', gw._qhbarSync, { passive: true });
+  bar.addEventListener('scroll', bar._qhbarSync, { passive: true });
+}
+
+function fmtValue(colName,val){
+  if(val===null||val===undefined) return '';
+  const lo=colName.toLowerCase();
+  if(typeof val==='number'||(typeof val==='string'&&!isNaN(val)&&val!=='')){
+    const n=Number(val);
+    if(/(usd|amount|price|revenue|cost|total|salary)/.test(lo)) return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(/(pct|rate|percent)/.test(lo)) return n.toLocaleString('en-US',{maximumFractionDigits:2})+'%';
+    if(Number.isInteger(n)&&Math.abs(n)>=1000) return n.toLocaleString('en-US');
+  }
+  if(typeof val==='string'&&/(^|_)(at|date|time)($|_)/.test(lo)&&/^\d{4}-\d{2}-\d{2}/.test(val)){try{return new Date(val).toLocaleString();}catch(e){}}
+  return String(val);
+}
+function isNumeric(v){return v!==null&&v!==''&&!isNaN(Number(v));}
+
+// ── Toolbar dropdown helpers ──────────────────────────────────────────────────
+function tbDropToggle(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('open');
+  // Close all open dropdowns first
+  document.querySelectorAll('.tb-dropdown-wrap.open').forEach(w => w.classList.remove('open'));
+  if (isOpen) return;
+  // Position the fixed menu under the trigger button
+  const menu = wrap.querySelector('.tb-dropdown-menu');
+  const btn  = wrap.querySelector('.tb-dropdown-btn');
+  if (!menu || !btn) return;
+  const r = btn.getBoundingClientRect();
+  const menuW = 180;
+  let left = r.left;
+  if (left + menuW > window.innerWidth - 8) left = r.right - menuW;
+  menu.style.top  = (r.bottom + 4) + 'px';
+  menu.style.left = Math.max(4, left) + 'px';
+  menu.style.minWidth = menuW + 'px';
+  wrap.classList.add('open');
+}
+function tbDropClose(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (wrap) wrap.classList.remove('open');
+}
+// Close dropdowns on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.tb-dropdown-wrap')) {
+    document.querySelectorAll('.tb-dropdown-wrap.open').forEach(w => w.classList.remove('open'));
+  }
+}, true);
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportResultCSV(){
+  if(!lastCols.length) return;
+  const rows=[lastCols.join(','),...lastResultRows.map(r=>r.map(c=>JSON.stringify(c)).join(','))];
+  dlBlob(new Blob([rows.join('\n')],{type:'text/csv'}),'query_result.csv');
+}
+function exportResultJSON(){
+  if(!lastCols.length) return;
+  const out=lastResultRows.map(r=>Object.fromEntries(lastCols.map((c,i)=>[c,r[i]])));
+  dlBlob(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}),'query_result.json');
+}
+function exportResultXLSX(){
+  if(!lastCols.length){showToast('No results to export','info');return;}
+  showToast('XLSX - exporting as CSV fallback','info');
+  exportResultCSV();
+}
+function copyResultMarkdown(){
+  if(!lastCols.length) return;
+  const sep='| '+lastCols.map(()=>'---').join(' | ')+' |';
+  const hdr='| '+lastCols.join(' | ')+' |';
+  const rows=lastResultRows.map(r=>'| '+r.map(c=>String(c??'NULL').replace(/\|/g,'\\|')).join(' | ')+' |');
+  navigator.clipboard.writeText([hdr,sep,...rows].join('\n')).then(()=>showToast('Copied as Markdown','success'));
+}
+// Phase M4: Copy as JSON object array
+function copyResultJSONObj(){
+  if(!lastCols.length){showToast('No results to copy','info');return;}
+  const out=lastResultRows.map(r=>Object.fromEntries(lastCols.map((c,i)=>[c,r[i]])));
+  navigator.clipboard.writeText(JSON.stringify(out,null,2)).then(()=>showToast('Copied as JSON','success'));
+}
+function dlBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
+
+// ── Share URL ─────────────────────────────────────────────────────────────────
+function shareQuery(){
+  const sql=_getSQL().trim();if(!sql) return;
+  const url=`${location.origin}/query/${KEY}?sql=${encodeURIComponent(btoa(sql))}`;
+  navigator.clipboard.writeText(url).then(()=>showToast('Share URL copied','success'));
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+const HIST_KEY='erd_history_'+KEY;
+async function _loadServerHistory(){
+  try{
+    const resp=await fetch(`/api/history/${KEY}`);if(!resp.ok) return;
+    const data=await resp.json();
+    if(Array.isArray(data)&&data.length){
+      const merged=data.map(h=>({sql:h.sql,ts:Math.round(h.ts*1000)}));
+      const lsHist=getHistory();
+      lsHist.forEach(lh=>{if(!merged.some(m=>m.sql===(typeof lh==='string'?lh:lh.sql))) merged.push(typeof lh==='string'?{sql:lh,ts:Date.now()}:lh);});
+      localStorage.setItem(HIST_KEY,JSON.stringify(merged.slice(0,50)));
+    }
+  }catch(e){}
+}
+function getHistory(){try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}catch(e){return [];}}
+function addToHistory(sql){
+  let hist=getHistory();
+  hist=hist.filter(h=>(typeof h==='string'?h:h.sql)!==sql);
+  hist.unshift({sql,ts:Date.now()});
+  localStorage.setItem(HIST_KEY,JSON.stringify(hist.slice(0,50)));
+  renderHistory();
+}
+function _fmtTs(ts){
+  if(!ts) return '';const diff=Date.now()-ts;
+  if(diff<60000) return 'just now';if(diff<3600000) return Math.floor(diff/60000)+'m ago';
+  if(diff<86400000) return Math.floor(diff/3600000)+'h ago';return new Date(ts).toLocaleDateString();
+}
+function renderHistory(){
+  const hist=getHistory();
+  document.getElementById('history-list').innerHTML=hist.map((h,i)=>{
+    const sqlStr=typeof h==='string'?h:h.sql;const ts=typeof h==='object'?h.ts:null;
+    return `<div class="hist-item" data-idx="${i}"><span class="hist-sql" title="${esc(sqlStr)}">${esc(sqlStr.replace(/\s+/g,' ').slice(0,120))}</span>${ts?`<span class="hist-ts">${_fmtTs(ts)}</span>`:''}</div>`;
+  }).join('');
+  document.querySelectorAll('#history-list .hist-item').forEach(el=>{
+    el.addEventListener('click',()=>{const h=getHistory()[parseInt(el.dataset.idx)];_setSQL(typeof h==='string'?h:h.sql);});
+  });
+}
+async function clearHistory(){
+  localStorage.removeItem(HIST_KEY);
+  try{await fetch(`/api/history/${KEY}`,{method:'DELETE'});}catch(e){}
+  renderHistory();showToast('History cleared','info');
+}
+function toggleHistory(){
+  const panel=document.getElementById('history-panel');
+  const opening = !panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if(opening){
+    renderHistory();
+    // Close on next outside click
+    setTimeout(()=>{
+      function _histOutside(e){
+        if(!panel.contains(e.target) && e.target.id!=='btn-history'){
+          panel.classList.remove('open');
+          document.removeEventListener('click',_histOutside,true);
+        }
+      }
+      document.addEventListener('click',_histOutside,true);
+    },0);
+  }
+}
+
+// ── Saved queries ─────────────────────────────────────────────────────────────
+const SAVED_LS_KEY='erd_saved_'+KEY;
+let _savedQueries=[];
+
+async function _fetchSaved(){
+  try{
+    const resp=await fetch(`/api/queries/${KEY}`);if(!resp.ok) throw new Error();
+    const data=await resp.json();
+    if(!data.error){_savedQueries=data;localStorage.setItem(SAVED_LS_KEY,JSON.stringify(_savedQueries));return;}
+  }catch(e){}
+  try{
+    const ls=JSON.parse(localStorage.getItem(SAVED_LS_KEY)||'[]');
+    _savedQueries=ls.map((s,i)=>typeof s==='string'?{id:String(i),name:'Query '+(i+1),sql:s}:{id:s.id||String(i),name:s.name||'Query',sql:s.sql||''});
+  }catch(e){_savedQueries=[];}
+}
+
+/* ── Query sidebar: toggle + filter ──────────────────────────────── */
+function toggleQuerySidebar() {
+  const sb  = document.getElementById('sidebar');
+  const btn = document.getElementById('sidebar-toggle-btn');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('sb-collapsed');
+  if (btn) btn.innerHTML = collapsed ? '&#8250;' : '&#8249;';
+}
+function filterQuerySidebarTables(val) {
+  const q = val.trim().toLowerCase();
+  const clr = document.getElementById('sb-search-clear');
+  if (clr) clr.classList.toggle('visible', q.length > 0);
+  document.querySelectorAll('#schema-tree .tree-table').forEach(el => {
+    const name = (el.dataset.name || el.querySelector('.tbl-n')?.textContent || '').toLowerCase();
+    const show = !q || name.includes(q);
+    el.style.display = show ? '' : 'none';
+    const cols = el.nextElementSibling;
+    if (cols && cols.classList.contains('tree-cols')) cols.style.display = 'none';
+  });
+}
+function clearQuerySidebarSearch() {
+  const inp = document.getElementById('sb-search-input');
+  if (inp) { inp.value = ''; filterQuerySidebarTables(''); }
+}
+
+async function saveCurrentQuery(){
+  const sql=_getSQL().trim();if(!sql) return;
+  const name=prompt('Save query as:','My query');if(!name) return;
+  try{
+    const resp=await fetch(`/api/queries/${KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),sql})});
+    if(resp.ok){const entry=await resp.json();_savedQueries.push(entry);localStorage.setItem(SAVED_LS_KEY,JSON.stringify(_savedQueries));renderSaved();showToast('Query saved','success');return;}
+  }catch(e){}
+  const entry={id:String(Date.now()),name:name.trim(),sql};_savedQueries.push(entry);localStorage.setItem(SAVED_LS_KEY,JSON.stringify(_savedQueries));renderSaved();showToast('Query saved (offline)','info');
+}
+
+async function deleteSaved(qid){
+  _savedQueries=_savedQueries.filter(q=>q.id!==qid);localStorage.setItem(SAVED_LS_KEY,JSON.stringify(_savedQueries));renderSaved();
+  try{await fetch(`/api/queries/${KEY}/${encodeURIComponent(qid)}`,{method:'DELETE'});}catch(e){}
+}
+
+function renderSaved(){
+  const list=document.getElementById('saved-list');
+  _renderLineageDrop();
+  if(!_savedQueries.length){list.innerHTML='<div style="padding:6px 12px;font-size:11px;color:rgba(255,255,255,0.2);">No saved queries</div>';return;}
+  list.innerHTML=_savedQueries.map(s=>`
+    <div class="saved-item" data-qid="${esc(s.id)}">
+      <span class="saved-name" data-qid="${esc(s.id)}" title="${esc(s.sql)}">${esc(s.name)}</span>
+      <button class="lineage-btn" data-qid="${esc(s.id)}" title="Show lineage">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </button>
+      <button class="sq-pin-btn${s.tile?' pinned':''}" data-qid="${esc(s.id)}" title="${s.tile?'Unpin from Dashboard':'Pin to Dashboard'}">&#9632;</button>
+      <button class="sq-rpt-btn" data-qid="${esc(s.id)}" title="Add to Report">&#128196;</button>
+      <button class="del-btn" data-qid="${esc(s.id)}" title="Delete">&#10005;</button>
+    </div>`).join('');
+  list.querySelectorAll('.saved-name[data-qid]').forEach(el=>{el.addEventListener('click',()=>{const q=_savedQueries.find(x=>x.id===el.dataset.qid);if(q) _setSQL(q.sql);});});
+  list.querySelectorAll('.lineage-btn[data-qid]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();openLineage(btn.dataset.qid);});});
+  list.querySelectorAll('.sq-pin-btn[data-qid]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();_pinToDashboard(btn.dataset.qid,btn);});});
+  list.querySelectorAll('.sq-rpt-btn[data-qid]').forEach(btn=>{btn.addEventListener('click',e=>{e.stopPropagation();_addToReport(btn.dataset.qid);});});
+  list.querySelectorAll('.del-btn[data-qid]').forEach(btn=>{btn.addEventListener('click',()=>deleteSaved(btn.dataset.qid));});
+}
+
+// ── Lineage pane ──────────────────────────────────────────────────────────────
+let _lineageOpenQid=null;
+function _extractLineageTables(sql){
+  const found=new Set();const re=/(?:FROM|JOIN)\s+("?\w+"?\.?"?\w+"?)/gi;let m;
+  while((m=re.exec(sql))!==null) found.add(m[1].replace(/"/g,''));
+  const known=new Set(SCHEMA.map(t=>t.name.toLowerCase()));
+  return [...found].filter(n=>known.has(n.toLowerCase()));
+}
+function _expandFKNeighbours(directTables){
+  const directSet=new Set(directTables.map(t=>t.toLowerCase()));const result=new Set(directTables);
+  SCHEMA.forEach(t=>{
+    t.columns.forEach(c=>{
+      if(c.fk&&c.fk_target){
+        const ld=c.fk_target.lastIndexOf('.');const refTable=ld>=0?c.fk_target.slice(0,ld):c.fk_target;
+        if(directSet.has(refTable.toLowerCase())) result.add(t.name);
+        if(directSet.has(t.name.toLowerCase())) result.add(refTable);
+      }
+    });
+  });
+  return [...result].sort();
+}
+function toggleLineageDrop(){document.getElementById('lineage-wrap').classList.toggle('open');}
+function closeLineageDrop(){document.getElementById('lineage-wrap').classList.remove('open');}
+function _renderLineageDrop(){
+  const container=document.getElementById('lineage-drop-items');if(!container) return;
+  const btn=document.getElementById('btn-lineage-drop');
+  if(!_savedQueries.length){container.innerHTML='<div class="ldrop-empty">No saved queries yet</div>';if(btn) btn.classList.remove('on');return;}
+  container.innerHTML=_savedQueries.map(q=>`<div class="ldrop-item" data-qid="${esc(q.id)}" title="${esc(q.sql)}">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <span>${esc(q.name)}</span></div>`).join('');
+  container.querySelectorAll('.ldrop-item').forEach(el=>{el.addEventListener('click',()=>{closeLineageDrop();openLineage(el.dataset.qid);});});
+}
+function _syncLineageDropActive(){
+  document.getElementById('lineage-drop-items')?.querySelectorAll('.ldrop-item').forEach(el=>{el.classList.toggle('active',el.dataset.qid===_lineageOpenQid);});
+  const btn=document.getElementById('btn-lineage-drop');if(btn) btn.classList.toggle('on',!!_lineageOpenQid);
+}
+
+// ── Inline lineage Cytoscape ERD ──────────────────────────────────────────────
+const _LCY_T={bg:'#141616',headerBg:'#232526',headerBgDirect:'rgba(167,139,250,0.18)',border:'rgba(255,255,255,0.15)',borderHL:'#a78bfa',borderDirect:'rgba(167,139,250,0.55)',text:'#ffffff',textMuted:'rgba(255,255,255,0.55)',textType:'rgba(255,255,255,0.40)',pkColor:'#a78bfa',fkColor:'#c4b5fd',rowBorder:'#2e3234',fkRowBg:'rgba(167,139,250,0.06)',font:'-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',fontMono:'Consolas, "Courier New", monospace',radius:6,hdrH:36,rowH:28,minW:200};
+let _lcy_cy=null,_lcy_overlay=null,_lcy_overlayCtx=null,_lcy_hlIds=new Set(),_lcy_directIds=new Set(),_lcy_ro=null;
+const _LCY_PARTICLE_COLOR='rgba(167,139,250,0.80)',_LCY_GLOW_COLOR='rgba(167,139,250,0.18)',_LCY_PARTICLE_RADIUS=2.5,_LCY_PARTICLE_SPEED=80;
+let _lcy_animEdges=[],_lcy_animFrameId=null,_lcy_lastAnimTime=null;
+function _lcyCyToCanvas(pt){const z=_lcy_cy.zoom(),p=_lcy_cy.pan();return{x:pt.x*z+p.x,y:pt.y*z+p.y};}
+function _lcyGetEdgePath(edge){
+  const sn=edge.source(),tn=edge.target();
+  const sc=_lcyCyToCanvas(sn.position()),tc=_lcyCyToCanvas(tn.position());
+  const z=_lcy_cy.zoom();
+  const sw=sn.data('w')*z/2, sh=sn.data('h')*z/2;
+  const tw=tn.data('w')*z/2, th=tn.data('h')*z/2;
+  // Connect right-boundary of source to left-boundary of target when source is to the left,
+  // otherwise use left→right of target→source, falling back to the nearest horizontal edge.
+  let src, tgt;
+  const dx=tc.x-sc.x, dy=tc.y-sc.y;
+  if(Math.abs(dx)>=Math.abs(dy)){
+    // Primarily horizontal - exit/enter on the left/right walls
+    src = dx>=0 ? {x:sc.x+sw, y:sc.y} : {x:sc.x-sw, y:sc.y};
+    tgt = dx>=0 ? {x:tc.x-tw, y:tc.y} : {x:tc.x+tw, y:tc.y};
+  } else {
+    // Primarily vertical - exit/enter on the top/bottom walls
+    src = dy>=0 ? {x:sc.x, y:sc.y+sh} : {x:sc.x, y:sc.y-sh};
+    tgt = dy>=0 ? {x:tc.x, y:tc.y-th} : {x:tc.x, y:tc.y+th};
+  }
+  const bdx=tgt.x-src.x, bow=Math.min(Math.abs(bdx)*0.45,120);
+  return{src,cp1:{x:src.x+bow,y:src.y},cp2:{x:tgt.x-bow,y:tgt.y},tgt};
+}
+function _lcyBezier(p0,p1,p2,p3,t){const mt=1-t;return{x:mt*mt*mt*p0.x+3*mt*mt*t*p1.x+3*mt*t*t*p2.x+t*t*t*p3.x,y:mt*mt*mt*p0.y+3*mt*mt*t*p1.y+3*mt*t*t*p2.y+t*t*t*p3.y};}
+function _lcyBezierLen(p0,p1,p2,p3){let len=0,prev=p0;for(let i=1;i<=20;i++){const cur=_lcyBezier(p0,p1,p2,p3,i/20),dx=cur.x-prev.x,dy=cur.y-prev.y;len+=Math.sqrt(dx*dx+dy*dy);prev=cur;}return len;}
+function _lcyBuildAnimEdges(){if(!_lcy_cy) return;_lcy_animEdges=[];_lcy_cy.edges().forEach(edge=>{const path=_lcyGetEdgePath(edge),tl=_lcyBezierLen(path.src,path.cp1,path.cp2,path.tgt);if(tl<10) return;const count=Math.max(1,Math.round(tl/80));_lcy_animEdges.push({id:edge.id(),path,particles:Array.from({length:count},(_,i)=>({t:i/count,speed:_LCY_PARTICLE_SPEED/tl})),len:tl});});}
+function _lcySyncAnimPaths(){if(!_lcy_cy||!_lcy_animEdges.length) return;_lcy_animEdges.forEach(ae=>{const edge=_lcy_cy.$('#'+CSS.escape(ae.id));if(!edge.length) return;ae.path=_lcyGetEdgePath(edge);const nl=_lcyBezierLen(ae.path.src,ae.path.cp1,ae.path.cp2,ae.path.tgt);if(Math.abs(nl-ae.len)>5){ae.len=nl;ae.particles.forEach(p=>{p.speed=_LCY_PARTICLE_SPEED/nl;});}});}
+function _lcyStartAnim(){if(_lcy_animFrameId) return;_lcy_lastAnimTime=null;_lcy_animFrameId=requestAnimationFrame(_lcyAnimFrame);}
+function _lcyCancelAnim(){if(_lcy_animFrameId){cancelAnimationFrame(_lcy_animFrameId);_lcy_animFrameId=null;}}
+function _lcyAnimFrame(now){_lcy_animFrameId=null;if(!_lcy_animEdges.length||!_lcy_overlayCtx) return;const dt=_lcy_lastAnimTime?Math.min((now-_lcy_lastAnimTime)/1000,0.05):0;_lcy_lastAnimTime=now;_lcy_animEdges.forEach(ae=>{ae.particles.forEach(p=>{p.t+=p.speed*dt;if(p.t>1) p.t-=1;});});_lcyDrawOverlayWithAnim();_lcy_animFrameId=requestAnimationFrame(_lcyAnimFrame);}
+function _lcyNodeW(t){const nw=t.name.length*8.5+52,cw=t.columns.length?Math.max(...t.columns.map(c=>(c.name||'').length*7.5+(c.type||'').length*6.5+56)):0;return Math.ceil(Math.max(_LCY_T.minW,nw,cw));}
+function _lcyNodeH(t){return Math.ceil(_LCY_T.hdrH+Math.max(1,t.columns.length)*_LCY_T.rowH);}
+function _lcyRoundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();}
+function _lcyClip(ctx,text,maxW){if(!maxW||maxW<=0) return '';if(ctx.measureText(text).width<=maxW) return text;let lo=0,hi=text.length;while(lo<hi){const m=(lo+hi+1)>>1;ctx.measureText(text.slice(0,m)+'…').width<=maxW?lo=m:hi=m-1;}return text.slice(0,lo)+'…';}
+function _lcyDrawNode(ctx,table,w,h,rx,ry,zoom,highlighted,isDirect){const rw=w*zoom,rh=h*zoom,r=_LCY_T.radius*zoom;_lcyRoundRect(ctx,rx,ry,rw,rh,r);ctx.fillStyle=_LCY_T.bg;ctx.fill();ctx.strokeStyle=highlighted?_LCY_T.borderHL:isDirect?_LCY_T.borderDirect:_LCY_T.border;ctx.lineWidth=(highlighted||isDirect)?2:1;if(highlighted||isDirect){ctx.shadowColor=_LCY_T.borderHL;ctx.shadowBlur=isDirect?6*zoom:10*zoom;}ctx.stroke();ctx.shadowBlur=0;ctx.save();ctx.beginPath();ctx.moveTo(rx+r,ry);ctx.lineTo(rx+rw-r,ry);ctx.arcTo(rx+rw,ry,rx+rw,ry+r,r);ctx.lineTo(rx+rw,ry+_LCY_T.hdrH*zoom);ctx.lineTo(rx,ry+_LCY_T.hdrH*zoom);ctx.lineTo(rx,ry+r);ctx.arcTo(rx,ry,rx+r,ry,r);ctx.closePath();ctx.fillStyle=isDirect?_LCY_T.headerBgDirect:_LCY_T.headerBg;ctx.fill();ctx.restore();const isz=12*zoom,ix=rx+10*zoom,iy=ry+(_LCY_T.hdrH*zoom-isz)/2;ctx.save();ctx.strokeStyle=_LCY_T.textMuted;ctx.lineWidth=1.2;ctx.strokeRect(ix+isz*0.15,iy+isz*0.15,isz*0.7,isz*0.7);ctx.beginPath();ctx.moveTo(ix+isz*0.15,iy+isz*0.5);ctx.lineTo(ix+isz*0.85,iy+isz*0.5);ctx.moveTo(ix+isz*0.5,iy+isz*0.15);ctx.lineTo(ix+isz*0.5,iy+isz*0.85);ctx.stroke();ctx.restore();const nfsz=Math.max(9,Math.round(13*zoom));ctx.font=`600 ${nfsz}px ${_LCY_T.font}`;ctx.fillStyle=(highlighted||isDirect)?'#ffffff':_LCY_T.textMuted;ctx.textBaseline='middle';ctx.textAlign='left';ctx.fillText(_lcyClip(ctx,table.name,rw-56*zoom),rx+28*zoom,ry+_LCY_T.hdrH*zoom/2);const cfsz=Math.max(8,Math.round(11*zoom)),tfsz=Math.max(7,Math.round(9.5*zoom));table.columns.forEach((col,i)=>{const rowTop=ry+(_LCY_T.hdrH+i*_LCY_T.rowH)*zoom,rowH=_LCY_T.rowH*zoom;if(col.fk){ctx.fillStyle=_LCY_T.fkRowBg;ctx.fillRect(rx,rowTop,rw,rowH);}if(i<table.columns.length-1){ctx.strokeStyle=_LCY_T.rowBorder;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(rx,rowTop+rowH);ctx.lineTo(rx+rw,rowTop+rowH);ctx.stroke();}const csz=Math.max(8,Math.round(11*zoom)),cx0=rx+10*zoom,cy0=rowTop+(rowH-csz)/2;if(col.pk){ctx.strokeStyle=_LCY_T.pkColor;ctx.lineWidth=1.3;ctx.beginPath();ctx.arc(cx0+csz*0.32,cy0+csz*0.68,csz*0.22,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(cx0+csz*0.5,cy0+csz*0.5);ctx.lineTo(cx0+csz*0.95,cy0+csz*0.08);ctx.moveTo(cx0+csz*0.8,cy0+csz*0.22);ctx.lineTo(cx0+csz*0.95,cy0+csz*0.37);ctx.stroke();}else if(col.fk){ctx.strokeStyle=_LCY_T.fkColor;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(cx0+csz*0.32,cy0+csz*0.5,csz*0.22,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.arc(cx0+csz*0.68,cy0+csz*0.5,csz*0.22,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(cx0+csz*0.54,cy0+csz*0.5);ctx.lineTo(cx0+csz*0.46,cy0+csz*0.5);ctx.strokeStyle=_LCY_T.fkColor;ctx.lineWidth=1.5;ctx.stroke();}else{ctx.beginPath();ctx.arc(cx0+csz/2,cy0+csz/2,csz*0.25,0,Math.PI*2);ctx.strokeStyle=col.not_null?'rgba(255,255,255,0.4)':_LCY_T.rowBorder;ctx.lineWidth=1;ctx.stroke();}ctx.font=`400 ${cfsz}px ${_LCY_T.font}`;ctx.fillStyle=_LCY_T.text;ctx.textBaseline='middle';ctx.textAlign='left';const tw=(col.type||'').length*5.8*zoom+8*zoom;ctx.fillText(_lcyClip(ctx,col.name,rw-30*zoom-tw),rx+26*zoom,rowTop+rowH/2);ctx.font=`400 ${tfsz}px ${_LCY_T.fontMono}`;ctx.fillStyle=_LCY_T.textType;ctx.textAlign='right';ctx.fillText(col.type||'',rx+rw-8*zoom,rowTop+rowH/2);});}
+function _lcyDrawNodes(ctx,zoom,pan){_lcy_cy.nodes().forEach(n=>{const pos=n.position(),w=n.data('w'),h=n.data('h'),rx=pos.x*zoom+pan.x-w*zoom/2,ry=pos.y*zoom+pan.y-h*zoom/2;_lcyDrawNode(ctx,n.data('table'),w,h,rx,ry,zoom,_lcy_hlIds.has(n.id()),_lcy_directIds.has(n.id()));});}
+function _lcyDrawOverlay(){if(!_lcy_cy||!_lcy_overlayCtx) return;const c=_lcy_overlay,dpr=window.devicePixelRatio||1;_lcy_overlayCtx.clearRect(0,0,c.width,c.height);_lcy_overlayCtx.save();_lcy_overlayCtx.scale(dpr,dpr);_lcyDrawNodes(_lcy_overlayCtx,_lcy_cy.zoom(),_lcy_cy.pan());_lcy_overlayCtx.restore();}
+function _lcyDrawOverlayWithAnim(){if(!_lcy_cy||!_lcy_overlayCtx) return;const c=_lcy_overlay,dpr=window.devicePixelRatio||1;_lcy_overlayCtx.clearRect(0,0,c.width,c.height);_lcy_overlayCtx.save();_lcy_overlayCtx.scale(dpr,dpr);const zoom=_lcy_cy.zoom(),pan=_lcy_cy.pan();_lcyDrawNodes(_lcy_overlayCtx,zoom,pan);_lcy_animEdges.forEach(ae=>{const{path,particles}=ae;_lcy_overlayCtx.save();_lcy_overlayCtx.beginPath();_lcy_overlayCtx.moveTo(path.src.x,path.src.y);_lcy_overlayCtx.bezierCurveTo(path.cp1.x,path.cp1.y,path.cp2.x,path.cp2.y,path.tgt.x,path.tgt.y);_lcy_overlayCtx.strokeStyle=_LCY_GLOW_COLOR;_lcy_overlayCtx.lineWidth=1.5;_lcy_overlayCtx.shadowColor='#a78bfa';_lcy_overlayCtx.shadowBlur=4;_lcy_overlayCtx.stroke();_lcy_overlayCtx.restore();particles.forEach(p=>{const pt=_lcyBezier(path.src,path.cp1,path.cp2,path.tgt,p.t),t0=Math.max(0,p.t-0.12);_lcy_overlayCtx.save();_lcy_overlayCtx.beginPath();for(let i=0;i<=8;i++){const ti=t0+(p.t-t0)*(i/8),tp=_lcyBezier(path.src,path.cp1,path.cp2,path.tgt,ti);i===0?_lcy_overlayCtx.moveTo(tp.x,tp.y):_lcy_overlayCtx.lineTo(tp.x,tp.y);}const ts=_lcyBezier(path.src,path.cp1,path.cp2,path.tgt,t0),grad=_lcy_overlayCtx.createLinearGradient(ts.x,ts.y,pt.x,pt.y);grad.addColorStop(0,'rgba(167,139,250,0)');grad.addColorStop(1,'rgba(167,139,250,0.55)');_lcy_overlayCtx.strokeStyle=grad;_lcy_overlayCtx.lineWidth=1.5;_lcy_overlayCtx.shadowColor='#a78bfa';_lcy_overlayCtx.shadowBlur=4;_lcy_overlayCtx.stroke();_lcy_overlayCtx.restore();_lcy_overlayCtx.save();_lcy_overlayCtx.beginPath();_lcy_overlayCtx.arc(pt.x,pt.y,_LCY_PARTICLE_RADIUS,0,Math.PI*2);_lcy_overlayCtx.fillStyle=_LCY_PARTICLE_COLOR;_lcy_overlayCtx.shadowColor='#a78bfa';_lcy_overlayCtx.shadowBlur=7;_lcy_overlayCtx.fill();_lcy_overlayCtx.restore();});});_lcy_overlayCtx.restore();}
+function _lcyResizeOverlay(){const wrap=document.getElementById('lineage-cy-wrap');if(!wrap) return;const w=wrap.clientWidth,h=wrap.clientHeight;if(!w||!h||!_lcy_overlay) return;const dpr=window.devicePixelRatio||1;_lcy_overlay.width=w*dpr;_lcy_overlay.height=h*dpr;_lcy_overlay.style.width=w+'px';_lcy_overlay.style.height=h+'px';_lcyDrawOverlay();}
+function _lcySetHL(ids){_lcy_hlIds=new Set(ids);if(!_lcy_cy) return;_lcy_cy.edges().removeClass('hl');if(ids.size){_lcy_cy.nodes().forEach(n=>{if(ids.has(n.id())) n.connectedEdges().addClass('hl');});}  _lcyDrawOverlay();}
+function _lcyComputeTopoLayout(tables){const wrap=document.getElementById('lineage-cy-wrap'),W=(wrap?wrap.clientWidth:0)||900,H=(wrap?wrap.clientHeight:0)||500,outEdges={},inDegree={};tables.forEach(t=>{outEdges[t.name]=new Set();inDegree[t.name]=0;});tables.forEach(t=>{const referenced=new Set(t.columns.filter(c=>c.fk&&c.fk_target).map(c=>c.fk_target.slice(0,c.fk_target.lastIndexOf('.'))));referenced.forEach(parent=>{if(outEdges[parent]!==undefined&&parent!==t.name){outEdges[parent].add(t.name);inDegree[t.name]=(inDegree[t.name]||0)+1;}});});const depth={},queue=[];tables.forEach(t=>{depth[t.name]=0;if(!inDegree[t.name]) queue.push(t.name);});while(queue.length){const cur=queue.shift();outEdges[cur].forEach(nxt=>{depth[nxt]=Math.max(depth[nxt]||0,depth[cur]+1);inDegree[nxt]--;if(inDegree[nxt]===0) queue.push(nxt);});}const cols={};tables.forEach(t=>{const d=depth[t.name]||0;(cols[d]=cols[d]||[]).push(t.name);});const numCols=Math.max(...Object.keys(cols).map(Number))+1,COL_GAP=Math.max(280,Math.round(W/numCols)),ROW_GAP=80,positions={};Object.entries(cols).forEach(([d,names])=>{const colX=Number(d)*COL_GAP+COL_GAP/2,totalH=names.length*ROW_GAP;names.forEach((name,i)=>{positions[name]={x:colX,y:i*ROW_GAP-totalH/2+ROW_GAP/2};});});return positions;}
+async function buildLineageCy(subsetSchema,directIds){
+  _lcyCancelAnim();if(_lcy_cy){_lcy_cy.destroy();_lcy_cy=null;}if(_lcy_ro){_lcy_ro.disconnect();_lcy_ro=null;}
+  const container=document.getElementById('lineage-cy'),wrap=document.getElementById('lineage-cy-wrap');
+  _lcy_overlay=document.getElementById('lineage-cy-overlay');_lcy_overlayCtx=_lcy_overlay?_lcy_overlay.getContext('2d'):null;
+  _lcy_hlIds=new Set();_lcy_directIds=directIds||new Set();_lcy_animEdges=[];
+  if(!container||!wrap||!_lcy_overlay) return;
+  if(window.cytoscapeElk&&typeof cytoscape!=='undefined'){try{cytoscape.use(window.cytoscapeElk);}catch(e){}}
+  const nodes=subsetSchema.map(t=>({group:'nodes',data:{id:t.name,table:t,w:_lcyNodeW(t),h:_lcyNodeH(t)}}));
+  const seenEdges=new Set(),edges=[];
+  subsetSchema.forEach(t=>{t.columns.filter(c=>c.fk&&c.fk_target).forEach(c=>{const ld=c.fk_target.lastIndexOf('.'),referenced=ld>=0?c.fk_target.slice(0,ld):c.fk_target,key=`${t.name}→${referenced}`;if(seenEdges.has(key)||!subsetSchema.find(x=>x.name===referenced)) return;seenEdges.add(key);edges.push({group:'edges',data:{id:`${t.name}__${c.name}__${referenced}`,source:referenced,target:t.name}});});});
+  _lcy_cy=cytoscape({container,elements:[...nodes,...edges],style:[{selector:'node',style:{shape:'rectangle',width:'data(w)',height:'data(h)','background-opacity':0,'border-width':0,label:'',padding:0}},{selector:'edge',style:{width:0,'line-color':'transparent','target-arrow-color':'transparent','curve-style':'unbundled-bezier','control-point-distances':[60],'control-point-weights':[0.5],'target-arrow-shape':'none','source-arrow-shape':'none',opacity:0}},{selector:'edge.hl',style:{width:0,opacity:0}}],minZoom:0.05,maxZoom:3,wheelSensitivity:0.15,layout:{name:'preset'},pixelRatio:window.devicePixelRatio||1});
+  _lcy_ro=new ResizeObserver(()=>_lcyResizeOverlay());_lcy_ro.observe(wrap);
+  _lcy_cy.on('render',()=>{if(_lcy_animEdges.length) _lcySyncAnimPaths();else _lcyDrawOverlay();});
+  _lcy_cy.on('mouseover','node',e=>{const id=e.target.id(),ids=new Set([id]);e.target.connectedEdges().connectedNodes().forEach(x=>ids.add(x.id()));_lcySetHL(ids);container.style.cursor='pointer';});
+  _lcy_cy.on('mouseout','node',()=>{_lcySetHL(new Set());container.style.cursor='';});
+  if(window.cytoscapeElk&&typeof cytoscape!=='undefined'){await new Promise(resolve=>{const l=_lcy_cy.layout({name:'elk',elk:{algorithm:'layered','elk.direction':'RIGHT','elk.layered.spacing.nodeNodeBetweenLayers':'100','elk.spacing.nodeNode':'48','elk.edgeRouting':'ORTHOGONAL','elk.layered.mergeEdges':'true'},animate:false,fit:true,padding:48});l.on('layoutstop',resolve);l.run();});}
+  else{const positions=_lcyComputeTopoLayout(subsetSchema);_lcy_cy.nodes().forEach(n=>{const p=positions[n.id()];if(p) n.position(p);});_lcy_cy.fit(undefined,48);}
+  _lcyResizeOverlay();_lcyBuildAnimEdges();if(_lcy_animEdges.length) _lcyStartAnim();
+}
+function openLineage(qid){
+  const q=_savedQueries.find(x=>x.id===qid);if(!q) return;
+  if(_lineageOpenQid===qid&&document.getElementById('lineage-pane').classList.contains('open')){closeLineage();return;}
+  _lineageOpenQid=qid;
+  document.querySelectorAll('.lineage-btn[data-qid]').forEach(b=>{b.classList.toggle('active',b.dataset.qid===qid);});_syncLineageDropActive();
+  const directTables=_extractLineageTables(q.sql),subsetTables=_expandFKNeighbours(directTables);
+  const pane=document.getElementById('lineage-pane'),title=document.getElementById('lineage-hdr-title'),meta=document.getElementById('lineage-hdr-meta'),empty=document.getElementById('lineage-empty'),sqlBlk=document.getElementById('lineage-sql-block'),tblHdr=document.getElementById('lineage-tables-hdr'),tblLst=document.getElementById('lineage-tables-list'),erdWrap=document.getElementById('lineage-erd-wrap'),erdLoad=document.getElementById('lineage-erd-loading');
+  title.textContent=q.name;pane.classList.add('open');document.getElementById('history-panel').classList.remove('open');
+  if(!directTables.length){meta.textContent='0 tables';empty.classList.add('visible');sqlBlk.style.display='none';tblHdr.style.display='none';tblLst.innerHTML='';erdWrap.classList.remove('visible');return;}
+  const directSet=new Set(directTables.map(t=>t.toLowerCase()));
+  meta.textContent=subsetTables.length+' table'+(subsetTables.length!==1?'s':'')+(subsetTables.length>directTables.length?` (${directTables.length} direct + ${subsetTables.length-directTables.length} FK neighbour${subsetTables.length-directTables.length!==1?'s':''})`:'');
+  empty.classList.remove('visible');sqlBlk.textContent=q.sql.trim().slice(0,400)+(q.sql.trim().length>400?'\n…':'');sqlBlk.style.display='';tblHdr.style.display='';
+  const tableIcon=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="17" width="18" height="4"/></svg>`;
+  tblLst.innerHTML=subsetTables.map(tbl=>`<li${directSet.has(tbl.toLowerCase())?'':' class="li-hop"'}>${tableIcon} ${esc(tbl)}</li>`).join('');
+  erdWrap.classList.add('visible');erdLoad.classList.remove('hidden');
+  const subsetSchema=SCHEMA.filter(t=>subsetTables.some(s=>s===t.name)),directIds=new Set(directTables);
+  buildLineageCy(subsetSchema,directIds).then(()=>{erdLoad.classList.add('hidden');});
+}
+function closeLineage(){
+  _lineageOpenQid=null;document.getElementById('lineage-pane').classList.remove('open');
+  document.querySelectorAll('.lineage-btn[data-qid]').forEach(b=>b.classList.remove('active'));_syncLineageDropActive();
+  _lcyCancelAnim();if(_lcy_cy){_lcy_cy.destroy();_lcy_cy=null;}if(_lcy_ro){_lcy_ro.disconnect();_lcy_ro=null;}
+  document.getElementById('lineage-erd-wrap').classList.remove('visible');
+}
+
+// ── Viz panel ─────────────────────────────────────────────────────────────────
+function toggleVizPanel(){const panel=document.getElementById('viz-panel'),btn=document.getElementById('btn-charts');if(!panel||!btn) return;const isOn=panel.classList.toggle('visible');btn.classList.toggle('on',isOn);if(isOn){Object.keys(_vizCharts).forEach(type=>{const c=document.getElementById(`v${type}-canvas`);if(c&&_vizCharts[type]) _vizCharts[type].resize?.();});}}
+const _vizCharts={};
+function switchVizTab(btn){document.querySelectorAll('.viz-tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.viz-pane').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('vpane-'+btn.dataset.tab).classList.add('active');}
+function _vizColOptions(cols,selectedVal){return'<option value="">- column -</option>'+cols.map(c=>`<option value="${esc(c)}"${c===selectedVal?' selected':''}>${esc(c)}</option>`).join('');}
+function updateQPlotSelects(cols){const pairs=[['vbar-x','vbar-y'],['vline-x','vline-y'],['vscatter-x','vscatter-y'],['vpivot-row','vpivot-col']];pairs.forEach(([xId,yId])=>{const xs=document.getElementById(xId),ys=document.getElementById(yId);if(xs) xs.innerHTML=_vizColOptions(cols,xs.value);if(ys) ys.innerHTML=_vizColOptions(cols,ys.value);});const vs=document.getElementById('vpivot-val');if(vs) vs.innerHTML=_vizColOptions(cols,vs.value);}
+const _CHART_DARK_OPTS={responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:'#e2e6f0',font:{size:11}}}},scales:{x:{ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},grid:{color:'#2e3234'}},y:{ticks:{color:'rgba(255,255,255,0.4)',font:{size:10}},grid:{color:'#2e3234'}}}};
+function _aggregateRows(rows,cols,xCol,yCol,aggFn){const xi=cols.indexOf(xCol),yi=cols.indexOf(yCol);if(xi<0) return{labels:[],data:[],yLabel:yCol};if(!aggFn||aggFn==='none') return{labels:rows.map(r=>String(r[xi]??'')),data:rows.map(r=>yi>=0?(Number(r[yi])||0):0),yLabel:yCol};const needsNumeric=aggFn==='sum'||aggFn==='avg'||aggFn==='min'||aggFn==='max',order=[],groups={};rows.forEach(r=>{const k=String(r[xi]??''),rawVal=yi>=0?r[yi]:null;if(!groups[k]){groups[k]=[];order.push(k);}if(needsNumeric){const n=Number(rawVal);if(!isNaN(n)&&rawVal!==null&&rawVal!=='') groups[k].push(n);}else groups[k].push(rawVal);});const aggFnLabel={sum:'SUM',avg:'AVG',count:'COUNT',count_distinct:'COUNT DISTINCT',min:'MIN',max:'MAX'};const data=order.map(k=>{const vals=groups[k];switch(aggFn){case'sum':return vals.length?vals.reduce((a,b)=>a+b,0):0;case'avg':return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;case'count':return vals.length;case'count_distinct':return new Set(vals.map(v=>v===null?'__NULL__':String(v))).size;case'min':return vals.length?Math.min(...vals):0;case'max':return vals.length?Math.max(...vals):0;default:return vals.length?vals[0]:0;}});return{labels:order,data,yLabel:`${aggFnLabel[aggFn]||aggFn}(${yCol})`};}
+function renderViz(type){const xCol=document.getElementById(`v${type}-x`)?.value,yCol=document.getElementById(`v${type}-y`)?.value;if(!xCol||!yCol){showToast('Select X and Y columns','info');return;}const wrapId=`v${type}-wrap`,canvasId=`v${type}-canvas`;document.getElementById(wrapId).style.display='';if(_vizCharts[type]){_vizCharts[type].destroy();delete _vizCharts[type];}const ctx=document.getElementById(canvasId).getContext('2d');if(type==='scatter'){const xi=lastCols.indexOf(xCol),yi=lastCols.indexOf(yCol);if(xi<0||yi<0) return;_vizCharts[type]=new Chart(ctx,{type:'scatter',data:{datasets:[{label:yCol,data:lastResultRows.map(r=>({x:Number(r[xi])||0,y:Number(r[yi])||0})),backgroundColor:'rgba(167,139,250,0.6)'}]},options:_CHART_DARK_OPTS});return;}const aggFn=document.getElementById(`v${type}-agg`)?.value||'none',{labels,data,yLabel}=_aggregateRows(lastResultRows,lastCols,xCol,yCol,aggFn);_vizCharts[type]=new Chart(ctx,{type,data:{labels,datasets:[{label:yLabel,data,backgroundColor:'rgba(167,139,250,0.6)',borderColor:'#a78bfa',borderWidth:1.5}]},options:_CHART_DARK_OPTS});}
+function renderPivot(){const rowCol=document.getElementById('vpivot-row')?.value,colCol=document.getElementById('vpivot-col')?.value,valCol=document.getElementById('vpivot-val')?.value,out=document.getElementById('vpivot-out');if(!rowCol||!colCol||!valCol){showToast('Select Row, Column and Value','info');return;}const ri=lastCols.indexOf(rowCol),ci=lastCols.indexOf(colCol),vi=lastCols.indexOf(valCol);if(ri<0||ci<0||vi<0) return;const rowKeys=[],colKeys=[],map={};lastResultRows.forEach(r=>{const rk=String(r[ri]??''),ck=String(r[ci]??''),val=Number(r[vi])||0;if(!rowKeys.includes(rk)) rowKeys.push(rk);if(!colKeys.includes(ck)) colKeys.push(ck);if(!map[rk]) map[rk]={};map[rk][ck]=(map[rk][ck]||0)+val;});const th='background:#1c1f20;color:rgba(255,255,255,0.5);padding:3px 8px;border:1px solid #2e3234;font-size:10px;white-space:nowrap;',td='padding:3px 8px;border:1px solid #2e3234;color:#7dd3fc;text-align:right;font-size:11px;',tdl='padding:3px 8px;border:1px solid #2e3234;color:rgba(255,255,255,0.45);font-size:11px;white-space:nowrap;';let html=`<table style="border-collapse:collapse;min-width:100%"><thead><tr><th style="${th}">${esc(rowCol)}</th>`;colKeys.forEach(ck=>{html+=`<th style="${th}">${esc(ck)}</th>`;});html+='</tr></thead><tbody>';rowKeys.forEach(rk=>{html+=`<tr><td style="${tdl}">${esc(rk)}</td>`;colKeys.forEach(ck=>{const v=map[rk]?.[ck];html+=`<td style="${td}">${v!==undefined?v.toLocaleString():''}</td>`;});html+='</tr>';});out.innerHTML=html+'</tbody></table>';}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg,kind){
+  if(window._showToast){window._showToast(msg,kind);return;}
+  let c=document.getElementById('_toast_container');
+  if(!c){c=document.createElement('div');c.id='_toast_container';c.style.cssText='position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';document.body.appendChild(c);}
+  const t=document.createElement('div'),colors={success:'#1ded83',error:'#f87171',info:'#60a5fa'};
+  t.style.cssText=`background:#1c1f20;border:1px solid ${colors[kind]||colors.info};color:#e2e6f0;font-size:12px;padding:8px 14px;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.5);transition:opacity .3s;`;
+  t.innerHTML=msg;c.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),350);},3000);
+}
+
+// ── R1: Row limit ─────────────────────────────────────────────────────────────
+let _rowLimit = 1000;
+function _onLimitChange() {
+  const sel = document.getElementById('row-limit-sel');
+  _rowLimit = parseInt(sel.value, 10);  // 0 = no limit
+}
+
+// ── R2: Filter results ────────────────────────────────────────────────────────
+let _filterVisible = false;
+function toggleFilter() {
+  _filterVisible = !_filterVisible;
+  const bar = document.getElementById('filter-bar');
+  const btn = document.getElementById('btn-filter');
+  bar.classList.toggle('visible', _filterVisible);
+  btn.classList.toggle('active', _filterVisible);
+  if (_filterVisible) {
+    const inp = document.getElementById('filter-input');
+    inp.focus();
+    inp.select();
+  } else {
+    document.getElementById('filter-input').value = '';
+    applyFilter();
+  }
+}
+
+function applyFilter() {
+  const raw = document.getElementById('filter-input').value;
+  const tbody = document.querySelector('#results-table tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  if (!raw.trim()) {
+    rows.forEach(r => { r.style.display = ''; });
+    document.getElementById('filter-stat').textContent = '';
+    return;
+  }
+  let re;
+  try { re = new RegExp(raw, 'i'); } catch(e) { re = new RegExp(raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+  let visible = 0;
+  rows.forEach(r => {
+    const match = re.test(r.textContent);
+    r.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('filter-stat').textContent = `${visible} / ${rows.length}`;
+}
+
+// ── R3: EXPLAIN panel ─────────────────────────────────────────────────────────
+async function runExplain() {
+  const rawSql = _getSQL().trim();
+  if (!rawSql) { showToast('Write a query first', 'info'); return; }
+  const panel = document.getElementById('explain-panel');
+  const content = document.getElementById('explain-content');
+  const title = document.getElementById('explain-hdr-title');
+  panel.classList.add('open');
+  // Hide the results grid and hscroll bar while explain is shown
+  document.getElementById('results-grid-wrap').style.display = 'none';
+  document.getElementById('q-hscroll-bar').style.display = 'none';
+  document.getElementById('history-panel').classList.remove('open');
+  closeLineage();
+  content.innerHTML = '<span style="color:rgba(255,255,255,0.3);">Running EXPLAIN…</span>';
+  title.textContent = 'Query Plan';
+  document.getElementById('btn-explain').classList.add('active');
+
+  // Build EXPLAIN query - use EXPLAIN QUERY PLAN for SQLite, EXPLAIN for others
+  const isLive = SOURCE === 'connstring' || SOURCE === 'join' ||
+                 SOURCE === 'mongodb'  || SOURCE === 'snowflake' ||
+                 SOURCE === 'bigquery' || SOURCE === 'supabase';
+  // For live connections try plain EXPLAIN; for file-based (SQLite) use EXPLAIN QUERY PLAN
+  const explainSql = isLive ? `EXPLAIN ${rawSql}` : `EXPLAIN QUERY PLAN ${rawSql}`;
+
+  try {
+    const resp = await fetch(`/api/query/${KEY}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql: explainSql, params: {}, limit: 500 }),
+    });
+    const data = await resp.json();
+    if (data.error) {
+      // SQLite EXPLAIN QUERY PLAN fallback: try plain EXPLAIN
+      if (!isLive && data.error.includes('QUERY PLAN')) {
+        const resp2 = await fetch(`/api/query/${KEY}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql: `EXPLAIN ${rawSql}`, params: {}, limit: 500 }),
+        });
+        const data2 = await resp2.json();
+        if (data2.error) { content.innerHTML = `<div class="explain-raw" style="color:#f87171;">${esc(data2.error)}</div>`; return; }
+        _renderExplainRaw(data2, content, title);
+        return;
+      }
+      content.innerHTML = `<div class="explain-raw" style="color:#f87171;">${esc(data.error)}</div>`;
+      return;
+    }
+    _renderExplainRaw(data, content, title);
+  } catch(e) {
+    content.innerHTML = `<div class="explain-raw" style="color:#f87171;">${esc(e.message)}</div>`;
+  }
+}
+
+function _renderExplainRaw(data, content, title) {
+  const cols = data.columns || [];
+  const rows = data.rows || [];
+  title.textContent = `Query Plan (${rows.length} step${rows.length !== 1 ? 's' : ''})`;
+
+  // SQLite EXPLAIN QUERY PLAN: cols = [id, parent, notused, detail]
+  const detailIdx = cols.findIndex(c => /detail/i.test(c));
+  const depthIdx  = cols.findIndex(c => /id$/i.test(c));
+  if (detailIdx >= 0) {
+    // Structured tree view
+    content.innerHTML = rows.map(row => {
+      const depth  = depthIdx >= 0 ? Math.floor((Number(row[depthIdx]) || 0) / 3) : 0;
+      const detail = String(row[detailIdx] || '');
+      const indent = '  '.repeat(Math.min(depth, 6));
+      // Highlight the operation keyword (SCAN, SEARCH, USE TEMP B-TREE, etc.)
+      const opMatch = detail.match(/^(SCAN|SEARCH|USE TEMP B-TREE|MATERIALIZE|SUBQUERY|COMPOUND SUBQUERIES|UNION|INTERSECT|EXCEPT|LIST SUBQUERY|CORRELATED SCALAR SUBQUERY|CO-ROUTINE)/i);
+      const op      = opMatch ? opMatch[1].toUpperCase() : '';
+      const rest    = op ? detail.slice(op.length) : detail;
+      return `<div class="explain-row">
+        <span class="explain-depth">${indent}▸</span>
+        ${op ? `<span class="explain-op">${esc(op)}</span>` : ''}
+        <span class="explain-detail" title="${esc(detail)}">${esc(rest.trim())}</span>
+      </div>`;
+    }).join('') || '<div class="explain-raw" style="color:rgba(255,255,255,0.25);">No plan steps returned.</div>';
+    return;
+  }
+
+  // Generic EXPLAIN: render as table
+  const thStyle = 'padding:3px 8px;border:1px solid #2e3234;font-size:10px;font-weight:600;color:rgba(255,255,255,0.4);background:#1c1f20;white-space:nowrap;';
+  const tdStyle = 'padding:3px 8px;border:1px solid #2e3234;font-size:11px;color:#c8ccd4;white-space:nowrap;';
+  const thead = `<tr>${cols.map(c => `<th style="${thStyle}">${esc(c)}</th>`).join('')}</tr>`;
+  const tbody = rows.map(r => `<tr>${r.map(v => `<td style="${tdStyle}">${v === null ? '<span class="null-pill">NULL</span>' : esc(String(v))}</td>`).join('')}</tr>`).join('');
+  content.innerHTML = `<table style="border-collapse:collapse;font-size:11px;width:100%"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+}
+
+function closeExplain() {
+  document.getElementById('explain-panel').classList.remove('open');
+  document.getElementById('btn-explain')?.classList.remove('active');
+  // Restore the results grid
+  document.getElementById('results-grid-wrap').style.display = '';
+  // hscroll is managed by syncQHScrollBar - let it decide visibility
+  requestAnimationFrame(syncQHScrollBar);
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+function toggleShortcuts(){document.getElementById('shortcut-dialog').classList.toggle('open');}
+document.addEventListener('click',e=>{const wrap=document.getElementById('lineage-wrap');if(wrap&&!wrap.contains(e.target)) closeLineageDrop();});
+document.addEventListener('keydown',e=>{
+  const tag=document.activeElement.tagName;
+  if(e.key==='Escape'){
+    if(document.getElementById('lineage-wrap').classList.contains('open')){closeLineageDrop();return;}
+    if(document.getElementById('explain-panel').classList.contains('open')){closeExplain();return;}
+    if(document.getElementById('cell-pane').classList.contains('open')){closeCellPane();return;}
+    if(document.getElementById('lineage-pane').classList.contains('open')){closeLineage();return;}
+    if(_filterVisible){toggleFilter();return;}
+    document.getElementById('error-panel').classList.remove('open');
+    document.getElementById('shortcut-dialog').classList.remove('open');
+    document.getElementById('history-panel').classList.remove('open');
+  }
+  if(e.key==='?'&&tag!=='INPUT'&&tag!=='TEXTAREA') toggleShortcuts();
+  if((e.ctrlKey||e.metaKey)&&e.key==='h'){e.preventDefault();toggleHistory();}
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==='C'){e.preventDefault();toggleVizPanel();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='f'&&tag!=='INPUT'&&tag!=='TEXTAREA'){e.preventDefault();toggleFilter();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='e'&&tag!=='INPUT'&&tag!=='TEXTAREA'){e.preventDefault();runExplain();}
+});
+document.getElementById('shortcut-dialog').addEventListener('click',e=>{if(e.target===document.getElementById('shortcut-dialog')) toggleShortcuts();});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function _semanticType(colName,val){
+  if(val===null||val===undefined) return null;
+  const v=String(val),lo=colName.toLowerCase();
+  if(/^(true|false|yes|no|1|0)$/i.test(v)&&/(bool|flag|is_|has_|enabled|active)/.test(lo)){const isTrue=/^(true|yes|1)$/i.test(v);return{cls:isTrue?'bool-t':'bool-f',label:isTrue?'TRUE':'FALSE'};}
+  if(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return{cls:'email',label:'@ email'};
+  if(/^https?:\/\/[^\s]{4,}/.test(v)) return{cls:'url',label:'&#128279; url'};
+  if(/\.(png|jpe?g|gif|webp|svg|avif)(\?.*)?$/i.test(v)&&/^https?:\/\//.test(v)) return{cls:'img',label:'&#128247; img'};
+  if(/^\+?[\d\s\-().]{7,20}$/.test(v)&&/(phone|mobile|tel|fax|contact)/.test(lo)) return{cls:'phone',label:'&#128222; phone'};
+  if(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return{cls:'uuid',label:'uuid'};
+  if(/^(\d{1,3}\.){3}\d{1,3}$/.test(v)||/^([0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}$/i.test(v)) return{cls:'ip',label:'ip'};
+  return null;
+}
+
+// ── Cell detail pane ──────────────────────────────────────────────────────────
+let _cpaneCol=null,_cpaneVal=null,_cpaneColIdx=null;
+function openCellPane(colName,val,colIdx){
+  _cpaneCol=colName;_cpaneVal=val;_cpaneColIdx=colIdx;
+  document.getElementById('cell-pane-col').textContent=colName;
+  const body=document.getElementById('cell-pane-body'),raw=val===null?null:String(val);
+  let content='';
+  if(raw!==null&&raw.length>0&&(raw[0]==='{'||raw[0]==='[')){try{content=`<pre>${esc(JSON.stringify(JSON.parse(raw),null,2))}</pre>`;}catch(e){content=`<div class="cell-raw">${esc(raw)}</div>`;}}
+  else if(raw===null) content='<span class="null-pill" style="font-size:13px;">NULL</span>';
+  else content=`<div class="cell-raw">${esc(raw)}</div>`;
+  const sem=raw!==null?_semanticType(colName,raw):null;
+  const meta=raw!==null?[`${raw.length} char${raw.length!==1?'s':''}`,sem?sem.label.replace(/&#\d+;/g,''):''].filter(Boolean).join(' · '):'';
+  body.innerHTML=content+(meta?`<div class="cell-meta">${meta}</div>`:'');
+  document.getElementById('cell-pane').classList.add('open');
+}
+function closeCellPane(){document.getElementById('cell-pane').classList.remove('open');_cpaneCol=null;_cpaneVal=null;}
+function cpaneCopy(){if(_cpaneVal===null){showToast('NULL - nothing to copy','info');return;}navigator.clipboard.writeText(String(_cpaneVal)).then(()=>showToast('Copied','success'));}
+function cpaneQuery(){
+  if(!_cpaneCol||_cpaneVal===null) return;
+  let tbl=_lastQueryTable;
+  if(!tbl){const match=SCHEMA.find(t=>t.columns.some(c=>c.name===_cpaneCol));tbl=match?match.name:(SCHEMA.length>0?SCHEMA[0].name:'table');}
+  const rawVal=String(_cpaneVal),isNum=rawVal!==''&&!isNaN(Number(rawVal)),quoted=isNum?rawVal:`'${rawVal.replace(/'/g,"''")}'`;
+  _setSQL(`SELECT *\nFROM ${_quoteTableRef(tbl)}\nWHERE "${_cpaneCol}" = ${quoted}`);
+  closeCellPane();showToast('WHERE filter set - click Run to execute','info');
+}
+
+// ── CTE builder ───────────────────────────────────────────────────────────────
+function useAsCTE(){
+  if(!lastCols.length){showToast('Run a query first','info');return;}
+  const current=_getSQL().trim();if(!current) return;
+  _setSQL(`WITH _result AS (\n  ${current.replace(/\n/g,'\n  ')}\n)\nSELECT *\nFROM _result`);
+  showToast('CTE prepended - edit the outer SELECT','info');
+}
+
+// ── Pin to Dashboard ──────────────────────────────────────────────────────────
+async function _pinToDashboard(qid, btn) {
+  const q = _savedQueries.find(x => x.id === qid);
+  if (!q) return;
+  const bp = window.BASE_PATH || '';
+  if (q.tile) {
+    // Already pinned - unpin
+    try {
+      await fetch(`${bp}/api/queries/${KEY}/${encodeURIComponent(qid)}/tile`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({tile: null})
+      });
+      q.tile = undefined;
+      if (btn) { btn.classList.remove('pinned'); btn.title = 'Pin to Dashboard'; }
+      showToast(`"${q.name}" unpinned from Dashboard`, 'info');
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  } else {
+    // Pin - create a tile via the tiles API (same path the Dashboard itself uses)
+    try {
+      const resp = await fetch(`${bp}/api/tiles/${KEY}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({query_id: qid, title: q.name, type:'bar', x_col:'', y_col:'', agg_fn:'none', num_col:''})
+      });
+      if (resp.ok) {
+        q.tile = true;  // mark locally so toggle works without reload
+        if (btn) { btn.classList.add('pinned'); btn.title = 'Unpin from Dashboard'; }
+        const dashUrl = `${bp}/dashboard/${KEY}`;
+        showToast(`"${q.name}" pinned - <a href="${dashUrl}" style="color:#1ded83;text-decoration:underline;">open Dashboard</a>`, 'success');
+      }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+  }
+}
+
+// ── Add to Report ─────────────────────────────────────────────────────────────
+function _addToReport(qid) {
+  const bp = window.BASE_PATH || '';
+  window.location.href = `${bp}/report/${encodeURIComponent(KEY)}?sq=${encodeURIComponent(qid)}`;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+// Expose functions that onclick= attributes in static HTML need
+window.runQuery=runQuery; window.toggleHistory=toggleHistory; window.shareQuery=shareQuery;
+window.toggleShortcuts=toggleShortcuts; window.saveCurrentQuery=saveCurrentQuery;
+window.toggleLineageDrop=toggleLineageDrop; window.tabNew=tabNew;
+window.useAsCTE=useAsCTE; window.closeCellPane=closeCellPane;
+window.cpaneCopy=cpaneCopy; window.cpaneQuery=cpaneQuery;
+window.clearHistory=clearHistory; window.closeLineage=closeLineage;
+window.formatSQL=formatSQL;
+window.exportResultCSV=exportResultCSV; window.exportResultJSON=exportResultJSON;
+window.exportResultXLSX=exportResultXLSX; window.copyResultMarkdown=copyResultMarkdown;
+window.copyResultJSONObj=copyResultJSONObj; window.toggleTreeTable=toggleTreeTable;
+window.insertColumn=insertColumn;
+window.deleteSaved=deleteSaved; window.renderViz=renderViz; window.renderPivot=renderPivot;
+window.switchVizTab=switchVizTab;
+window.esc=esc; window.showToast=showToast;
+// R1-R3 exports
+window.toggleFilter=toggleFilter; window.applyFilter=applyFilter;
+window.runExplain=runExplain; window.closeExplain=closeExplain;
+window._onLimitChange=_onLimitChange;
+// Dropdown helpers
+window.tbDropToggle=tbDropToggle; window.tbDropClose=tbDropClose;
+window.toggleQuerySidebar=toggleQuerySidebar; window.clearQuerySidebarSearch=clearQuerySidebarSearch;
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+_editorHost = document.getElementById('cm6-host');
+
+// 1. Set split heights FIRST so CM6 mounts into a sized container
+initSplit();
+
+// 2. Mount editor tabs
+// If ?sql= is in the URL (navigated here from Board Load button), always open a
+// fresh tab with that SQL - regardless of any previously-saved session tabs.
+const _bootSqlB64 = new URLSearchParams(location.search).get('sql');
+let _bootSql = '';
+if (_bootSqlB64) {
+  try { _bootSql = decodeURIComponent(escape(atob(_bootSqlB64))); } catch(e) {}
+}
+
+let _cm6Failed = false;
+try {
+  if (_bootSql) {
+    // Restore previous tabs silently (don't switch to them), then open the
+    // Board-loaded query as the active tab so it appears in front.
+    const savedTabs = _loadTabs();
+    if (savedTabs && savedTabs.length) {
+      savedTabs.forEach(t => _tabs.push({ id: t.id, name: t.name, sql: t.sql || '', dirty: false }));
+    }
+    tabNew(_bootSql);
+  } else {
+    const savedTabs = _loadTabs();
+    if (savedTabs && savedTabs.length) {
+      savedTabs.forEach(t => _tabs.push({ id: t.id, name: t.name, sql: t.sql || '', dirty: false }));
+      tabSwitch(_tabs[0].id);
+    } else {
+      tabNew('');
+    }
+  }
+} catch(bootErr) {
+  console.error('[ERD] CM6 boot error:', bootErr);
+  _cm6Failed = true;
+  try {
+    _tabs = []; _activeId = null;
+    Object.values(_viewMap).forEach(v => { try { v.destroy(); } catch(e) {} });
+    _viewMap = {};
+    tabNew('');
+    _cm6Failed = !_activeView();
+  } catch(e) {
+    console.error('[ERD] CM6 recovery failed:', e);
+    _cm6Failed = true;
+  }
+}
+
+// 3. Force CM6 to re-measure after the DOM has settled; activate fallback if needed
+requestAnimationFrame(() => {
+  const v = _activeView();
+  if (v) {
+    v.requestMeasure();
+    if (v.dom) v.dom.style.height = '100%';
+  }
+  // If CM6 never mounted, activate the plain-textarea fallback
+  if (!v || _cm6Failed) {
+    _activateFallback();
+  }
+});
+
+// Fallback: plain <textarea> when CM6 fails to load (CDN unreachable / COEP block)
+function _activateFallback() {
+  const fb = document.getElementById('sql-fallback');
+  if (!fb) return;
+  _fallbackActive = true;
+  document.getElementById('cm6-host').style.display = 'none';
+  fb.style.display = 'block';
+  showToast('CM6 editor unavailable - using plain text mode', 'info');
+  console.warn('[ERD] CM6 not loaded - plain textarea fallback active');
+}
+
+// 4. Build schema tree, fetch async data
+try { buildSchemaTree(); } catch(e) { console.error('[ERD] schema tree error:', e); }
+_fetchSaved().then(() => renderSaved());
+_loadServerHistory();
+_fetchDbSize();
+_fetchAutocomplete();
+
+// ── N5 bridges (expose to global scope so NF5 can call them) ─────────────────
+window.getCurrentQuery   = () => _getSQL();
+window.loadQueryIntoEditor = (sql) => { _setSQL(sql); };
+</script>
+
+{% include '_erd_features_constants.html' %}
+{% include '_novel_features.html' %}
+<script>
+// Boot N5 on query page after DOM ready (N1/N2/N3/N4 are ERD-only)
+document.addEventListener('DOMContentLoaded', () => {
+  NF5.init();
+  // Preload board data so the panel opens instantly
+  NF5.load();
+});
+</script>
+</body>
+</html>

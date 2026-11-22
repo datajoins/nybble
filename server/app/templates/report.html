@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ name }} - Report Builder - Nybble</title>
+{% include '_base_styles.html' %}
+<style>
+
+/* ── Left palette ────────────────────────────────────────────────── */
+/* Report palette - shell matches shared sidebar dimensions/colours */
+#palette {
+  width: 230px; min-width: 230px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; position: relative;
+}
+.pal-hdr {
+  padding: 10px 12px 7px; font-size: var(--section-label-size, 10px); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing, 0.06em);
+  color: var(--text-dim); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.pal-section { border-top: 1px solid var(--border); flex-shrink: 0; }
+.pal-add-btn {
+  width: calc(100% - 24px); margin: 8px 12px 6px;
+  height: 30px; background: rgba(255,255,255,0.04); border: 1px dashed #2e3234;
+  color: rgba(255,255,255,0.4); cursor: pointer; border-radius: 4px;
+  font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 5px;
+  transition: all .12s;
+}
+.pal-add-btn:hover { background: rgba(255,255,255,0.07); color: #e2e6f0; border-color: rgba(255,255,255,0.2); }
+.pal-add-btn.query-btn:hover { border-color: rgba(167,139,250,0.4); color: #a78bfa; background: rgba(167,139,250,0.06); }
+
+#saved-queries-list { overflow-y: auto; padding: 4px 0; }
+#saved-charts-list  { overflow-y: auto; padding: 4px 0; }
+.sq-item {
+  padding: 5px 12px; font-size: 11px; cursor: pointer;
+  color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 6px;
+  white-space: nowrap; overflow: hidden; border-left: 2px solid transparent;
+  transition: background .1s;
+}
+.sq-item:hover { background: rgba(167,139,250,0.06); color: #a78bfa; border-left-color: #a78bfa; }
+.sq-item.active { background: rgba(167,139,250,0.1); color: #a78bfa; border-left-color: #a78bfa; }
+.sq-item .sq-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.sq-empty { padding: 12px; font-size: 11px; color: rgba(255,255,255,0.25); text-align: center; }
+/* saved-chart items use green accent */
+.sc-item {
+  padding: 5px 12px; font-size: 11px; cursor: pointer;
+  color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 6px;
+  white-space: nowrap; overflow: hidden; border-left: 2px solid transparent;
+  transition: background .1s; position: relative;
+}
+.sc-item:hover { background: rgba(29,237,131,0.06); color: #1ded83; border-left-color: #1ded83; }
+.sc-item .sc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.sc-item .sc-meta { font-size: 9px; color: rgba(255,255,255,0.25); white-space: nowrap; flex-shrink: 0; }
+.sc-item .sc-del  { background: none; border: none; color: rgba(255,255,255,0.15); cursor: pointer;
+                    font-size: 13px; flex-shrink: 0; padding: 0 2px; line-height: 1; }
+.sc-item .sc-del:hover { color: #f87171; }
+
+/* ── Reports list sidebar ────────────────────────────────────────── */
+#reports-panel {
+  width: 220px; flex-shrink: 0;
+  background: #1c1f20; border-left: 1px solid #2e3234;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#reports-list-wrap { flex: 1; overflow-y: auto; padding: 4px 0; }
+.rpt-item {
+  padding: 7px 12px; font-size: 12px; cursor: pointer;
+  color: rgba(255,255,255,0.55); display: flex; align-items: center; gap: 6px;
+  border-left: 2px solid transparent; transition: background .1s;
+}
+.rpt-item:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.rpt-item.active { background: rgba(29,237,131,0.06); border-left-color: #1ded83; color: #e2e6f0; }
+.rpt-item .rpt-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpt-item .rpt-del { background: none; border: none; color: rgba(255,255,255,0.15); cursor: pointer; font-size: 13px; flex-shrink: 0; padding: 0 2px; }
+.rpt-item .rpt-del:hover { color: #f87171; }
+.rpt-empty { padding: 12px; font-size: 11px; color: rgba(255,255,255,0.25); text-align: center; }
+.pal-hdr-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 5px; }
+.pal-hdr-row .pal-hdr { padding: 0; border: none; }
+.pal-new-btn { background: none; border: none; color: rgba(255,255,255,0.25); cursor: pointer; font-size: 18px; line-height: 1; }
+.pal-new-btn:hover { color: #1ded83; }
+
+/* ── Editor area ─────────────────────────────────────────────────── */
+#editor-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+#report-meta {
+  padding: 10px 16px 8px; border-bottom: 1px solid #2e3234; flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px; background: #1c1f20;
+}
+#report-title-input {
+  flex: 1; background: #141616; border: 1px solid #2e3234; color: #e2e6f0;
+  font-size: 15px; font-weight: 600; padding: 5px 10px; border-radius: 4px;
+  outline: none;
+}
+#report-title-input:focus { border-color: rgba(29,237,131,0.4); }
+#report-title-input::placeholder { color: rgba(255,255,255,0.2); }
+
+#block-list { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.empty-state {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.2); font-size: 13px; gap: 10px; pointer-events: none;
+}
+.empty-state svg { opacity: .3; }
+.empty-state p { text-align: center; line-height: 1.6; }
+
+/* ── Block cards ──────────────────────────────────────────────────── */
+.block-card {
+  background: #1c1f20; border: 1px solid #2e3234; border-radius: 6px;
+  overflow: hidden; position: relative;
+}
+.block-card.dragging { opacity: .4; box-shadow: 0 0 0 2px rgba(29,237,131,0.3); }
+.block-card.drag-over-top    { border-top:    2px solid #1ded83; }
+.block-card.drag-over-bottom { border-bottom: 2px solid #1ded83; }
+.block-hdr {
+  padding: 6px 10px; display: flex; align-items: center; gap: 8px;
+  background: #1a1d1e; border-bottom: 1px solid #2e3234; font-size: 11px;
+  color: rgba(255,255,255,0.4); cursor: grab; user-select: none;
+}
+.block-hdr:active { cursor: grabbing; }
+.drag-handle {
+  color: rgba(255,255,255,0.18); flex-shrink: 0; display: flex; align-items: center;
+  cursor: grab; padding: 0 2px;
+}
+.block-hdr:active .drag-handle { cursor: grabbing; }
+.block-type-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  padding: 1px 6px; border-radius: 10px; flex-shrink: 0;
+}
+.badge-text  { background: rgba(96,165,250,0.15);  color: #60a5fa; }
+.badge-query { background: rgba(167,139,250,0.15); color: #a78bfa; }
+.badge-chart { background: rgba(29,237,131,0.15);  color: #1ded83; }
+.block-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.block-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.block-btn {
+  background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer;
+  font-size: 13px; padding: 0 3px; line-height: 1; border-radius: 3px;
+  transition: color .12s;
+}
+.block-btn:hover { color: #e2e6f0; }
+.block-btn.del:hover { color: #f87171; }
+
+.block-body { padding: 10px 12px; }
+.text-block-textarea {
+  width: 100%; background: #141616; border: 1px solid #2e3234; color: #e2e6f0;
+  font-size: 12px; font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+  padding: 8px 10px; border-radius: 4px; resize: vertical; min-height: 80px;
+  outline: none; line-height: 1.6;
+}
+.text-block-textarea:focus { border-color: rgba(96,165,250,0.4); }
+.query-block-info {
+  font-size: 11px; color: rgba(255,255,255,0.45); display: flex; align-items: center; gap: 8px;
+}
+/* Full SQL preview - expandable */
+.query-block-sql-wrap {
+  margin-top: 6px; position: relative;
+}
+.query-block-sql-pre {
+  font-family: Consolas, monospace; font-size: 10.5px; color: rgba(255,255,255,0.35);
+  background: rgba(0,0,0,0.25); border: 1px solid #2e3234; border-radius: 4px;
+  padding: 6px 8px; max-height: 64px; overflow: hidden;
+  white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+  transition: max-height .2s ease;
+}
+.query-block-sql-pre.expanded { max-height: 400px; overflow-y: auto; }
+.sql-toggle-btn {
+  background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer;
+  font-size: 10px; padding: 1px 4px; margin-top: 2px;
+  display: block; width: 100%; text-align: right;
+  transition: color .12s;
+}
+.sql-toggle-btn:hover { color: rgba(255,255,255,0.5); }
+.block-title-input {
+  background: #141616; border: 1px solid #2e3234; color: #e2e6f0;
+  font-size: 12px; padding: 4px 8px; border-radius: 4px; outline: none;
+  width: 100%; margin-bottom: 6px;
+}
+.block-title-input:focus { border-color: rgba(167,139,250,0.4); }
+
+/* Display mode pill toggle */
+.display-mode-row {
+  display: flex; gap: 4px; align-items: center; margin-top: 8px; flex-wrap: wrap;
+}
+.display-mode-row .dm-label {
+  font-size: 10px; color: rgba(255,255,255,0.3); margin-right: 2px;
+}
+.dm-pill {
+  height: 22px; padding: 0 9px; border-radius: 11px; font-size: 10px; font-weight: 600;
+  border: 1px solid #2e3234; background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.3);
+  cursor: pointer; transition: all .12s; display: flex; align-items: center; gap: 4px;
+}
+.dm-pill:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); }
+.dm-pill.active-table  { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.5); color: #a78bfa; }
+.dm-pill.active-chart  { background: rgba(29,237,131,0.1);   border-color: rgba(29,237,131,0.4);   color: #1ded83; }
+.dm-pill.active-both   { background: rgba(251,191,36,0.1);   border-color: rgba(251,191,36,0.4);   color: #fbbf24; }
+
+/* Chart / aggregation config panel (shown only when chart mode active) */
+.chart-cfg-panel {
+  margin-top: 8px; background: rgba(29,237,131,0.04);
+  border: 1px solid rgba(29,237,131,0.15); border-radius: 5px; padding: 8px 10px;
+}
+.chart-cfg-row {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+}
+.chart-cfg-row + .chart-cfg-row { margin-top: 6px; }
+.chart-cfg-row label { font-size: 10px; color: rgba(255,255,255,0.3); white-space: nowrap; }
+.chart-cfg-row select {
+  background: #141616; border: 1px solid #2e3234; color: #e2e6f0;
+  font-size: 11px; padding: 3px 6px; border-radius: 3px; outline: none; flex: 1; min-width: 80px;
+}
+.chart-cfg-row select:focus { border-color: rgba(29,237,131,0.4); }
+.chart-type-pills { display: flex; gap: 4px; }
+.ct-pill {
+  height: 22px; padding: 0 8px; border-radius: 3px; font-size: 10px; font-weight: 600;
+  border: 1px solid #2e3234; background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.3);
+  cursor: pointer; transition: all .12s;
+}
+.ct-pill:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); }
+.ct-pill.active { background: rgba(29,237,131,0.12); border-color: rgba(29,237,131,0.45); color: #1ded83; }
+.agg-no-group-hint { font-size: 10px; color: rgba(255,165,0,0.6); margin-top: 5px; display: none; }
+.agg-no-group-hint.visible { display: block; }
+
+/* Save status */
+#save-status { font-size: 11px; color: rgba(255,255,255,0.25); flex-shrink: 0; }
+#save-status.saved { color: #1ded83; }
+#save-status.error { color: #f87171; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+</style>
+</head>
+<body>
+{% set active_nav = 'sources' %}
+{% include '_global_nav.html' %}
+<script>
+/* gnav: schema name + stats for report page */
+(function() {
+  var el = document.getElementById('gnav-source-count');
+  if (!el) return;
+  el.style.cssText = 'display:inline-flex;align-items:center;gap:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--text-muted);background:none;border:none;padding:0;border-radius:0;font-size:12px;letter-spacing:0;';
+  var tc = {{ tables | length }};
+  var fkc = 0;
+  {% for t in tables %}{% for c in t.columns %}{% if c.fk %}fkc++;{% endif %}{% endfor %}{% endfor %}
+  el.innerHTML =
+    '<span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:280px;" title="{{ name | e }}">{{ name | e }}</span>' +
+    '<span style="color:var(--border2);padding:0 6px;flex-shrink:0;">·</span>' +
+    '<span style="white-space:nowrap;flex-shrink:0;color:var(--text-muted);">' + tc + ' table' + (tc !== 1 ? 's' : '') + ' \xb7 ' + fkc + ' FK</span>';
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+})();
+</script>
+<div id="app">
+
+<!-- Contextual bar (Reports - page actions + dynamic info) -->
+<div id="topbar">
+  <!-- Tab strip -->
+  <a class="tbtn" href="/erd/{{ key }}" style="text-decoration:none;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="17" x2="20" y2="17"/><line x1="17" y1="14" x2="17" y2="20"/></svg>
+    ERD
+  </a>
+  <a class="tbtn" href="/browse/{{ key }}" style="text-decoration:none;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+    Browse
+  </a>
+  <a class="tbtn" href="/query/{{ key }}" style="text-decoration:none;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+    Query
+  </a>
+  <a class="tbtn active" href="/report/{{ key }}" style="text-decoration:none;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    Reports
+  </a>
+  <a class="tbtn" href="/dashboard/{{ key }}" style="text-decoration:none;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </a>
+  <!-- Spacer pushes actions to the right (consistent with ERD) -->
+  <div class="tb-spacer"></div>
+  <div class="tb-sep"></div>
+  <!-- Action buttons -->
+  <span id="save-status"></span>
+  <button class="tbtn" onclick="previewReport()" title="Open rendered report in new tab">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    Preview
+  </button>
+  <button class="tbtn primary" onclick="saveReport()">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Save
+  </button>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- Left palette -->
+  <div id="palette">
+    <div class="pal-hdr">Add Block</div>
+    <button class="pal-add-btn" onclick="addTextBlock()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+      Text / Markdown block
+    </button>
+
+    <div class="pal-section">
+      <div class="pal-hdr" style="padding-top:8px;">Saved Queries</div>
+      <div style="padding:4px 12px 6px;font-size:10px;color:rgba(255,255,255,0.25);line-height:1.5;">Click a query to add it as a result block. Use the Table / Chart / Both toggle on the card.</div>
+      <div id="saved-queries-list"><div class="sq-empty">Loading…</div></div>
+    </div>
+
+    <div class="pal-section">
+      <div class="pal-hdr" style="padding-top:8px;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#1ded83" stroke-width="2.5"><rect x="3" y="12" width="4" height="9"/><rect x="9" y="8" width="4" height="13"/><rect x="15" y="4" width="4" height="17"/></svg>
+        Saved Charts
+      </div>
+      <div style="padding:4px 12px 6px;font-size:10px;color:rgba(255,255,255,0.25);line-height:1.5;">Charts saved from the Browse summary panel. Click to add as a chart block.</div>
+      <div id="saved-charts-list"><div class="sq-empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- Editor area -->
+  <div id="editor-area">
+    <div id="report-meta">
+      <input id="report-title-input" type="text" placeholder="Report title…" oninput="markDirty()"/>
+    </div>
+    <div id="block-list">
+      <div class="empty-state" id="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10M7 12h10M7 17h6"/></svg>
+        <p>Add text or query blocks<br/>from the left panel to build your report.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reports list -->
+  <div id="reports-panel">
+    <div class="pal-hdr-row" style="border-bottom:1px solid #2e3234;">
+      <span class="pal-hdr">My Reports</span>
+      <button class="pal-new-btn" onclick="newReport()" title="New report">&#43;</button>
+    </div>
+    <div id="reports-list-wrap"><div class="rpt-empty">No reports yet</div></div>
+  </div>
+</div>
+</div>
+
+<script>
+const KEY = {{ key | tojson }};
+let _reports      = [];       // list of {id, title, blocks, created}
+let _activeRid    = null;     // currently editing report id (null = unsaved new)
+let _savedQueries = [];       // list of {id, name, sql}
+let _savedCharts  = [];       // list of {id, name, table, group_by_col, agg_func, ...}
+let _blocks       = [];       // in-memory block list for current editor state
+let _dirty        = false;
+let _nextBlockId  = 1;
+// Saved query SQL cache for chart column detection
+let _sqSqlCache = {};
+
+// ── Fetch saved queries ───────────────────────────────────────────────────────
+async function _loadSavedQueries() {
+  try {
+    const r = await fetch(`/api/queries/${KEY}`);
+    _savedQueries = r.ok ? await r.json() : [];
+  } catch { _savedQueries = []; }
+  _renderSavedQueryPalette();
+}
+
+function _renderSavedQueryPalette() {
+  const el = document.getElementById('saved-queries-list');
+  if (!_savedQueries.length) {
+    el.innerHTML = '<div class="sq-empty">No saved queries yet.<br/>Create one in the Query view.</div>';
+    return;
+  }
+  // Use data-qid and attach handlers after injection - avoids JSON.stringify in HTML attribute
+  el.innerHTML = _savedQueries.map(q => `
+    <div class="sq-item" data-qid="${_esc(q.id)}" title="Add to report">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span class="sq-name">${_esc(q.name)}</span>
+    </div>`).join('');
+
+  el.querySelectorAll('.sq-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const q = _savedQueries.find(x => x.id === item.dataset.qid);
+      addQueryBlock(q || null);
+    });
+  });
+}
+
+// ── Fetch saved charts ────────────────────────────────────────────────────────
+async function _loadSavedCharts() {
+  try {
+    const r = await fetch(`/api/charts/${KEY}`);
+    _savedCharts = r.ok ? await r.json() : [];
+  } catch { _savedCharts = []; }
+  _renderSavedChartPalette();
+}
+
+function _renderSavedChartPalette() {
+  const el = document.getElementById('saved-charts-list');
+  if (!_savedCharts.length) {
+    el.innerHTML = '<div class="sq-empty">No saved charts yet.<br/>Create one from the Browse → Summary panel.</div>';
+    return;
+  }
+  el.innerHTML = _savedCharts.map(c => `
+    <div class="sc-item" data-cid="${_esc(c.id)}" title="Add chart to report">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#1ded83" stroke-width="2.5"><rect x="3" y="12" width="4" height="9"/><rect x="9" y="8" width="4" height="13"/><rect x="15" y="4" width="4" height="17"/></svg>
+      <span class="sc-name">${_esc(c.name)}</span>
+      <span class="sc-meta">${_esc(c.agg_func)}${c.agg_col ? '('+_esc(c.agg_col)+')' : '(*)'}</span>
+      <button class="sc-del" data-del-cid="${_esc(c.id)}" title="Delete">&#215;</button>
+    </div>`).join('');
+
+  el.querySelectorAll('.sc-item').forEach(item => {
+    item.addEventListener('click', e => {
+      if (e.target.closest('.sc-del')) return;
+      const c = _savedCharts.find(x => x.id === item.dataset.cid);
+      if (c) addChartFromSaved(c);
+    });
+  });
+  el.querySelectorAll('.sc-del').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const cid = btn.dataset.delCid;
+      if (!confirm('Delete this saved chart?')) return;
+      try {
+        await fetch(`/api/charts/${KEY}/${cid}`, {method: 'DELETE'});
+        _savedCharts = _savedCharts.filter(c => c.id !== cid);
+        _renderSavedChartPalette();
+      } catch {}
+    });
+  });
+}
+
+function addChartFromSaved(c) {
+  // Saved charts carry full aggregation config but no SQL - the SQL is
+  // built server-side from table + group_by_col + agg_func + agg_col.
+  // We store the table name in the block so the server can reconstruct it.
+  const block = {
+    _id:          _nextBlockId++,
+    type:         'query',
+    qid:          '',               // no saved query - chart-only
+    title:        c.name,
+    sql:          '',               // populated by server from table+agg config
+    saved_chart_id: c.id,           // reference so server knows to use table aggregation
+    chart_table:  c.table,
+    display_mode: 'chart',
+    chart_type:   c.chart_type  || 'bar',
+    group_by_col: c.group_by_col || '',
+    agg_func:     c.agg_func    || 'COUNT',
+    agg_col:      c.agg_col     || '',
+    agg_limit:    c.agg_limit   || 50,
+    value_label:  c.value_label || '',
+  };
+  _blocks.push(block);
+  markDirty();
+  _renderBlockList();
+  // Prefetch columns from the table so group-by/agg-col dropdowns populate
+  const _ckey = '__table__' + block.chart_table;
+  const _csql = `SELECT * FROM "${block.chart_table}"`;
+  _prefetchCols(block._id, _ckey, _csql);
+}
+
+// ── Report list ───────────────────────────────────────────────────────────────
+async function _loadReports() {
+  try {
+    const r = await fetch(`/api/reports/${KEY}`);
+    _reports = r.ok ? await r.json() : [];
+  } catch { _reports = []; }
+  _renderReportList();
+}
+
+function _renderReportList() {
+  const el = document.getElementById('reports-list-wrap');
+  if (!_reports.length) {
+    el.innerHTML = '<div class="rpt-empty">No reports yet</div>';
+    return;
+  }
+  // Use data-rid attributes - avoids HTML-escaping breakage from inline JSON.stringify
+  el.innerHTML = _reports.map(r => `
+    <div class="rpt-item${_activeRid === r.id ? ' active' : ''}" data-rid="${_esc(r.id)}">
+      <span class="rpt-name">${_esc(r.title)}</span>
+      <button class="rpt-del" data-del-rid="${_esc(r.id)}" title="Delete">&#215;</button>
+    </div>`).join('');
+
+  // Attach click handlers after injection to avoid quote-escaping issues
+  el.querySelectorAll('.rpt-item').forEach(item => {
+    item.addEventListener('click', () => openReport(item.dataset.rid));
+  });
+  el.querySelectorAll('.rpt-del').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteReport(btn.dataset.delRid);
+    });
+  });
+}
+
+function newReport() {
+  if (_dirty && !confirm('Discard unsaved changes?')) return;
+  _activeRid = null;
+  _blocks = [];
+  _dirty = false;
+  document.getElementById('report-title-input').value = '';
+  _renderBlockList();
+  _renderReportList();
+  _setSaveStatus('');
+  _updateCtxReport('');
+}
+
+function openReport(rid) {
+  if (_dirty && !confirm('Discard unsaved changes?')) return;
+  const r = _reports.find(x => x.id === rid);
+  if (!r) return;
+  _activeRid = rid;
+  _dirty = false;
+  document.getElementById('report-title-input').value = r.title || '';
+  _blocks = (r.blocks || []).map(b => {
+    // Migrate legacy 'chart' type blocks → unified 'query' block
+    if (b.type === 'chart') {
+      return {
+        ...b, _id: _nextBlockId++, type: 'query', display_mode: 'chart',
+        group_by_col: b.group_by_col || b.x_col || '',
+        agg_func:     b.agg_func || 'COUNT',
+        agg_col:      b.agg_col  || b.y_col || '',
+        agg_limit:    b.agg_limit || 50,
+        value_label:  b.value_label || '',
+      };
+    }
+    // Ensure query blocks always have all chart-related fields
+    if (b.type === 'query') {
+      return {
+        ...b, _id: _nextBlockId++,
+        display_mode:   b.display_mode   || 'table',
+        chart_type:     b.chart_type     || 'bar',
+        group_by_col:   b.group_by_col   || '',
+        agg_func:       b.agg_func       || 'COUNT',
+        agg_col:        b.agg_col        || '',
+        agg_limit:      b.agg_limit      || 50,
+        value_label:    b.value_label    || '',
+        saved_chart_id: b.saved_chart_id || '',
+        chart_table:    b.chart_table    || '',
+      };
+    }
+    return {...b, _id: _nextBlockId++};
+  });
+  _renderBlockList();
+  _renderReportList();
+  _setSaveStatus('');
+  _updateCtxReport(r.title || '');
+  // Prefetch columns for all query blocks so group-by dropdowns are populated
+  _blocks.forEach(b => {
+    if (b.type !== 'query') return;
+    if (b.qid && b.sql) {
+      _prefetchCols(b._id, b.qid, b.sql);
+    } else if (b.chart_table) {
+      _prefetchCols(b._id, '__table__' + b.chart_table, `SELECT * FROM "${b.chart_table}"`);
+    }
+  });
+}
+
+async function deleteReport(rid) {
+  if (!confirm('Delete this report?')) return;
+  try {
+    await fetch(`/api/reports/${KEY}/${rid}`, {method:'DELETE'});
+  } catch {}
+  _reports = _reports.filter(r => r.id !== rid);
+  if (_activeRid === rid) newReport();
+  else _renderReportList();
+}
+
+// ── Block management ──────────────────────────────────────────────────────────
+function addTextBlock() {
+  _blocks.push({_id: _nextBlockId++, type:'text', content:''});
+  markDirty();
+  _renderBlockList();
+  // focus the new textarea
+  setTimeout(() => {
+    const ta = document.querySelectorAll('.text-block-textarea');
+    if (ta.length) ta[ta.length-1].focus();
+  }, 50);
+}
+
+function addQueryBlock(savedQ) {
+  if (!savedQ) return; // no-op - only meaningful with a real saved query
+  const block = {
+    _id:          _nextBlockId++,
+    type:         'query',
+    qid:          savedQ.id,
+    title:        savedQ.name,
+    sql:          savedQ.sql,
+    display_mode: 'table',   // 'table' | 'chart' | 'both'
+    chart_type:   'bar',
+    group_by_col: '',
+    agg_func:     'COUNT',
+    agg_col:      '',
+    agg_limit:    50,
+    value_label:  '',
+  };
+  _blocks.push(block);
+  markDirty();
+  _renderBlockList();
+  // Prefetch columns so group-by selects populate immediately
+  _prefetchCols(block._id, block.qid, block.sql);
+}
+
+function removeBlock(bid) {
+  _blocks = _blocks.filter(b => b._id !== bid);
+  markDirty();
+  _renderBlockList();
+}
+
+function moveBlockUp(bid) {
+  const i = _blocks.findIndex(b => b._id === bid);
+  if (i <= 0) return;
+  [_blocks[i-1], _blocks[i]] = [_blocks[i], _blocks[i-1]];
+  markDirty();
+  _renderBlockList();
+}
+
+function moveBlockDown(bid) {
+  const i = _blocks.findIndex(b => b._id === bid);
+  if (i < 0 || i >= _blocks.length - 1) return;
+  [_blocks[i], _blocks[i+1]] = [_blocks[i+1], _blocks[i]];
+  markDirty();
+  _renderBlockList();
+}
+
+function _syncBlockFromDOM(bid) {
+  const b = _blocks.find(x => x._id === bid);
+  if (!b) return;
+  if (b.type === 'text') {
+    const ta = document.querySelector(`.text-block-textarea[data-bid="${bid}"]`);
+    if (ta) b.content = ta.value;
+  }
+  if (b.type === 'query') {
+    const ti = document.querySelector(`.block-title-input[data-bid="${bid}"]`);
+    if (ti) b.title = ti.value;
+    // Only sync column selects when options are loaded AND the select has a real
+    // value. If the select shows "" but b.group_by_col is already set, it means
+    // columns haven't fully rendered yet - don't clobber the saved value.
+    const gb = document.querySelector(`select.chart-groupby-sel[data-bid="${bid}"]`);
+    if (gb && gb.options.length > 1 && (gb.value !== '' || b.group_by_col === '')) b.group_by_col = gb.value;
+    const af = document.querySelector(`select.chart-aggfunc-sel[data-bid="${bid}"]`);
+    if (af) b.agg_func = af.value;
+    const ac = document.querySelector(`select.chart-aggcol-sel[data-bid="${bid}"]`);
+    if (ac && ac.options.length > 1 && (ac.value !== '' || b.agg_col === '')) b.agg_col = ac.value;
+    const al = document.querySelector(`input.chart-agglimit-inp[data-bid="${bid}"]`);
+    if (al) b.agg_limit = parseInt(al.value, 10) || 50;
+    const vl = document.querySelector(`input.chart-vallabel-inp[data-bid="${bid}"]`);
+    if (vl) b.value_label = vl.value.trim();
+  }
+}
+
+function _syncAllFromDOM() {
+  _blocks.forEach(b => _syncBlockFromDOM(b._id));
+}
+
+// ── Render blocks ─────────────────────────────────────────────────────────────
+function _renderBlockList() {
+  const el = document.getElementById('block-list');
+  const es = document.getElementById('empty-state');
+  if (!_blocks.length) {
+    el.innerHTML = '';
+    if (es) { es.style.display = ''; el.appendChild(es); }
+    return;
+  }
+  if (es) es.style.display = 'none';
+
+  // Preserve textarea / input content before re-rendering
+  _syncAllFromDOM();
+
+  el.innerHTML = _blocks.map((b, idx) => {
+    const isFirst = idx === 0, isLast = idx === _blocks.length - 1;
+    const btns = `
+      <button class="block-btn" onclick="moveBlockUp(${b._id})" title="Move up" ${isFirst?'disabled':''}>&#8593;</button>
+      <button class="block-btn" onclick="moveBlockDown(${b._id})" title="Move down" ${isLast?'disabled':''}>&#8595;</button>
+      <button class="block-btn del" onclick="removeBlock(${b._id})" title="Remove">&#215;</button>`;
+
+    if (b.type === 'text') {
+      return `<div class="block-card" draggable="true" data-bid="${b._id}">
+        <div class="block-hdr">
+          <span class="drag-handle"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="3" cy="2.5" r="1.2"/><circle cx="7" cy="2.5" r="1.2"/><circle cx="3" cy="7" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="3" cy="11.5" r="1.2"/><circle cx="7" cy="11.5" r="1.2"/></svg></span>
+          <span class="block-type-badge badge-text">Text</span>
+          <span class="block-label">Markdown / plain text</span>
+          <div class="block-actions">${btns}</div>
+        </div>
+        <div class="block-body">
+          <textarea class="text-block-textarea" data-bid="${b._id}" oninput="markDirty()" placeholder="Write text here - Markdown is supported in the rendered view…">${_esc(b.content)}</textarea>
+        </div>
+      </div>`;
+    }
+
+    // ── Unified query block (table / chart / both) ────────────────────────────
+    const sq = _savedQueries.find(q => q.id === b.qid);
+    const dm = b.display_mode || 'table';
+    const sql = b.sql || '';
+
+    // SQL preview - full text, collapsible
+    const sqlHtml = sql ? `
+      <div class="query-block-sql-wrap">
+        <div class="query-block-sql-pre" id="sql-pre-${b._id}">${_esc(sql)}</div>
+        ${sql.split('\n').length > 3 || sql.length > 120
+          ? `<button class="sql-toggle-btn" onclick="toggleSql(${b._id})">▾ show more</button>`
+          : ''}
+      </div>` : '';
+
+    // Column options for group-by and agg-col selects.
+    // Saved-chart blocks have no qid - use table name as the cache key.
+    const _colCacheKey = b.qid || ('__table__' + (b.chart_table || ''));
+    const cachedCols = _sqSqlCache[_colCacheKey] || [];
+    const blankOpt = `<option value="">- column -</option>`;
+    const gbOpts = blankOpt + cachedCols.map(c =>
+      `<option value="${_esc(c)}"${c===b.group_by_col?' selected':''}>${_esc(c)}</option>`).join('');
+    const acOpts = `<option value="">(row count)</option>` + cachedCols.map(c =>
+      `<option value="${_esc(c)}"${c===b.agg_col?' selected':''}>${_esc(c)}</option>`).join('');
+
+    const noGroupHint = !b.group_by_col
+      ? `<div class="agg-no-group-hint visible">⚠ Select a Group by column for the chart to display data.</div>`
+      : '';
+
+    const chartCfg = `
+      <div class="chart-cfg-panel">
+        <div class="chart-cfg-row">
+          <label>Group by</label>
+          <select class="chart-groupby-sel" data-bid="${b._id}" onchange="markDirty()">
+            ${gbOpts}
+          </select>
+          <label>Aggregate</label>
+          <select class="chart-aggfunc-sel" data-bid="${b._id}" onchange="markDirty()">
+            <option value="COUNT"${b.agg_func==='COUNT'?' selected':''}>COUNT</option>
+            <option value="SUM"${b.agg_func==='SUM'?' selected':''}>SUM</option>
+            <option value="AVG"${b.agg_func==='AVG'?' selected':''}>AVG</option>
+            <option value="MIN"${b.agg_func==='MIN'?' selected':''}>MIN</option>
+            <option value="MAX"${b.agg_func==='MAX'?' selected':''}>MAX</option>
+          </select>
+          <label>of</label>
+          <select class="chart-aggcol-sel" data-bid="${b._id}" onchange="markDirty()">
+            ${acOpts}
+          </select>
+        </div>
+        <div class="chart-cfg-row" style="margin-top:6px;">
+          <label>Chart type</label>
+          <div class="chart-type-pills">
+            <button class="ct-pill${b.chart_type==='bar'?' active':''}" onclick="_setChartType(${b._id},'bar')">Bar</button>
+            <button class="ct-pill${b.chart_type==='line'?' active':''}" onclick="_setChartType(${b._id},'line')">Line</button>
+            <button class="ct-pill${b.chart_type==='pie'?' active':''}" onclick="_setChartType(${b._id},'pie')">Pie</button>
+          </div>
+          <label style="margin-left:8px;">Limit</label>
+          <input class="chart-agglimit-inp" type="number" min="1" max="500"
+            data-bid="${b._id}" value="${b.agg_limit || 50}"
+            oninput="markDirty()"
+            style="width:54px;height:22px;background:#141616;border:1px solid #2e3234;color:#e2e6f0;font-size:11px;padding:0 6px;border-radius:3px;outline:none;text-align:center;">
+        </div>
+        <div class="chart-cfg-row" style="margin-top:6px;">
+          <label>Value label</label>
+          <input class="chart-vallabel-inp" type="text" placeholder="_value (default)"
+            data-bid="${b._id}" value="${_esc(b.value_label || '')}"
+            oninput="markDirty()"
+            style="flex:1;min-width:80px;height:22px;background:#141616;border:1px solid #2e3234;color:#e2e6f0;font-size:11px;padding:0 6px;border-radius:3px;outline:none;">
+        </div>
+        ${noGroupHint}
+      </div>`;
+
+    // Badge colour by display mode
+    const badgeCls = dm === 'chart' ? 'badge-chart' : dm === 'both' ? '' : 'badge-query';
+    const badgeLabel = dm === 'chart' ? 'Chart' : dm === 'both' ? 'Query+Chart' : 'Query';
+    const badgeStyle = dm === 'both'
+      ? 'background:rgba(251,191,36,0.15);color:#fbbf24;'
+      : '';
+
+    return `<div class="block-card" draggable="true" data-bid="${b._id}">
+      <div class="block-hdr">
+        <span class="drag-handle"><svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor"><circle cx="3" cy="2.5" r="1.2"/><circle cx="7" cy="2.5" r="1.2"/><circle cx="3" cy="7" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="3" cy="11.5" r="1.2"/><circle cx="7" cy="11.5" r="1.2"/></svg></span>
+        <span class="block-type-badge ${badgeCls}" style="${badgeStyle}">${badgeLabel}</span>
+        <span class="block-label">${_esc(b.title || 'Query')}</span>
+        <div class="block-actions">${btns}</div>
+      </div>
+      <div class="block-body">
+        <input class="block-title-input" type="text" placeholder="Block heading…" value="${_esc(b.title || '')}" data-bid="${b._id}" oninput="markDirty()"/>
+        <div class="query-block-info">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <span>Saved query: <strong>${_esc(sq ? sq.name : b.title)}</strong></span>
+        </div>
+        ${sqlHtml}
+        <div class="display-mode-row">
+          <span class="dm-label">Show as:</span>
+          <button class="dm-pill ${dm==='table'?'active-table':''}" onclick="setDisplayMode(${b._id},'table')">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M9 3v18"/></svg>
+            Table
+          </button>
+          <button class="dm-pill ${dm==='chart'?'active-chart':''}" onclick="setDisplayMode(${b._id},'chart')">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="12" width="4" height="9"/><rect x="9" y="8" width="4" height="13"/><rect x="15" y="4" width="4" height="17"/></svg>
+            Chart
+          </button>
+          <button class="dm-pill ${dm==='both'?'active-both':''}" onclick="setDisplayMode(${b._id},'both')">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>
+            Both
+          </button>
+        </div>
+        ${(dm === 'chart' || dm === 'both') ? chartCfg : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setDisplayMode(bid, mode) {
+  _syncAllFromDOM();
+  const b = _blocks.find(x => x._id === bid);
+  if (!b) return;
+  b.display_mode = mode;
+  markDirty();
+  _renderBlockList();
+  // Make sure cols are populated when switching to chart/both
+  if (mode === 'chart' || mode === 'both') {
+    if (b.qid && b.sql) {
+      _prefetchCols(bid, b.qid, b.sql);
+    } else if (b.chart_table) {
+      _prefetchCols(bid, '__table__' + b.chart_table, `SELECT * FROM "${b.chart_table}"`);
+    }
+  }
+}
+
+function _setChartType(bid, ctype) {
+  _syncAllFromDOM();
+  const b = _blocks.find(x => x._id === bid);
+  if (!b) return;
+  b.chart_type = ctype;
+  markDirty();
+  _renderBlockList();
+}
+
+function toggleSql(bid) {
+  const pre = document.getElementById(`sql-pre-${bid}`);
+  const btn = pre ? pre.nextElementSibling : null;
+  if (!pre) return;
+  const expanded = pre.classList.toggle('expanded');
+  if (btn) btn.textContent = expanded ? '▴ show less' : '▾ show more';
+}
+
+// ── Drag-and-drop reordering ──────────────────────────────────────────────────
+(function () {
+  let _dragBid = null; // bid of the card being dragged
+
+  function _clearDropMarkers() {
+    document.querySelectorAll('#block-list .block-card').forEach(el => {
+      el.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+  }
+
+  // Attach listeners on the container (event delegation - survives re-renders)
+  document.getElementById('block-list').addEventListener('dragstart', e => {
+    const card = e.target.closest('.block-card');
+    if (!card) return;
+    _dragBid = parseInt(card.dataset.bid, 10);
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox requires some data to be set
+    e.dataTransfer.setData('text/plain', _dragBid);
+  });
+
+  document.getElementById('block-list').addEventListener('dragend', e => {
+    const card = e.target.closest('.block-card');
+    if (card) card.classList.remove('dragging');
+    _clearDropMarkers();
+    _dragBid = null;
+  });
+
+  document.getElementById('block-list').addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const card = e.target.closest('.block-card');
+    if (!card || parseInt(card.dataset.bid, 10) === _dragBid) return;
+    _clearDropMarkers();
+    // Determine if pointer is in top or bottom half of the target card
+    const rect = card.getBoundingClientRect();
+    const half = rect.top + rect.height / 2;
+    card.classList.add(e.clientY < half ? 'drag-over-top' : 'drag-over-bottom');
+  });
+
+  document.getElementById('block-list').addEventListener('dragleave', e => {
+    const card = e.target.closest('.block-card');
+    if (card) card.classList.remove('drag-over-top', 'drag-over-bottom');
+  });
+
+  document.getElementById('block-list').addEventListener('drop', e => {
+    e.preventDefault();
+    _clearDropMarkers();
+    const targetCard = e.target.closest('.block-card');
+    if (!targetCard || _dragBid === null) return;
+    const targetBid = parseInt(targetCard.dataset.bid, 10);
+    if (targetBid === _dragBid) return;
+
+    // Determine insert position
+    const rect = targetCard.getBoundingClientRect();
+    const insertAfter = e.clientY >= rect.top + rect.height / 2;
+
+    _syncAllFromDOM();
+    const fromIdx  = _blocks.findIndex(b => b._id === _dragBid);
+    let   toIdx    = _blocks.findIndex(b => b._id === targetBid);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    const [moved] = _blocks.splice(fromIdx, 1);
+    // Recalculate toIdx after splice
+    toIdx = _blocks.findIndex(b => b._id === targetBid);
+    _blocks.splice(insertAfter ? toIdx + 1 : toIdx, 0, moved);
+
+    markDirty();
+    _renderBlockList();
+  });
+})();
+
+// ── Save / dirty ──────────────────────────────────────────────────────────────
+function markDirty() {
+  _dirty = true;
+  _setSaveStatus('Unsaved');
+}
+
+function _setSaveStatus(msg, cls) {
+  const el = document.getElementById('save-status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+async function saveReport() {
+  _syncAllFromDOM();
+  const title = document.getElementById('report-title-input').value.trim() || 'Untitled Report';
+  const blocks = _blocks.map(b => {
+    const out = {type: b.type};
+    if (b.type === 'text') {
+      out.content = b.content || '';
+    } else {
+      // unified query block - always persist all fields
+      out.qid            = b.qid            || '';
+      out.title          = b.title          || '';
+      out.sql            = b.sql            || '';
+      out.display_mode   = b.display_mode   || 'table';
+      out.chart_type     = b.chart_type     || 'bar';
+      out.group_by_col   = b.group_by_col   || '';
+      out.agg_func       = b.agg_func       || 'COUNT';
+      out.agg_col        = b.agg_col        || '';
+      out.agg_limit      = b.agg_limit      || 50;
+      out.value_label    = b.value_label    || '';
+      out.saved_chart_id = b.saved_chart_id || '';
+      out.chart_table    = b.chart_table    || '';
+    }
+    return out;
+  });
+
+  try {
+    let resp, data;
+    if (_activeRid) {
+      resp = await fetch(`/api/reports/${KEY}/${_activeRid}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, blocks}),
+      });
+    } else {
+      resp = await fetch(`/api/reports/${KEY}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, blocks}),
+      });
+    }
+    data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Save failed');
+    _activeRid = data.id;
+    _dirty = false;
+    await _loadReports();
+    _setSaveStatus('Saved ✓', 'saved');
+    setTimeout(() => _setSaveStatus(''), 2000);
+  } catch (e) {
+    _setSaveStatus('Error: ' + e.message, 'error');
+  }
+}
+
+function previewReport() {
+  if (!_activeRid) { alert('Save the report first, then preview it.'); return; }
+  window.open(`/report/${KEY}/${_activeRid}`, '_blank');
+}
+
+// ── Keyboard shortcut ─────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveReport(); }
+});
+
+// ── Column prefetch - populates group-by / agg-col selects ───────────────────
+// cacheKey: b.qid for saved-query blocks, '__table__'+b.chart_table for saved-chart blocks.
+function _prefetchCols(bid, cacheKey, sql) {
+  if (!sql || !cacheKey) return;
+  if (_sqSqlCache[cacheKey]) {
+    _renderBlockList(); // selects already have the right options
+    return;
+  }
+  fetch(`/api/query/${KEY}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({sql, limit: 1}),
+  }).then(r => r.json()).then(data => {
+    if (data.columns && data.columns.length) {
+      _sqSqlCache[cacheKey] = data.columns;
+      _renderBlockList();
+    }
+  }).catch(() => {});
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Context info zone helper ──────────────────────────────────────────────────
+function _updateCtxReport(title) {
+  const el  = document.getElementById('ctx-report-name');
+  const sep = document.getElementById('ctx-report-sep');
+  if (el) el.textContent = title || '';
+  if (sep) sep.style.display = title ? '' : 'none';
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async () => {
+  await Promise.all([_loadSavedQueries(), _loadSavedCharts(), _loadReports()]);
+  // ?sq=<qid> - navigated here from "Add to Report" button on Query page
+  const _sqParam = new URLSearchParams(location.search).get('sq');
+  if (_sqParam) {
+    const _sqQuery = _savedQueries.find(q => q.id === _sqParam);
+    if (_sqQuery) {
+      addQueryBlock(_sqQuery);
+      // Highlight the matching item in the palette so the user sees what was added
+      document.querySelectorAll('.sq-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.qid === _sqParam);
+      });
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+# server/requirements.txt - Nybble Flask server dependencies
+Flask>=3.0.0
+Faker>=26.0.0
+
+# Live database connection introspection (for /api/connect)
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+PyMySQL>=1.1.0
+
+# No Node.js / npm / npx / pnpm required.
+# Cytoscape.js and elkjs are loaded via CDN <script> tags in erd.html.
+
+# Phase 0/1: no new dependencies - CSV/JSON via stdlib; editor/charts via CDN
+# extract_csv.py  → csv, re, pathlib (all stdlib)
+# extract_json.py → json, re, pathlib (all stdlib)
+# browse.html     → Chart.js 4 via CDN (cdn.jsdelivr.net)
+# query.html      → CodeMirror 5 + Chart.js 4 via CDN (cdnjs.cloudflare.com / cdn.jsdelivr.net)
+
+# Phase 2: Excel support
+openpyxl>=3.1.0
+# extract_xlsx.py → openpyxl (pure-Python, no C extension)
+# api_server.py   → openpyxl for /api/rows?_format=xlsx  (graceful 501 if absent)
+xlrd>=2.0.1
+# extract_xlsx.py → xlrd fallback for legacy Excel 97-2003 .xls (BIFF) files
+#                   openpyxl handles .xlsx; xlrd handles .xls that openpyxl rejects
+
+# Phase 3: Parquet support (optional - graceful ImportError if absent)
+pyarrow>=14.0.0
+# extract_parquet.py → pyarrow (Arrow schema read from Parquet footer)
+
+# Phase B: DuckDB server-side query execution (optional - graceful ImportError if absent)
+# Enables querying Parquet files directly via DuckDB on the server.
+duckdb>=0.10.0
+# api_server.py → duckdb used in api_query() when source == "duckdb"
+
+# Phase 5: Knowledge Graph layer
+networkx>=3.2            # pure Python ~3 MB - graph algorithms + community detection
+numpy>=1.26              # vector ops for cosine similarity; likely already present via pyarrow
+# Optional - enable semantic search (significant disk footprint - see SCALING.md):
+# sentence-transformers>=2.7
+# spacy>=3.7
+
+# Enhancement 2: additional integrations (all optional - graceful ImportError)
+# libSQL / Turso - no extra package needed (uses stdlib urllib + libSQL HTTP API)
+# MSSQL (Microsoft SQL Server) - requires pyodbc AND an installed ODBC driver
+pyodbc>=5.0.0
+# ClickHouse - pure Python HTTP client
+clickhouse-connect>=0.7.0
+# MongoDB - pymongo sync driver
+pymongo>=4.6.0
+# Snowflake - SQLAlchemy dialect
+snowflake-sqlalchemy>=1.5.0
+# Google BigQuery - SQLAlchemy dialect
+sqlalchemy-bigquery>=1.9.0

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="fBg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#070c18"/>
+    </linearGradient>
+    <linearGradient id="fDiag" x1="17" y1="17" x2="47" y2="47" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#fBg)"/>
+  
+  <line x1="19.25" y1="19.25" x2="19.25" y2="44.75" stroke="#38bdf8" stroke-width="4.8" stroke-linecap="round"/>
+  <line x1="19.25" y1="19.25" x2="44.75" y2="44.75" stroke="url(#fDiag)" stroke-width="4.8" stroke-linecap="round"/>
+  <line x1="44.75" y1="19.25" x2="44.75" y2="44.75" stroke="#38bdf8" stroke-width="4.8" stroke-linecap="round"/>
+  <rect x="10.5" y="10.5" width="17.5" height="17.5" rx="4.6" fill="#38bdf8"/>
+  <rect x="38.0" y="12.5" width="13.5" height="13.5" rx="3.3" fill="#0f172a" stroke="#38bdf8" stroke-width="4.0"/>
+  <rect x="12.5" y="38.0" width="13.5" height="13.5" rx="3.3" fill="#0f172a" stroke="#38bdf8" stroke-width="4.0"/>
+  <rect x="36.0" y="36.0" width="17.5" height="17.5" rx="4.6" fill="#818cf8"/>
+
+</svg>

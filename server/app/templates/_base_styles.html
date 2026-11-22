@@ -1,0 +1,1013 @@
+{#
+  _base_styles.html - Shared design-system tokens + topbar primitives
+  ─────────────────────────────────────────────────────────────────────
+  Include at the TOP of every inner template's <style> block:
+
+      {% include '_base_styles.html' %}
+
+  Provides
+  ────────
+  • :root CSS custom properties  (dark-only theme)
+  • html/body reset
+  • Scrollbar
+  • #topbar, .tb-* classes          (topbar shell + logo/title/sep/spacer)
+  • .tbtn                           (standard pill button - 30 × auto)
+  • .tbtn.accent / .tbtn.primary    (semantic colour variants)
+  • .tbtn.on / .tbtn.active         (purple toggle state)
+  • .tb-gap                         (6 px spacer)
+  • #app layout primitives          (column flex, full height)
+  • .breadcrumb                     (14 px strip below topbar)
+
+  erd.html note
+  ─────────────
+  erd.html needs icon-only 32×32 buttons. After including this partial it
+  can locally override:
+      .tbtn { width:32px; height:32px; padding:0; border:none; }
+  for its own canvas-controls area only.
+#}
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM TOKENS
+   All values below are the single source of truth.  Never reference
+   raw hex or rgba() literals in component CSS - always use a var().
+   ══════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Backgrounds (legacy aliases kept for back-compat) ─────────── */
+  --bg:        #141618;   /* ≡ --surface-page  */
+  --surface:   #1c1f20;   /* ≡ --surface-card  */
+  --surface2:  #232526;
+
+  /* ── P5: Three-level surface hierarchy (dark defaults) ────────────
+   *  --surface-page   Page / canvas background (outermost layer)
+   *  --surface-card   Card / panel face (mid layer)
+   *  --surface-inset  Inset well / input well (innermost / recessed)
+   *
+   *  Light overrides are provided via @media (prefers-color-scheme: light)
+   *  and the [data-theme="light"] attribute toggle used by browse.html.
+   * ──────────────────────────────────────────────────────────────── */
+  --surface-page:   #141618;
+  --surface-card:   #1c1f20;
+  --surface-inset:  #0d0f10;
+
+  /* ── Borders ──────────────────────────────────────────────────── */
+  --border:    #2e3234;
+  --border2:   #3a3d3e;
+
+  /* ── Text ────────────────────────────────────────────────────── */
+  --text:      #e2e6f0;
+  --text-muted: rgba(255,255,255,0.45);
+  --text-dim:   rgba(255,255,255,0.25);
+  --text-faint: rgba(255,255,255,0.15);
+
+  /* ── Accent colours ──────────────────────────────────────────── */
+  --accent:    #a78bfa;          /* purple  - primary interactive */
+  --accent-bg: rgba(167,139,250,0.12);
+  --accent-border: rgba(167,139,250,0.30);
+
+  --green:     #1ded83;          /* green   - success / run / write */
+  --green-bg:  rgba(29,237,131,0.12);
+  --green-border: rgba(29,237,131,0.40);
+
+  --red:       #f87171;          /* red     - danger / remove */
+  --red-bg:    rgba(248,113,113,0.12);
+
+  --yellow:    #fbbf24;          /* yellow  - warning / modified */
+  --yellow-bg: rgba(251,191,36,0.12);
+
+  --blue:      #60a5fa;          /* blue    - info */
+
+  /* ── P1: Entity type colours ──────────────────────────────────
+   *  Used for left-border accents on ERD node cards, sidebar icons,
+   *  and any entity-type badge.
+   *
+   *  --entity-table            Tables         → violet (brand purple)
+   *  --entity-view             Views          → teal
+   *  --entity-materialized-view Materialized views → amber
+   *  --entity-external         External tables → grey
+   * ──────────────────────────────────────────────────────────── */
+  --entity-table:              #a78bfa;   /* violet  */
+  --entity-table-bg:           rgba(167,139,250,0.10);
+  --entity-view:               #2dd4bf;   /* teal    */
+  --entity-view-bg:            rgba(45,212,191,0.10);
+  --entity-materialized-view:  #fbbf24;   /* amber   */
+  --entity-materialized-view-bg: rgba(251,191,36,0.10);
+  --entity-external:           rgba(255,255,255,0.35); /* grey */
+  --entity-external-bg:        rgba(255,255,255,0.06);
+
+  /* ── Motion ─────────────────────────────────────────────────── */
+  --ease-snap: cubic-bezier(0.2,0.8,0.2,1);
+  --ease-out:  cubic-bezier(0.22,1,0.36,1);
+  --transition-reveal: 120ms ease;   /* hover-to-reveal action btns */
+
+  /* ── Radii ───────────────────────────────────────────────────── */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+
+  /* ── P2: Filter chip pill radius ─────────────────────────────── */
+  --chip-radius: 12px;
+
+  /* ── P6: Freshness semantic colours ─────────────────────────────
+   *  --color-fresh   Within 24 h  → green
+   *  --color-warn    Within 7 d   → amber
+   *  --color-stale   Older        → red
+   * ──────────────────────────────────────────────────────────────── */
+  --color-fresh:       #1ded83;
+  --color-fresh-bg:    rgba(29,237,131,0.12);
+  --color-warn:        #fbbf24;
+  --color-warn-bg:     rgba(251,191,36,0.12);
+  --color-stale:       #f87171;
+  --color-stale-bg:    rgba(248,113,113,0.12);
+
+  /* ── P6: Skeleton shimmer base tokens ───────────────────────────
+   *  --skeleton-base       Dark surface for the flat part
+   *  --skeleton-highlight  Lighter band that sweeps across
+   * ──────────────────────────────────────────────────────────────── */
+  --skeleton-base:      #232526;   /* ≡ --surface2 */
+  --skeleton-highlight: rgba(255,255,255,0.07);
+
+  /* ── P6: Command-palette backdrop ───────────────────────────────*/
+  --palette-overlay: rgba(0,0,0,0.55);
+
+  /* ── P6: Tag pill hue palette (6 slots, token-variable colours) ─
+   *  Deterministically mapped via tagHash(str) % 6.
+   *  Each slot: foreground color.  Background is derived at 12% alpha.
+   * ──────────────────────────────────────────────────────────────── */
+  --pill-hue-0: #a78bfa;   /* violet  (brand) */
+  --pill-hue-1: #60a5fa;   /* sky     */
+  --pill-hue-2: #34d399;   /* emerald */
+  --pill-hue-3: #fbbf24;   /* amber   */
+  --pill-hue-4: #f472b6;   /* pink    */
+  --pill-hue-5: #38bdf8;   /* cyan    */
+}
+
+/* ── P5: Light-mode surface overrides ───────────────────────────── */
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface-page:  #f5f5f5;
+    --surface-card:  #ffffff;
+    --surface-inset: #f7f8fa;
+  }
+}
+/* Also support explicit [data-theme="light"] attribute toggle */
+[data-theme="light"] {
+  --surface-page:  #f5f5f5;
+  --surface-card:  #ffffff;
+  --surface-inset: #f7f8fa;
+}
+
+/* ── P4: Section-label typography token ─────────────────────────────
+ *  Reusable class for every muted uppercase section header across the
+ *  application. Properties:
+ *    font-size:      10px  (11px acceptable variant - override with
+ *                          font-size: 11px on the element)
+ *    font-weight:    700
+ *    text-transform: uppercase
+ *    letter-spacing: 0.06em
+ *    color:          var(--text-dim) - the muted text token
+ *
+ *  Usage:   <span class="section-label">My Section</span>
+ *  Also exposes --section-label-size / --section-label-spacing for
+ *  the rare cases where a component needs to reference the values
+ *  from JS or nested CSS without re-declaring them.
+ * ────────────────────────────────────────────────────────────────── */
+:root {
+  --section-label-size:    10px;
+  --section-label-spacing: 0.06em;
+}
+.section-label {
+  font-size:      var(--section-label-size);
+  font-weight:    700;
+  text-transform: uppercase;
+  letter-spacing: var(--section-label-spacing);
+  color:          var(--text-dim);
+}
+
+/* ── Reset ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100vh;
+  height: 100dvh; /* dvh = dynamic viewport height; falls back to vh on older browsers */
+  font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.26); }
+
+/* ── App shell ───────────────────────────────────────────────────── */
+/*
+ * WARNING: These rules are designed for pages that use an #app wrapper:
+ *   body > #global-nav + #app > #main > ...
+ *
+ * #main { height: 0 } is intentional: it lets the flex item shrink below its
+ * content size inside the fixed-height #app container. If a page does NOT use
+ * #app (e.g. kg.html which uses body > #body-wrap > #main directly), it MUST
+ * override #main with height:auto in its own <style> block, or #main will
+ * collapse to 0px and any canvas/chart inside will be invisible.
+ *
+ * See kg.html "LAYOUT CONTRACT" comment for the full explanation.
+ */
+#app {
+  display: flex; flex-direction: column;
+  height: calc(100vh - 44px); height: calc(100dvh - 44px); /* subtract #global-nav height */
+  min-height: 0;
+}
+#main { flex: 1; display: flex; overflow: hidden; min-height: 0; height: 0; /* see WARNING above */ }
+
+/* ═══════════════════════════════════════════════════════════════════
+   DUAL NAVIGATION BAR SYSTEM
+   ───────────────────────────────────────────────────────────────────
+   Bar 1  #global-nav   - always-visible global navigation
+                          Contains: brand logo, Sources link, KG link
+   Bar 2  #topbar        - contextual / page-level action bar
+                          Contains: page action buttons (left),
+                                    dynamic info zone (middle, .ctx-info),
+                                    utility buttons (right)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Global navigation bar (bar 1) ──────────────────────────────── */
+#global-nav {
+  height: 44px; flex-shrink: 0; z-index: 40;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; padding: 0 16px;
+}
+
+/* Brand mark inside global nav - now an <a> tag (clickable) */
+.gnav-brand {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 0; margin-right: 4px;
+  border-right: 1px solid var(--border); flex-shrink: 0;
+  text-decoration: none; cursor: pointer;
+  transition: opacity .12s;
+}
+.gnav-brand:hover { opacity: 0.8; text-decoration: none; }
+.gnav-brand-icon { flex-shrink: 0; }
+.gnav-brand-name {
+  font-size: 14px; font-weight: 700; letter-spacing: -0.02em;
+  color: var(--text); white-space: nowrap;
+}
+
+/* Nav links group */
+.gnav-nav-links {
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 8px; flex: 1;
+}
+
+/* Global nav links */
+.gnav-link {
+  height: 32px; padding: 0 13px; background: none;
+  border: 1px solid transparent; border-radius: var(--r-md);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; gap: 7px; font-size: 13px;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0; white-space: nowrap; text-decoration: none;
+  font-weight: 500; letter-spacing: -0.01em;
+}
+.gnav-link:hover {
+  background: rgba(255,255,255,0.06); color: var(--text);
+  border-color: var(--border);
+  text-decoration: none;
+}
+.gnav-link.active {
+  background: var(--accent-bg); color: var(--accent);
+  border-color: var(--accent-border);
+}
+.gnav-link.active:hover { background: rgba(167,139,250,0.20); }
+
+/* Right side of global nav */
+.gnav-right {
+  display: flex; align-items: center; gap: 10px;
+  padding-left: 12px; margin-left: auto; flex-shrink: 0;
+}
+
+/* Source count pill shown in nav right */
+#gnav-source-count {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  background: rgba(167,139,250,0.10);
+  border: 1px solid rgba(167,139,250,0.22);
+  color: var(--accent); white-space: nowrap;
+  letter-spacing: 0;
+}
+
+/* ── Contextual / page action bar (bar 2) ───────────────────────── */
+#topbar {
+  height: 40px; flex-shrink: 0; z-index: 30;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; padding: 0 10px;
+}
+
+/* ── Shared page nav tab strip ───────────────────────────────────────
+   All inner-page topbars use anchor .tbtn elements as tabs.
+   Active page is .active; inactive tabs show a bottom-border on hover.
+   Scoped to #topbar > a.tbtn so other .tbtn buttons aren't affected.  */
+#topbar > a.tbtn {
+  border-radius: 0;
+  border-color: transparent;
+  border-bottom: 2px solid transparent;
+  height: 40px;
+  padding: 0 13px;
+  margin-bottom: -1px;
+  font-size: 12px; font-weight: 500;
+  color: var(--text-muted);
+  gap: 6px;
+  text-decoration: none;
+}
+#topbar > a.tbtn:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  border-color: transparent;
+  border-bottom-color: var(--border2);
+  text-decoration: none;
+}
+#topbar > a.tbtn.active {
+  background: transparent;
+  color: var(--accent);
+  border-color: transparent;
+  border-bottom-color: var(--accent);
+}
+#topbar > a.tbtn.active:hover { background: var(--accent-bg); }
+
+/* Separator between tab strip and right-side actions */
+#topbar .tb-nav-sep {
+  width: 1px; height: 20px;
+  background: var(--border);
+  margin: 0 8px;
+  flex-shrink: 0;
+}
+
+/* Dynamic info zone - centre portion of the contextual bar.
+   Updated by JS on each page to reflect the current state:
+   active table name, schema stats, query title, etc. */
+.ctx-info {
+  display: flex; align-items: center; gap: 6px;
+  min-width: 0; overflow: hidden; flex: 1;
+  padding: 0 10px;
+}
+.ctx-info-label {
+  font-size: 12px; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ctx-info-sub {
+  font-size: 11px; color: var(--text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ctx-info-sep {
+  font-size: 11px; color: var(--text-faint);
+  flex-shrink: 0; padding: 0 2px; user-select: none;
+}
+
+/* Logo / title (kept for back-compat with existing page tb-logo usage) */
+.tb-logo  { display: flex; align-items: center; gap: 8px; padding: 0 6px; flex-shrink: 0; }
+.tb-title { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.tb-stats { font-size: 11px; color: var(--text-dim); white-space: nowrap; padding: 0 4px; flex-shrink: 0; }
+
+/* Separator + spacer */
+.tb-sep    { width: 1px; height: 20px; background: var(--border); margin: 0 6px; flex-shrink: 0; }
+.tb-spacer { flex: 1; min-width: 0; }
+.tb-gap    { width: 6px; flex-shrink: 0; }
+
+/* Standard pill button */
+.tbtn {
+  height: 30px; padding: 0 10px; background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; border-radius: var(--r-sm);
+  display: flex; align-items: center; gap: 5px; font-size: 11px;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0; white-space: nowrap; text-decoration: none;
+}
+.tbtn:hover {
+  background: rgba(255,255,255,0.08); color: var(--text);
+  border-color: rgba(255,255,255,0.20);
+}
+
+/* Green accent (run / write / export) */
+.tbtn.accent,
+.tbtn.run-btn  { border-color: var(--green-border); color: var(--green); }
+.tbtn.accent:hover  { background: var(--green-bg); }
+.tbtn.primary,
+.tbtn.run-btn:hover { background: var(--green-bg); border-color: var(--green-border); color: var(--green); font-weight: 600; }
+.tbtn.primary:hover { background: rgba(29,237,131,0.22); }
+
+/* Purple toggle (on / active) */
+.tbtn.on,
+.tbtn.active {
+  background: var(--accent-bg); color: var(--accent);
+  border-color: var(--accent-border);
+}
+.tbtn.on:hover,
+.tbtn.active:hover { background: rgba(167,139,250,0.22); }
+
+/* Nav link (topbar navigation - active state uses purple on bg) */
+.nav-link {
+  height: 30px; padding: 0 10px; background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted); cursor: pointer; border-radius: var(--r-sm);
+  display: flex; align-items: center; gap: 5px; font-size: 11px;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0; white-space: nowrap; text-decoration: none;
+}
+.nav-link:hover {
+  background: rgba(255,255,255,0.08); color: var(--text);
+  border-color: rgba(255,255,255,0.20);
+}
+.nav-link.active,
+.nav-link.on {
+  background: var(--accent-bg); color: var(--accent);
+  border-color: var(--accent-border);
+}
+.nav-link.active:hover,
+.nav-link.on:hover { background: rgba(167,139,250,0.22); }
+
+/* Shortcut hint badge inside a button */
+.shortcut-hint {
+  font-size: 9px; color: var(--text-dim);
+  background: rgba(255,255,255,0.06);
+  padding: 1px 4px; border-radius: 3px; font-family: monospace;
+}
+
+/* ── Breadcrumb strip ────────────────────────────────────────────── */
+.breadcrumb {
+  height: 28px; flex-shrink: 0;
+  background: var(--surface2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 14px; gap: 2px;
+  font-size: 12px; color: var(--text-dim); overflow: hidden;
+}
+.breadcrumb a,
+.breadcrumb span.bc-seg {
+  color: var(--text-dim); text-decoration: none; white-space: nowrap;
+  transition: color .12s; cursor: pointer; padding: 0 3px;
+}
+.breadcrumb a:hover,
+.breadcrumb span.bc-seg:hover { color: var(--text); }
+.breadcrumb .bc-sep { color: var(--text-faint); padding: 0 1px; user-select: none; }
+.breadcrumb .bc-current { color: var(--text); font-weight: 500; padding: 0 3px; }
+
+/* ── Nav link (topbar navigation entries) ────────────────────────── */
+.nav-link {
+  height: 30px; padding: 0 10px; background: none;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; gap: 5px; font-size: 11px;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0; white-space: nowrap; text-decoration: none;
+}
+.nav-link:hover {
+  background: rgba(255,255,255,0.06); color: var(--text);
+  border-color: var(--border);
+}
+/* Active page indicator */
+.nav-link.active {
+  background: var(--accent-bg); color: var(--accent);
+  border-color: var(--accent-border);
+}
+.nav-link.active:hover { background: rgba(167,139,250,0.20); }
+
+/* ── Logs slide-in drawer ─────────────────────────────────────────── */
+#logs-drawer {
+  position: fixed; top: 0; right: -440px; width: 440px; height: 100%;
+  background: var(--surface-card); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 9000;
+  transition: right .22s var(--ease-out); overflow: hidden;
+  box-shadow: -8px 0 32px rgba(0,0,0,0.55);
+}
+#logs-drawer.open { right: 0; }
+#logs-drawer-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 8999;
+  background: rgba(0,0,0,0.4);
+}
+#logs-drawer-backdrop.open { display: block; }
+#logs-drawer-hdr {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--surface2);
+}
+#logs-drawer-title {
+  font-size: var(--section-label-size); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing);
+  color: var(--text-dim); flex-shrink: 0;
+}
+#logs-drawer-key {
+  font-size: 11px; color: var(--green); font-family: Consolas, monospace;
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#logs-drawer-clear, #logs-drawer-close {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 11px; padding: 2px 6px;
+  line-height: 1; display: flex; align-items: center; transition: color .12s;
+  flex-shrink: 0;
+}
+#logs-drawer-clear:hover, #logs-drawer-close:hover { color: var(--text); }
+#logs-drawer-body {
+  flex: 1; overflow-y: auto; padding: 8px 14px;
+  background: var(--surface-inset);
+  font-family: Consolas, "Courier New", monospace; font-size: 11px; line-height: 1.7;
+  color: rgba(255,255,255,0.6);
+}
+#logs-drawer-body.empty {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim); font-size: 12px;
+}
+
+/* ── Skeleton shimmer ─────────────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+/* Legacy alias kept for back-compat with any shimmer references */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--skeleton-base) 25%,
+    var(--skeleton-highlight) 50%,
+    var(--skeleton-base) 75%);
+  background-size: 600px 100%;
+  animation: skeleton-shimmer 1.4s infinite linear;
+  border-radius: 3px;
+}
+.skeleton-row  { height: 34px; margin: 1px 0; }
+.skeleton-cell { display: inline-block; height: 12px; border-radius: 3px; vertical-align: middle; }
+
+/* ── Freshness badge variants ─────────────────────────────────────── */
+.freshness-fresh {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px;
+  background: var(--color-fresh-bg); color: var(--color-fresh);
+  border: 1px solid rgba(29,237,131,0.3);
+  white-space: nowrap; flex-shrink: 0;
+}
+.freshness-warn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px;
+  background: var(--color-warn-bg); color: var(--color-warn);
+  border: 1px solid rgba(251,191,36,0.3);
+  white-space: nowrap; flex-shrink: 0;
+}
+.freshness-stale {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px;
+  background: var(--color-stale-bg); color: var(--color-stale);
+  border: 1px solid rgba(248,113,113,0.3);
+  white-space: nowrap; flex-shrink: 0;
+}
+/* Dot-only variant (used as corner dot on ERD nodes) */
+.freshness-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.freshness-dot.fresh { background: var(--color-fresh); }
+.freshness-dot.warn  { background: var(--color-warn); }
+.freshness-dot.stale { background: var(--color-stale); }
+
+/* ── Row-action hover-reveal ──────────────────────────────────────── */
+.row-actions {
+  opacity: 0;
+  transition: opacity var(--transition-reveal);
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+}
+tr:hover .row-actions { opacity: 1; }
+.row-action-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: var(--r-sm);
+  background: none; border: 1px solid transparent;
+  color: var(--text-muted); cursor: pointer; font-size: 10px; line-height: 1;
+  transition: background var(--transition-reveal), border-color var(--transition-reveal), color var(--transition-reveal);
+  padding: 0;
+}
+.row-action-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--border2); color: var(--text); }
+.row-action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ── Tag pills (shared) ───────────────────────────────────────────── */
+.tag-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: var(--chip-radius);
+  border: 1px solid transparent; white-space: nowrap;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+}
+/* 6 deterministic hue slots */
+.pill-h0 { background: rgba(167,139,250,0.12); color: var(--pill-hue-0); border-color: rgba(167,139,250,0.25); }
+.pill-h1 { background: rgba(96,165,250,0.12);  color: var(--pill-hue-1); border-color: rgba(96,165,250,0.25);  }
+.pill-h2 { background: rgba(52,211,153,0.12);  color: var(--pill-hue-2); border-color: rgba(52,211,153,0.25);  }
+.pill-h3 { background: rgba(251,191,36,0.12);  color: var(--pill-hue-3); border-color: rgba(251,191,36,0.25);  }
+.pill-h4 { background: rgba(244,114,182,0.12); color: var(--pill-hue-4); border-color: rgba(244,114,182,0.25); }
+.pill-h5 { background: rgba(56,189,248,0.12);  color: var(--pill-hue-5); border-color: rgba(56,189,248,0.25);  }
+.tag-pill-more {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: var(--chip-radius);
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer; white-space: nowrap;
+  transition: background var(--transition-reveal);
+}
+.tag-pill-more:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   TOAST NOTIFICATION SYSTEM
+   Shared across all templates.  API: window._showToast(title, kind, desc, timeout)
+   kind: 'success' | 'error' | 'warning' | 'info' | 'write'
+   ══════════════════════════════════════════════════════════════════════ */
+#_toast_container {
+  position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+  display: flex; flex-direction: column-reverse; gap: 8px;
+  pointer-events: none; max-width: 360px;
+}
+.nybble-toast {
+  background: var(--surface-card, #1c1f20);
+  border: 1px solid var(--border, #2e3234);
+  border-radius: var(--r-lg, 8px);
+  padding: 10px 12px 10px 14px;
+  display: flex; align-items: flex-start; gap: 9px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  pointer-events: all; position: relative; overflow: hidden;
+  animation: _toast-in .18s var(--ease-out, ease) forwards;
+  min-width: 220px;
+}
+@keyframes _toast-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.nybble-toast.leaving {
+  animation: _toast-out .25s ease forwards;
+}
+@keyframes _toast-out {
+  to { opacity: 0; transform: translateX(16px); max-height: 0; padding: 0; margin: 0; }
+}
+.nybble-toast-icon  { flex-shrink: 0; margin-top: 1px; line-height: 0; }
+.nybble-toast-body  { flex: 1; min-width: 0; }
+.nybble-toast-title { font-size: 12px; font-weight: 600; color: var(--text, #e2e6f0); line-height: 1.4; }
+.nybble-toast-desc  { font-size: 11px; color: var(--text-muted, rgba(255,255,255,0.45)); margin-top: 2px; line-height: 1.4; word-break: break-word; }
+.nybble-toast-close {
+  background: none; border: none; color: var(--text-dim, rgba(255,255,255,0.25));
+  cursor: pointer; font-size: 15px; padding: 0; line-height: 1;
+  align-self: flex-start; flex-shrink: 0; transition: color .12s;
+}
+.nybble-toast-close:hover { color: var(--text, #e2e6f0); }
+/* Left-border accent + progress bar color per kind */
+.nybble-toast[data-kind="success"] { border-left: 3px solid var(--green,    #1ded83); }
+.nybble-toast[data-kind="error"]   { border-left: 3px solid var(--red,      #f87171); }
+.nybble-toast[data-kind="warning"] { border-left: 3px solid var(--yellow,   #fbbf24); }
+.nybble-toast[data-kind="info"]    { border-left: 3px solid var(--blue,     #60a5fa); }
+.nybble-toast[data-kind="write"]   { border-left: 3px solid var(--green,    #1ded83); }
+/* Progress drain bar */
+.nybble-toast-progress {
+  position: absolute; bottom: 0; left: 0; height: 2px;
+  width: 100%; opacity: 0.45;
+  transition-property: width; transition-timing-function: linear;
+}
+.nybble-toast[data-kind="success"] .nybble-toast-progress { background: var(--green,  #1ded83); }
+.nybble-toast[data-kind="error"]   .nybble-toast-progress { background: var(--red,    #f87171); }
+.nybble-toast[data-kind="warning"] .nybble-toast-progress { background: var(--yellow, #fbbf24); }
+.nybble-toast[data-kind="info"]    .nybble-toast-progress { background: var(--blue,   #60a5fa); }
+.nybble-toast[data-kind="write"]   .nybble-toast-progress { background: var(--green,  #1ded83); }
+
+/* ── Shared confirmation modal ─────────────────────────────────────── */
+#_confirm_modal {
+  display: none; position: fixed; inset: 0; z-index: 9980;
+  background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
+}
+#_confirm_modal.open { display: flex; }
+#_confirm_modal_box {
+  background: var(--surface-card, #1c1f20);
+  border: 1px solid var(--border, #2e3234);
+  border-radius: var(--r-lg, 8px);
+  padding: 22px 24px; width: 400px; max-width: 94vw;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+}
+#_confirm_modal_title {
+  font-size: 14px; font-weight: 600; color: var(--text, #e2e6f0); margin-bottom: 6px;
+}
+#_confirm_modal_desc {
+  font-size: 12px; color: var(--text-muted, rgba(255,255,255,0.45));
+  margin-bottom: 20px; line-height: 1.5;
+}
+#_confirm_modal_footer { display: flex; justify-content: flex-end; gap: 8px; }
+#_confirm_modal_cancel {
+  padding: 7px 16px; background: none;
+  border: 1px solid var(--border, #2e3234); color: var(--text-muted, rgba(255,255,255,0.4));
+  border-radius: var(--r-sm, 4px); cursor: pointer; font-size: 12px;
+  transition: background .12s, color .12s;
+}
+#_confirm_modal_cancel:hover { background: rgba(255,255,255,0.06); color: var(--text, #e2e6f0); }
+#_confirm_modal_ok {
+  padding: 7px 16px;
+  background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.35);
+  color: #f87171; border-radius: var(--r-sm, 4px); cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  transition: background .12s;
+}
+#_confirm_modal_ok:hover { background: rgba(248,113,113,0.22); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SHARED SIDEBAR SYSTEM
+   All inner pages (ERD, Browse, Query, Reports, Dashboard) share
+   the same sidebar shell. The top part (table list) is identical;
+   the bottom part is page-specific content.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── main-area alias (dashboard uses this instead of #main) ─────── */
+#main-area { flex: 1; display: flex; overflow: hidden; min-height: 0; height: 0; }
+
+/* ── Shared sidebar shell ────────────────────────────────────────── */
+#sidebar {
+  width: 230px; min-width: 230px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-x: hidden; overflow-y: hidden;
+  position: relative;
+  /* Do NOT set height:100% here - ERD overrides overflow-y:auto so the
+     sidebar must be allowed to grow taller than its parent and scroll. */
+  transition: width .2s var(--ease-snap), min-width .2s var(--ease-snap);
+}
+#sidebar.sb-collapsed {
+  width: 32px !important; min-width: 32px !important; overflow: hidden;
+}
+#sidebar.sb-collapsed > *:not(#sidebar-toggle-btn) { display: none !important; }
+
+/* ── Sidebar toggle button ───────────────────────────────────────── */
+#sidebar-toggle-btn {
+  position: absolute; top: 50%; right: -12px;
+  transform: translateY(-50%);
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface-card); border: 1px solid var(--border2);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; z-index: 5;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0;
+}
+#sidebar-toggle-btn:hover { background: var(--surface2); color: var(--text); border-color: rgba(255,255,255,0.25); }
+#sidebar.sb-collapsed #sidebar-toggle-btn { right: -14px; }
+
+/* ── Sidebar header (top section label) ─────────────────────────── */
+#sidebar-header {
+  padding: 10px 12px 7px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+#sidebar-header .sb-title {
+  font-size: var(--section-label-size, 10px); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing, 0.06em);
+  color: var(--text-dim); flex: 1;
+}
+#sidebar-header .sb-count {
+  font-size: 10px; color: var(--text-dim);
+  background: rgba(255,255,255,0.06); border-radius: 9px;
+  padding: 1px 6px; flex-shrink: 0;
+}
+
+/* ── Search box inside sidebar ───────────────────────────────────── */
+#sb-search-wrap {
+  padding: 6px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+#sb-search-wrap svg { flex-shrink: 0; color: var(--text-dim); }
+#sb-search-input {
+  flex: 1; background: none; border: none; outline: none;
+  font-size: 12px; color: var(--text); min-width: 0;
+}
+#sb-search-input::placeholder { color: var(--text-dim); }
+#sb-search-clear {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 14px; line-height: 1; padding: 0;
+  display: none;
+}
+#sb-search-clear.visible { display: block; }
+#sb-search-clear:hover { color: var(--red); }
+
+/* ── Table list (shared scroll area) ────────────────────────────── */
+#table-list {
+  flex: 1; overflow-y: auto; padding: 4px 0; min-height: 0;
+}
+.tbl-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 5px 8px 5px 12px; font-size: 12px;
+  color: rgba(255,255,255,0.65); cursor: pointer;
+  border-left: 2px solid transparent; transition: background .1s;
+}
+.tbl-item:hover  { background: var(--surface2); color: #fff; }
+.tbl-item.active { background: rgba(167,139,250,0.08); border-left-color: #a78bfa; color: #fff; }
+.tbl-item .n {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.tbl-item .n .tbl-name {
+  font-size: 12px; color: rgba(255,255,255,0.85);
+  white-space: normal; word-break: break-word; overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.tbl-item .n .tbl-meta {
+  font-size: 10px; color: rgba(255,255,255,0.3);
+  white-space: nowrap;
+}
+.tbl-item .c { font-size: 10px; color: rgba(255,255,255,0.25); flex-shrink: 0; margin-top: 3px; }
+
+/* ── Sidebar section divider (page-specific bottom sections) ─────── */
+.sb-section-divider {
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.sb-section-hdr {
+  padding: 7px 12px 5px; font-size: var(--section-label-size, 10px); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing, 0.06em);
+  color: var(--text-dim); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.sb-section-hdr .sb-sec-action {
+  margin-left: auto; background: none; border: none;
+  color: var(--text-dim); cursor: pointer; font-size: 14px; line-height: 1;
+  padding: 0 2px; transition: color .12s;
+}
+.sb-section-hdr .sb-sec-action:hover { color: var(--text); }
+
+/* ── Collapse toggle (legacy class alias) ────────────────────────── */
+.sidebar-toggle-btn {
+  position: absolute; top: 50%; right: -12px;
+  transform: translateY(-50%);
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface-card); border: 1px solid var(--border2);
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; z-index: 5;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0;
+}
+.sidebar-toggle-btn:hover { background: var(--surface2); color: var(--text); border-color: rgba(255,255,255,0.25); }
+.sidebar-collapsed { width: 0 !important; min-width: 0 !important; overflow: hidden; }
+.sidebar-collapsed > *:not(.sidebar-toggle-btn) { display: none !important; }
+
+/* ── Two-line table item layout (shared) ─────────────────────────── */
+.tbl-item-name {
+  font-size: 12px; color: var(--text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.tbl-item:hover .tbl-item-name { overflow: visible; white-space: normal; word-break: break-all; }
+.tbl-item-meta {
+  font-size: 10px; color: var(--text-dim);
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 1px; flex-wrap: wrap;
+}
+.tbl-item-meta-badge {
+  display: inline-flex; align-items: center;
+  font-size: 9px; padding: 0 4px; border-radius: 3px;
+  background: rgba(255,255,255,0.06); color: var(--text-dim);
+  white-space: nowrap; flex-shrink: 0;
+}
+</style>
+
+<script>
+/* ── Shared Toast + Confirm system ──────────────────────────────────────────
+   Loaded once via _base_styles.html (included in every inner template).
+   All templates reference window._showToast() / window._openConfirm().
+   ─────────────────────────────────────────────────────────────────────────── */
+(function() {
+  'use strict';
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  const MAX_TOASTS = 4;
+  const TIMEOUTS = { error: 9000, warning: 9000, success: 6000, info: 6000, write: 6000 };
+  const ICONS = {
+    success: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1ded83" stroke-width="2.2" stroke-linecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    warning: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    info:    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+    write:   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1ded83" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  };
+
+  function _getContainer() {
+    let c = document.getElementById('_toast_container');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = '_toast_container';
+      document.body.appendChild(c);
+    }
+    return c;
+  }
+
+  function _dismissToast(el) {
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 280);
+  }
+
+  /**
+   * Show a toast notification.
+   * @param {string} title   - primary message
+   * @param {string} kind    - 'success' | 'error' | 'warning' | 'info' | 'write'
+   * @param {string} [desc]  - optional secondary line
+   * @param {number} [ms]    - override auto-dismiss timeout in milliseconds
+   */
+  window._showToast = function(title, kind, desc, ms) {
+    kind = kind || 'info';
+    const timeout = ms != null ? ms : (TIMEOUTS[kind] || 6000);
+    const container = _getContainer();
+
+    // Cap total visible toasts
+    const existing = container.querySelectorAll('.nybble-toast');
+    if (existing.length >= MAX_TOASTS) _dismissToast(existing[0]);
+
+    const el = document.createElement('div');
+    el.className = 'nybble-toast';
+    el.setAttribute('data-kind', kind);
+    el.innerHTML =
+      '<div class="nybble-toast-icon">' + (ICONS[kind] || ICONS.info) + '</div>' +
+      '<div class="nybble-toast-body">' +
+        '<div class="nybble-toast-title">' + _toastEsc(title) + '</div>' +
+        (desc ? '<div class="nybble-toast-desc">' + _toastEsc(desc) + '</div>' : '') +
+      '</div>' +
+      '<button class="nybble-toast-close" aria-label="Close">&#215;</button>' +
+      '<div class="nybble-toast-progress"></div>';
+
+    container.appendChild(el);
+
+    el.querySelector('.nybble-toast-close').addEventListener('click', () => _dismissToast(el));
+
+    // Start progress drain after a frame so the CSS transition fires
+    const bar = el.querySelector('.nybble-toast-progress');
+    bar.style.transitionDuration = timeout + 'ms';
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = '0%'; }));
+
+    const timer = setTimeout(() => _dismissToast(el), timeout);
+    // Pause drain on hover
+    el.addEventListener('mouseenter', () => {
+      clearTimeout(timer);
+      bar.style.transitionDuration = '0ms';
+    });
+    el.addEventListener('mouseleave', () => {
+      const remaining = parseFloat(bar.style.width || '100') / 100 * timeout;
+      bar.style.transitionDuration = remaining + 'ms';
+      bar.style.width = '0%';
+      setTimeout(() => _dismissToast(el), remaining);
+    });
+  };
+
+  function _toastEsc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Confirmation modal ─────────────────────────────────────────────────────
+  let _confirmCb = null;
+
+  function _ensureConfirmModal() {
+    if (document.getElementById('_confirm_modal')) return;
+    const m = document.createElement('div');
+    m.id = '_confirm_modal';
+    m.innerHTML =
+      '<div id="_confirm_modal_box">' +
+        '<div id="_confirm_modal_title"></div>' +
+        '<div id="_confirm_modal_desc"></div>' +
+        '<div id="_confirm_modal_footer">' +
+          '<button id="_confirm_modal_cancel">Cancel</button>' +
+          '<button id="_confirm_modal_ok">Delete</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(m);
+    document.getElementById('_confirm_modal_cancel').addEventListener('click', window._closeConfirm);
+    document.getElementById('_confirm_modal_ok').addEventListener('click', function() {
+      const cb = _confirmCb;
+      window._closeConfirm();
+      if (cb) cb();
+    });
+    // Backdrop click dismisses
+    m.addEventListener('click', function(e) { if (e.target === m) window._closeConfirm(); });
+  }
+
+  /**
+   * Open a confirmation dialog.
+   * @param {string}   title      - headline text
+   * @param {string}   desc       - descriptive body text
+   * @param {Function} callback   - called when the user confirms
+   * @param {string}   [okLabel]  - override confirm button label (default "Delete")
+   */
+  window._openConfirm = function(title, desc, callback, okLabel) {
+    _ensureConfirmModal();
+    document.getElementById('_confirm_modal_title').textContent = title;
+    document.getElementById('_confirm_modal_desc').textContent  = desc;
+    document.getElementById('_confirm_modal_ok').textContent    = okLabel || 'Delete';
+    _confirmCb = callback;
+    document.getElementById('_confirm_modal').classList.add('open');
+    document.getElementById('_confirm_modal_ok').focus();
+  };
+
+  window._closeConfirm = function() {
+    const m = document.getElementById('_confirm_modal');
+    if (m) m.classList.remove('open');
+    _confirmCb = null;
+  };
+
+  // Escape key closes confirm modal
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') window._closeConfirm();
+  });
+})();
+</script>

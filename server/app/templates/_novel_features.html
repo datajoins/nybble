@@ -1,0 +1,1723 @@
+{#
+  _novel_features.html
+  ────────────────────────────────────────────────────────────────────────────
+  Five novel DataHub-inspired ERD features - self-contained, no new deps.
+
+  N1 - Schema Health Score      : SVG arc rings on ERD nodes + sidebar column
+  N2 - FK Neighbourhood Lens    : hop-selector toolbar + BFS lens mode
+  N3 - Auto-Detected Clusters   : connected-components + SVG bounding boxes
+  N4 - Column Similarity Heatmap: Levenshtein N×M panel for two selected tables
+  N5 - Query Bookmark Board     : kanban overlay, HTML5 DnD, metadata sidecar
+
+  Include ONCE in erd.html (all five features) and once in query.html (N5 only).
+  browse.html may include the full partial - unused features cost nothing.
+
+  Depends on: ERD_CONST, erdEsc (from _erd_features_constants.html)
+              SCHEMA, KEY, window.BASE_PATH (globals set by the host page)
+              cy (Cytoscape instance, set by erd.html boot())
+#}
+
+{# ══════════════════════════════════════════════════════════════════════════
+   CSS
+   ══════════════════════════════════════════════════════════════════════════ #}
+<style>
+/* ── N1: Health Score ─────────────────────────────────────────────────────── */
+/* #health-rings-layer removed - rings no longer drawn on ERD canvas */
+
+/* Sidebar health column */
+.sb-health-score {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-family: Consolas, monospace; font-weight: 700;
+  flex-shrink: 0;
+}
+.sb-health-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* ── N2: FK Neighbourhood Lens ───────────────────────────────────────────── */
+#lens-toolbar {
+  display: none;
+  align-items: center; gap: 6px;
+  background: rgba(28,31,32,0.92); border: 1px solid #3a3d3e;
+  border-radius: 6px; padding: 4px 8px;
+  font-size: 11px; color: rgba(255,255,255,0.6);
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 30; box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  white-space: nowrap;
+  transition: opacity .2s;
+}
+#lens-toolbar.visible { display: flex; }
+.lens-hop-btn {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid rgba(167,139,250,0.3);
+  background: none; color: rgba(167,139,250,0.7);
+  font-size: 11px; font-weight: 700; cursor: pointer;
+  transition: all .12s;
+  display: flex; align-items: center; justify-content: center;
+}
+.lens-hop-btn:hover  { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.1); }
+.lens-hop-btn.active { border-color: #a78bfa; color: #fff; background: rgba(167,139,250,0.25); }
+#lens-table-name {
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  color: #c4b5fd; font-weight: 600;
+}
+#lens-exit-btn {
+  background: none; border: none; color: rgba(255,255,255,0.4);
+  cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px;
+  transition: color .1s;
+}
+#lens-exit-btn:hover { color: #f87171; }
+
+/* ── N3: Cluster bounding boxes ─────────────────────────────────────────── */
+/* Reuses #bbox-svg layer; cluster groups have a distinct class */
+.cluster-group .cluster-rect {
+  fill-opacity: 0.06; stroke-width: 1.5; stroke-dasharray: 6 4;
+}
+.cluster-label-text {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  font-family: -apple-system,"Segoe UI",Arial,sans-serif;
+}
+
+/* ── N4: Column Similarity Heatmap ─────────────────────────────────────── */
+/* Backdrop wrapper - covers the full viewport with dim + blur */
+#sim-heatmap-backdrop {
+  display: none;
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(3px);
+  align-items: center; justify-content: center;
+}
+#sim-heatmap-backdrop.open { display: flex; }
+#sim-heatmap-panel {
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.8);
+  max-width: 90vw; max-height: 82vh;
+  display: flex; flex-direction: column;
+  min-width: 320px;
+}
+#sim-hm-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px 10px; border-bottom: 1px solid #2e3234; flex-shrink: 0;
+}
+#sim-hm-title { flex: 1; font-size: 13px; font-weight: 700; color: #e2e6f0; }
+#sim-hm-threshold-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-bottom: 1px solid #2e3234; flex-shrink: 0;
+  font-size: 11px; color: rgba(255,255,255,0.45);
+}
+#sim-hm-threshold-row input[type=range] {
+  flex: 1; accent-color: #a78bfa; cursor: pointer;
+}
+#sim-hm-threshold-val { font-family: Consolas,monospace; color: #a78bfa; font-weight: 700; }
+#sim-hm-body {
+  flex: 1; overflow: auto; padding: 12px 16px 16px;
+}
+#sim-hm-table {
+  border-collapse: collapse; font-size: 11px;
+  font-family: Consolas,"Courier New",monospace;
+}
+#sim-hm-table th {
+  padding: 4px 8px; font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.45); white-space: nowrap;
+  position: sticky; top: 0; background: var(--surface-card); z-index: 2;
+  border-bottom: 1px solid #2e3234;
+}
+#sim-hm-table th.row-hdr {
+  text-align: right; position: sticky; left: 0;
+  background: var(--surface-card); z-index: 3;
+  border-right: 1px solid #2e3234;
+}
+#sim-hm-table td {
+  width: 42px; height: 34px; text-align: center;
+  border: 1px solid rgba(255,255,255,0.04);
+  position: relative; cursor: default;
+  transition: outline .1s;
+}
+#sim-hm-table td:hover { outline: 2px solid rgba(167,139,250,0.7); outline-offset: -2px; }
+.sim-cell-val {
+  font-size: 9px; font-weight: 700;
+  display: block;
+}
+.sim-fk-badge {
+  display: block; font-size: 8px; font-weight: 700;
+  color: #a78bfa; letter-spacing: .03em; margin-top: 1px;
+}
+#sim-hm-close {
+  background: none; border: none; color: rgba(255,255,255,0.4);
+  cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px;
+}
+#sim-hm-close:hover { color: #f87171; }
+
+/* Picker dialog for table selection */
+#sim-picker-panel {
+  display: none;
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,0.55);
+  align-items: center; justify-content: center;
+}
+#sim-picker-panel.open { display: flex; }
+#sim-picker-box {
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.8);
+  width: 340px; padding: 20px 20px 16px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+#sim-picker-box h3 {
+  margin: 0; font-size: 13px; font-weight: 700; color: #e2e6f0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#sim-picker-box h3 button {
+  background: none; border: none; color: rgba(255,255,255,0.4);
+  cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px;
+}
+#sim-picker-box h3 button:hover { color: #f87171; }
+.sim-picker-field { display: flex; flex-direction: column; gap: 5px; }
+.sim-picker-field label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: rgba(255,255,255,0.3);
+}
+.sim-picker-select {
+  appearance: none; -webkit-appearance: none;
+  background: #1e2124 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a0a8b0'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border: 1px solid #3a3d3e;
+  border-radius: 5px; color: #e2e6f0; font-size: 12px;
+  padding: 6px 28px 6px 8px; cursor: pointer; outline: none; width: 100%;
+}
+.sim-picker-select:focus { border-color: rgba(96,165,250,0.5); outline: none; }
+/* Style the dropdown option list (Chromium/Firefox respect these) */
+.sim-picker-select option {
+  background: #1e2124; color: #e2e6f0;
+}
+.sim-picker-select option:checked,
+.sim-picker-select option:hover {
+  background: rgba(96,165,250,0.2); color: #e2e6f0;
+}
+#sim-picker-go {
+  align-self: flex-end;
+  background: rgba(96,165,250,0.14); border: 1px solid rgba(96,165,250,0.45);
+  color: #60a5fa; font-size: 11px; font-weight: 700;
+  padding: 6px 16px; border-radius: 5px; cursor: pointer; transition: all .12s;
+}
+#sim-picker-go:hover { background: rgba(96,165,250,0.26); border-color: #60a5fa; }
+#sim-picker-go:disabled { opacity: 0.35; cursor: default; }
+
+/* ── N5: Query Bookmark Board ──────────────────────────────────────────── */
+#qbb-panel {
+  display: none;
+  position: fixed; inset: 0; z-index: 8500;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(3px);
+  align-items: center; justify-content: center;
+}
+#qbb-panel.open { display: flex; }
+#qbb-box {
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.85);
+  width: min(860px, 94vw); max-height: 82vh;
+  display: flex; flex-direction: column;
+}
+#qbb-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px 12px; border-bottom: 1px solid #2e3234; flex-shrink: 0;
+}
+#qbb-title {
+  flex: 1; font-size: 14px; font-weight: 700; color: #e2e6f0;
+  display: flex; align-items: center; gap: 8px;
+}
+#qbb-close {
+  background: none; border: none; color: rgba(255,255,255,0.4);
+  cursor: pointer; font-size: 20px; line-height: 1; padding: 2px 6px;
+}
+#qbb-close:hover { color: #f87171; }
+#qbb-columns {
+  display: flex; gap: 0; flex: 1; overflow: hidden;
+  border-top: none;
+}
+.qbb-col {
+  flex: 1; display: flex; flex-direction: column;
+  border-right: 1px solid #2e3234; min-height: 0;
+}
+.qbb-col:last-child { border-right: none; }
+.qbb-col-hdr {
+  padding: 10px 14px 8px; font-size: var(--section-label-size, 10px); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing, 0.06em);
+  color: var(--text-dim); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.qbb-col-hdr span { flex: 1; }
+.qbb-col-hdr .qbb-col-icon { opacity: .5; }
+.qbb-col-body {
+  flex: 1; overflow-y: auto; padding: 8px;
+  min-height: 120px;
+}
+/* drag-over highlight */
+.qbb-col-body.drag-over {
+  background: rgba(167,139,250,0.06);
+  outline: 2px dashed rgba(167,139,250,0.4); outline-offset: -4px;
+  border-radius: 6px;
+}
+.qbb-card {
+  background: var(--surface-inset); border: 1px solid var(--border); border-radius: 7px;
+  padding: 9px 11px; margin-bottom: 7px;
+  cursor: grab; user-select: none;
+  transition: box-shadow .14s, border-color .14s;
+  position: relative;
+}
+.qbb-card:hover { border-color: rgba(167,139,250,0.4); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.qbb-card.dragging { opacity: .5; cursor: grabbing; }
+.qbb-card-title {
+  font-size: 12px; font-weight: 600; color: #e2e6f0;
+  margin-bottom: 4px;
+  outline: none;
+  border-radius: 3px;
+}
+.qbb-card-title:focus {
+  background: rgba(255,255,255,0.07); padding: 1px 4px; margin: -1px -4px;
+  border: 1px solid rgba(167,139,250,0.4);
+}
+.qbb-card-sql {
+  font-size: 10px; font-family: Consolas,"Courier New",monospace;
+  color: rgba(255,255,255,0.55);
+  width: 100%; box-sizing: border-box;
+  background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px; padding: 5px 7px; margin-top: 4px;
+  resize: vertical; min-height: 52px; max-height: 160px;
+  outline: none; cursor: text; user-select: text;
+}
+.qbb-card-sql:focus {
+  border-color: rgba(167,139,250,0.45); background: rgba(0,0,0,0.35);
+}
+.qbb-card-actions {
+  display: flex; gap: 5px; margin-top: 7px;
+  border-top: 1px solid rgba(255,255,255,0.06); padding-top: 7px;
+}
+.qbb-card-btn {
+  font-size: 10px; padding: 2px 8px; border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.12); background: none;
+  color: rgba(255,255,255,0.45); cursor: pointer; transition: all .1s;
+}
+.qbb-card-btn:hover { background: rgba(255,255,255,0.07); color: #e2e6f0; }
+.qbb-card-btn.primary {
+  border-color: rgba(167,139,250,0.35); color: #c4b5fd;
+}
+.qbb-card-btn.primary:hover { background: rgba(167,139,250,0.14); color: #a78bfa; }
+.qbb-card-btn.del { color: rgba(248,113,113,0.5); border-color: transparent; }
+.qbb-card-btn.del:hover { color: #f87171; background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.3); }
+.qbb-add-btn {
+  width: 100%; padding: 6px; border-radius: 6px;
+  border: 1px dashed rgba(255,255,255,0.12); background: none;
+  color: rgba(255,255,255,0.3); cursor: pointer; font-size: 11px;
+  transition: all .12s; margin-top: 4px;
+}
+.qbb-add-btn:hover { border-color: rgba(167,139,250,0.4); color: #a78bfa; }
+.qbb-col-count {
+  font-size: 10px; font-family: Consolas, monospace;
+  background: rgba(255,255,255,0.07); border-radius: 10px;
+  padding: 0 5px; min-width: 18px; text-align: center;
+  color: rgba(255,255,255,0.4); flex-shrink: 0;
+}
+
+/* ── ERD Node hover card (Item 3) ───────────────────────────────── */
+#erd-hover-card {
+  position: fixed; z-index: 9000; pointer-events: none;
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 8px;
+  box-shadow: 0 10px 36px rgba(0,0,0,0.75); width: 220px;
+  display: none; flex-direction: column; overflow: hidden;
+  font-size: 11px;
+}
+#erd-hover-card.visible { display: flex; }
+.ehc-header {
+  padding: 8px 12px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.ehc-name {
+  flex: 1; font-size: 12px; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ehc-body {
+  padding: 8px 12px; display: flex; flex-direction: column; gap: 5px;
+}
+.ehc-stat-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 10px; color: var(--text-muted);
+}
+.ehc-stat-val {
+  font-family: Consolas, monospace; color: var(--text); font-size: 11px;
+}
+.ehc-desc {
+  font-size: 10px; color: var(--text-muted); font-style: italic;
+  border-top: 1px solid var(--border); padding-top: 5px; margin-top: 3px;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.ehc-tags {
+  display: flex; flex-wrap: wrap; gap: 3px; padding: 5px 12px 6px;
+  border-top: 1px solid var(--border);
+}
+.ehc-footer {
+  display: flex; gap: 6px; padding: 6px 12px;
+  border-top: 1px solid var(--border); flex-shrink: 0;
+  pointer-events: all;
+}
+.ehc-action {
+  flex: 1; height: 22px; font-size: 10px; border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: none; color: var(--text-muted);
+  cursor: pointer; transition: all .12s; white-space: nowrap;
+}
+.ehc-action:hover { background: rgba(255,255,255,0.08); color: var(--text); border-color: var(--border2); }
+.ehc-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ── ERD node hover-action overlay buttons (Item 1 for ERD) ─────── */
+/* #erd-node-actions removed - hover action buttons (Expand/Focus/Pin) no longer shown */
+</style>
+
+{# ══════════════════════════════════════════════════════════════════════════
+   DOM
+   ══════════════════════════════════════════════════════════════════════════ #}
+
+{# N2: Lens toolbar (injected into canvas-wrap by JS, defined here for clarity) #}
+{# N4: Heatmap panel (absolute inside canvas-wrap) #}
+{# N5: Board panel (fixed overlay) #}
+
+<!-- ERD Hover Card (Item 3) - positioned by JS -->
+<div id="erd-hover-card" role="tooltip" aria-live="polite" aria-label="Table preview">
+  <div class="ehc-header">
+    <span class="ehc-name" id="ehc-name"></span>
+    <span class="freshness-dot" id="ehc-freshness-dot" title=""></span>
+  </div>
+  <div class="ehc-body">
+    <div class="ehc-stat-row"><span>Columns</span><span class="ehc-stat-val" id="ehc-cols">-</span></div>
+    <div class="ehc-stat-row"><span>FK in</span><span class="ehc-stat-val" id="ehc-fk-in">-</span></div>
+    <div class="ehc-stat-row"><span>FK out</span><span class="ehc-stat-val" id="ehc-fk-out">-</span></div>
+    <div class="ehc-desc" id="ehc-desc" style="display:none"></div>
+  </div>
+  <div class="ehc-tags" id="ehc-tags" style="display:none"></div>
+  <div class="ehc-footer" id="ehc-footer">
+    <button class="ehc-action" id="ehc-browse-btn" aria-label="Open table in Browse view">&#128269; Browse</button>
+    <button class="ehc-action" id="ehc-focus-btn"  aria-label="Focus table in ERD">&#8853; Focus</button>
+  </div>
+</div>
+
+<!-- N4: Table picker dialog -->
+<div id="sim-picker-panel" role="dialog" aria-label="Select tables to compare"
+     onclick="if(event.target===this)NF4.closePicker()">
+  <div id="sim-picker-box">
+    <h3>Compare Tables
+      <button onclick="NF4.closePicker()" title="Close" aria-label="Close">&#10005;</button>
+    </h3>
+    <div class="sim-picker-field">
+      <label for="sim-picker-a">Table A</label>
+      <select id="sim-picker-a" class="sim-picker-select" onchange="NF4._onPickerChange()"></select>
+    </div>
+    <div class="sim-picker-field">
+      <label for="sim-picker-b">Table B</label>
+      <select id="sim-picker-b" class="sim-picker-select" onchange="NF4._onPickerChange()"></select>
+    </div>
+    <button id="sim-picker-go" disabled onclick="NF4._launchFromPicker()">&#8853; Compare</button>
+  </div>
+</div>
+
+<div id="sim-heatmap-backdrop" onclick="if(event.target===this)NF4.close()">
+<div id="sim-heatmap-panel" role="dialog" aria-label="Column Similarity Heatmap">
+  <div id="sim-hm-header">
+    <span id="sim-hm-title">Column Similarity Heatmap</span>
+    <button id="sim-hm-close" title="Close (Esc)" aria-label="Close similarity heatmap" onclick="NF4.close()">&#10005;</button>
+  </div>
+  <div id="sim-hm-threshold-row">
+    <span>FK threshold:</span>
+    <input type="range" id="sim-hm-threshold" min="0" max="1" step="0.05" value="0.6"
+           oninput="NF4.onThresholdChange(this.value)">
+    <span id="sim-hm-threshold-val">0.60</span>
+  </div>
+  <div id="sim-hm-body">
+    <table id="sim-hm-table"></table>
+  </div>
+</div>
+</div>
+
+
+<div id="qbb-panel" role="dialog" aria-label="Query Bookmark Board"
+     onclick="if(event.target===this)NF5.close()">
+  <div id="qbb-box">
+    <div id="qbb-header">
+      <span id="qbb-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2">
+          <rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/>
+        </svg>
+        Query Bookmark Board
+      </span>
+      <button id="qbb-close" onclick="NF5.close()" title="Close bookmark board" aria-label="Close Query Bookmark Board">&#10005;</button>
+    </div>
+    <div id="qbb-columns">
+      <div class="qbb-col" data-col="exploration">
+        <div class="qbb-col-hdr">
+          <span class="qbb-col-icon">&#128269;</span>
+          <span>Exploration</span>
+          <span class="qbb-col-count" id="qbb-cnt-exploration">0</span>
+        </div>
+        <div class="qbb-col-body" id="qbb-body-exploration"
+             ondragover="NF5.onDragOver(event,'exploration')"
+             ondragleave="NF5.onDragLeave(event)"
+             ondrop="NF5.onDrop(event,'exploration')">
+        </div>
+        <button class="qbb-add-btn" onclick="NF5.addCard('exploration')">+ Save current query here</button>
+      </div>
+      <div class="qbb-col" data-col="reports">
+        <div class="qbb-col-hdr">
+          <span class="qbb-col-icon">&#128196;</span>
+          <span>Reports</span>
+          <span class="qbb-col-count" id="qbb-cnt-reports">0</span>
+        </div>
+        <div class="qbb-col-body" id="qbb-body-reports"
+             ondragover="NF5.onDragOver(event,'reports')"
+             ondragleave="NF5.onDragLeave(event)"
+             ondrop="NF5.onDrop(event,'reports')">
+        </div>
+        <button class="qbb-add-btn" onclick="NF5.addCard('reports')">+ Save current query here</button>
+      </div>
+      <div class="qbb-col" data-col="debug">
+        <div class="qbb-col-hdr">
+          <span class="qbb-col-icon">&#128030;</span>
+          <span>Debug</span>
+          <span class="qbb-col-count" id="qbb-cnt-debug">0</span>
+        </div>
+        <div class="qbb-col-body" id="qbb-body-debug"
+             ondragover="NF5.onDragOver(event,'debug')"
+             ondragleave="NF5.onDragLeave(event)"
+             ondrop="NF5.onDrop(event,'debug')">
+        </div>
+        <button class="qbb-add-btn" onclick="NF5.addCard('debug')">+ Save current query here</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════
+   JAVASCRIPT
+   ══════════════════════════════════════════════════════════════════════════ #}
+<script>
+{% raw %}
+/* ════════════════════════════════════════════════════════════════════════════
+   N1 - SCHEMA HEALTH SCORE
+   Weights:
+     30 pts - % columns with non-empty description (metadata sidecar)
+     20 pts - % columns with nullability specified (not_null field present)
+     15 pts - % FK columns (FK coverage)
+     15 pts - % columns with a recognised semantic type
+     20 pts - has at least one PK column
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF1 = (() => {
+  // Semantic type patterns - rough heuristics on column type strings
+  const _SEMANTIC_RX = /int|float|double|decimal|numeric|bool|date|time|text|varchar|char|uuid|json|blob|real|bigint|smallint/i;
+
+  /**
+   * Compute health score 0-100 for a single table.
+   * @param {{ name:string, columns:Array }} table
+   * @param {Object} tableMeta  - metadata sidecar entry for this table (may be null)
+   * @param {Object} colsMeta   - metadata sidecar columns map (tableName.colName → meta)
+   * @returns {number} 0-100 integer
+   */
+  function score(table, tableMeta, colsMeta) {
+    const cols = table.columns || [];
+    if (!cols.length) return 0;
+    const n = cols.length;
+
+    // 20pts - PK
+    const hasPK = cols.some(c => c.pk) ? 20 : 0;
+
+    // 15pts - FK coverage (% cols that are FK, scaled to 15)
+    const fkPct = cols.filter(c => c.fk).length / n;
+    const fkPts = Math.round(fkPct * 15);
+
+    // 15pts - semantic type coverage
+    const semPct = cols.filter(c => c.type && _SEMANTIC_RX.test(c.type)).length / n;
+    const semPts = Math.round(semPct * 15);
+
+    // 20pts - nullability specified (not_null field exists and is boolean)
+    const nullPct = cols.filter(c => c.not_null !== undefined && c.not_null !== null).length / n;
+    const nullPts = Math.round(nullPct * 20);
+
+    // 30pts - description coverage (from metadata sidecar)
+    let descCount = 0;
+    if (tableMeta && tableMeta.description) descCount += 1;  // table-level desc counts as all cols for simplicity
+    else {
+      cols.forEach(c => {
+        const key = table.name + '.' + c.name;
+        if (colsMeta && colsMeta[key] && colsMeta[key].description) descCount++;
+      });
+    }
+    const descPct = (tableMeta && tableMeta.description) ? 1 : descCount / n;
+    const descPts = Math.round(descPct * 30);
+
+    return Math.min(100, hasPK + fkPts + semPts + nullPts + descPts);
+  }
+
+  /** Color for a given score. */
+  function color(s) {
+    if (s >= 80) return '#1ded83';   // green
+    if (s >= 50) return '#fbbf24';   // amber
+    return '#f87171';                // red
+  }
+
+  /**
+   * Build the score map { tableName: score } for all SCHEMA tables.
+   * @param {Array} schema   - SCHEMA global
+   * @param {Object} meta    - { tables: {}, columns: {} } metadata sidecar
+   * @returns {Object<string,number>}
+   */
+  function buildScores(schema, meta) {
+    const map = {};
+    const tablesMeta = (meta && meta.tables) || {};
+    const colsMeta   = (meta && meta.columns) || {};
+    (schema || []).forEach(t => {
+      map[t.name] = score(t, tablesMeta[t.name] || null, colsMeta);
+    });
+    return map;
+  }
+
+  /** Draw health ring SVGs in #health-rings-layer. Called after layout + on render. */
+  function drawRings(scores) {
+    if (typeof cy === 'undefined' || !cy) return;
+    const layer = document.getElementById('health-rings-layer');
+    if (!layer) return;
+    let svgEl = layer.querySelector('svg');
+    if (!svgEl) {
+      svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svgEl.setAttribute('aria-hidden', 'true');
+      layer.appendChild(svgEl);
+    }
+    svgEl.innerHTML = '';
+
+    const zoom = cy.zoom(), pan = cy.pan();
+    const R_BASE = 14;   // ring outer radius in screen px at zoom=1 - scales with zoom
+    const STROKE = 3;
+
+    cy.nodes().forEach(n => {
+      if (typeof hiddenTables !== 'undefined' && hiddenTables.has(n.id())) return;
+      if (n.style('display') === 'none') return;
+
+      const tname = n.id();
+      const s = scores[tname];
+      if (s === undefined) return;
+
+      const pos = n.position();
+      const w   = n.data('w'), h = n.data('h');
+      // Place ring at top-left corner of the node card
+      const rx  = pos.x * zoom + pan.x - w * zoom / 2;
+      const ry  = pos.y * zoom + pan.y - h * zoom / 2;
+
+      const R   = Math.max(10, R_BASE * Math.min(zoom, 1.4));
+      const cx  = rx + R + 4;
+      const cy2 = ry + R + 4;
+
+      const circumf = 2 * Math.PI * (R - STROKE / 2);
+      const arcLen  = (s / 100) * circumf;
+      const clr     = color(s);
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'health-ring-group');
+      g.setAttribute('role', 'img');
+      g.setAttribute('aria-label', `Health: ${s}/100`);
+
+      // Track (background circle)
+      const track = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      track.setAttribute('class', 'health-ring-track');
+      track.setAttribute('cx', cx);
+      track.setAttribute('cy', cy2);
+      track.setAttribute('r', R - STROKE / 2);
+      track.setAttribute('stroke', clr);
+      track.setAttribute('stroke-width', STROKE);
+      g.appendChild(track);
+
+      // Arc (progress)
+      const arc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      arc.setAttribute('class', 'health-ring-arc');
+      arc.setAttribute('cx', cx);
+      arc.setAttribute('cy', cy2);
+      arc.setAttribute('r', R - STROKE / 2);
+      arc.setAttribute('stroke', clr);
+      arc.setAttribute('stroke-width', STROKE);
+      arc.setAttribute('stroke-dasharray', `${arcLen} ${circumf}`);
+      // Start from top (subtract quarter-turn)
+      arc.setAttribute('stroke-dashoffset', String(circumf / 4));
+      arc.setAttribute('transform', `rotate(-90, ${cx}, ${cy2})`);
+      g.appendChild(arc);
+
+      // Score label inside the ring
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('class', 'health-ring-label');
+      label.setAttribute('x', cx);
+      label.setAttribute('y', cy2);
+      label.setAttribute('fill', clr);
+      label.setAttribute('font-size', Math.max(7, Math.round(9 * Math.min(zoom, 1.2))));
+      label.textContent = s;
+      g.appendChild(label);
+
+      // Tooltip title
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${tname}: Health ${s}/100`;
+      g.appendChild(title);
+
+      svgEl.appendChild(g);
+    });
+  }
+
+  /** Inject health score into sidebar table list items. */
+  function injectSidebarScores(scores) {
+    document.querySelectorAll('.tbl-item[data-name]').forEach(el => {
+      const name = el.dataset.name;
+      const s    = scores[name];
+      if (s === undefined) return;
+      if (el.querySelector('.sb-health-score')) return; // already injected
+      const clr  = color(s);
+      const pill = document.createElement('span');
+      pill.className = 'sb-health-score';
+      pill.title = `Health score: ${s}/100`;
+      pill.innerHTML = `<span class="sb-health-dot" style="background:${clr}"></span>${s}`;
+      // Insert before the eye button
+      const eye = el.querySelector('.tbl-eye');
+      if (eye) el.insertBefore(pill, eye);
+      else     el.appendChild(pill);
+    });
+  }
+
+  let _scores = {};
+
+  function init(meta) {
+    _scores = buildScores(typeof SCHEMA !== 'undefined' ? SCHEMA : [], meta);
+    // Only inject sidebar scores - rings on the ERD canvas are removed
+    injectSidebarScores(_scores);
+  }
+
+  function getScores() { return _scores; }
+  return { init, drawRings, injectSidebarScores, color, getScores };
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   N2 - FK NEIGHBOURHOOD LENS
+   Integrates with the existing enterFocusMode / exitFocusMode infrastructure.
+   Adds a floating toolbar above the ERD canvas with 1/2/3-hop selectors.
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF2 = (() => {
+  let _active = false;
+  let _target = null;
+  let _hops   = 1;
+  const _TOOLBAR_ID = 'lens-toolbar';
+
+  function _ensureToolbar() {
+    let tb = document.getElementById(_TOOLBAR_ID);
+    if (tb) return tb;
+    const wrap = document.getElementById('canvas-wrap');
+    if (!wrap) return null;
+    tb = document.createElement('div');
+    tb.id = _TOOLBAR_ID;
+    tb.setAttribute('role', 'toolbar');
+    tb.setAttribute('aria-label', 'Neighbourhood lens controls');
+    tb.innerHTML = `
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      </svg>
+      <span style="color:rgba(255,255,255,0.4);font-size:10px;">Lens:</span>
+      <span id="lens-table-name"></span>
+      <span style="color:rgba(255,255,255,0.3);font-size:10px;">±</span>
+      <button class="lens-hop-btn active" data-hops="1" title="1-hop neighbourhood" aria-label="Show 1-hop neighbourhood">1</button>
+      <button class="lens-hop-btn" data-hops="2" title="2-hop neighbourhood" aria-label="Show 2-hop neighbourhood">2</button>
+      <button class="lens-hop-btn" data-hops="3" title="3-hop neighbourhood" aria-label="Show 3-hop neighbourhood">3</button>
+      <button id="lens-exit-btn" title="Exit lens (Esc)" aria-label="Exit neighbourhood lens">&#10005;</button>
+    `;
+    wrap.appendChild(tb);
+
+    // Wire hop buttons
+    tb.querySelectorAll('.lens-hop-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _hops = parseInt(btn.dataset.hops, 10);
+        tb.querySelectorAll('.lens-hop-btn').forEach(b => b.classList.toggle('active', b === btn));
+        if (_target) _applyLens(_target, _hops);
+      });
+    });
+    document.getElementById('lens-exit-btn').addEventListener('click', exitLens);
+    return tb;
+  }
+
+  async function _applyLens(tableName, hops) {
+    if (typeof enterFocusMode === 'function') {
+      await enterFocusMode(tableName, hops);
+    }
+  }
+
+  function enterLens(tableName, hops) {
+    _active = true;
+    _target = tableName;
+    _hops   = hops || 1;
+    const tb = _ensureToolbar();
+    if (!tb) return;
+    const nameEl = document.getElementById('lens-table-name');
+    if (nameEl) nameEl.textContent = tableName;
+    tb.querySelectorAll('.lens-hop-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.hops, 10) === _hops);
+    });
+    tb.classList.add('visible');
+    _applyLens(tableName, _hops);
+  }
+
+  function exitLens() {
+    _active = false;
+    _target = null;
+    const tb = document.getElementById(_TOOLBAR_ID);
+    if (tb) tb.classList.remove('visible');
+    if (typeof exitFocusMode === 'function') exitFocusMode();
+  }
+
+  /** Wire the lens to single-click on Cytoscape nodes (separate from existing double-click / context menu). */
+  function init() {
+    // Listen for Cytoscape node single-click only when lens mode is already active.
+    // For activation: we hook into focusTable (called by sidebar clicks) and the
+    // existing ctx-menu items already call enterFocusMode - we simply add the toolbar.
+    if (typeof cy === 'undefined' || !cy) return;
+    cy.on('tap', 'node', e => {
+      const name = e.target.id();
+      if (_active && _target !== name) {
+        // Clicking a different node while lens is active → switch lens target
+        _target = name;
+        const tb = document.getElementById(_TOOLBAR_ID);
+        if (tb) {
+          const nameEl = document.getElementById('lens-table-name');
+          if (nameEl) nameEl.textContent = name;
+        }
+        _applyLens(name, _hops);
+      }
+    });
+
+    // Escape key exits lens
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && _active) exitLens();
+    });
+  }
+
+  function isActive() { return _active; }
+  return { enterLens, exitLens, init, isActive };
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   N3 - AUTO-DETECTED SCHEMA CLUSTERS
+   Connected-components over the undirected FK graph.
+   Re-uses the existing #bbox-svg layer (different CSS class so no conflict).
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF3 = (() => {
+  /** @type {{ id:string, label:string, color:string, tables:string[] }[]} */
+  let _clusters = [];
+
+  const _PALETTE = [
+    '#60a5fa','#f472b6','#34d399','#fb923c',
+    '#e879f9','#38bdf8','#a3e635','#facc15',
+  ];
+
+  /**
+   * Build connected-components from the FK graph using Union-Find.
+   * @param {Array} schema
+   * @returns {string[][]} array of table-name arrays, one per component
+   */
+  function _connectedComponents(schema) {
+    const parent = {};
+    schema.forEach(t => { parent[t.name] = t.name; });
+
+    function find(x) {
+      if (parent[x] !== x) parent[x] = find(parent[x]);
+      return parent[x];
+    }
+    function union(a, b) {
+      const ra = find(a), rb = find(b);
+      if (ra !== rb) parent[ra] = rb;
+    }
+
+    schema.forEach(t => {
+      t.columns.forEach(c => {
+        if (c.fk && c.fk_target) {
+          const lastDot = c.fk_target.lastIndexOf('.');
+          const refTbl  = lastDot >= 0 ? c.fk_target.slice(0, lastDot) : c.fk_target;
+          if (parent[refTbl] !== undefined) union(t.name, refTbl);
+        }
+      });
+    });
+
+    const groups = {};
+    schema.forEach(t => {
+      const root = find(t.name);
+      if (!groups[root]) groups[root] = [];
+      groups[root].push(t.name);
+    });
+
+    return Object.values(groups).filter(g => g.length >= 2);
+  }
+
+  /**
+   * Derive a cluster label from shared word stems.
+   * @param {string[]} names
+   * @returns {string}
+   */
+  function _clusterLabel(names, idx) {
+    // Collect all underscore-split segments across all names
+    const freq = {};
+    names.forEach(n => {
+      n.split('_').forEach(part => {
+        if (part.length >= 3) freq[part] = (freq[part] || 0) + 1;
+      });
+    });
+    const best = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+    if (best && best[1] >= 2) return best[0];
+    // Try common prefix of all names
+    if (names.length >= 2) {
+      let prefix = names[0];
+      for (const name of names.slice(1)) {
+        let i = 0;
+        while (i < prefix.length && i < name.length && prefix[i] === name[i]) i++;
+        prefix = prefix.slice(0, i);
+      }
+      prefix = prefix.replace(/_+$/, '');
+      if (prefix.length >= 3) return prefix;
+    }
+    return `Cluster ${idx + 1}`;
+  }
+
+  function buildClusters(schema) {
+    const comps = _connectedComponents(schema);
+    _clusters = comps.map((tables, i) => ({
+      id:     `cluster_${i}`,
+      label:  _clusterLabel(tables, i),
+      color:  _PALETTE[i % _PALETTE.length],
+      tables,
+    }));
+    return _clusters;
+  }
+
+  function drawClusters() {
+    if (typeof cy === 'undefined' || !cy) return;
+    const svg = document.getElementById('bbox-svg');
+    if (!svg) return;
+
+    // Remove existing cluster groups (not bbox groups - those have class bbox-group)
+    svg.querySelectorAll('.cluster-group').forEach(el => el.remove());
+
+    // Respect the global groups-enabled toggle (set by erd.html sidebar)
+    if (typeof _groupsEnabled !== 'undefined' && !_groupsEnabled) return;
+
+    // NF3 clusters are supplementary - suppress them when T1-2 prefix groups
+    // already exist, to avoid duplicate/overlapping labels on the same layer.
+    if (typeof _bboxGroups !== 'undefined' && _bboxGroups.length > 0) return;
+
+    if (!_clusters.length) return;
+
+    const zoom = cy.zoom(), pan = cy.pan();
+    const PAD  = 22, LH = 20, R = 8;
+
+    _clusters.forEach(grp => {
+      const nodes = grp.tables
+        .map(n => cy.$('#' + CSS.escape(n)))
+        .filter(n => n.length && n.style('display') !== 'none' &&
+                     (typeof hiddenTables === 'undefined' || !hiddenTables.has(n.id())));
+
+      if (nodes.length < 2) return;
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      nodes.forEach(n => {
+        const p  = n.position(), nw = n.data('w'), nh = n.data('h');
+        const rx = p.x * zoom + pan.x - nw * zoom / 2;
+        const ry = p.y * zoom + pan.y - nh * zoom / 2;
+        minX = Math.min(minX, rx); minY = Math.min(minY, ry);
+        maxX = Math.max(maxX, rx + nw * zoom);
+        maxY = Math.max(maxY, ry + nh * zoom);
+      });
+
+      const bx = minX - PAD, by = minY - PAD - LH;
+      const bw = maxX - minX + PAD * 2;
+      const bh = maxY - minY + PAD * 2 + LH;
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'cluster-group');
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('class', 'cluster-rect');
+      rect.setAttribute('x', bx); rect.setAttribute('y', by);
+      rect.setAttribute('width', bw); rect.setAttribute('height', bh);
+      rect.setAttribute('rx', R);
+      rect.setAttribute('fill', grp.color);
+      rect.setAttribute('stroke', grp.color);
+      rect.setAttribute('stroke-opacity', '0.35');
+      g.appendChild(rect);
+
+      const lbg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      lbg.setAttribute('x', bx + 6); lbg.setAttribute('y', by + 3);
+      lbg.setAttribute('width', Math.min(140, bw - 12));
+      lbg.setAttribute('height', LH - 4);
+      lbg.setAttribute('rx', '4');
+      lbg.setAttribute('fill', grp.color);
+      lbg.setAttribute('fill-opacity', '0.75');
+      g.appendChild(lbg);
+
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('class', 'cluster-label-text');
+      txt.setAttribute('x', bx + 12); txt.setAttribute('y', by + LH - 5);
+      txt.setAttribute('fill', '#fff'); txt.setAttribute('fill-opacity', '0.9');
+      txt.setAttribute('font-size', '11');
+      txt.textContent = grp.label + ' (' + grp.tables.length + ')';
+      g.appendChild(txt);
+
+      // Insert BEFORE bbox-group elements so clusters render behind prefix groups
+      const firstBbox = svg.querySelector('.bbox-group');
+      if (firstBbox) svg.insertBefore(g, firstBbox);
+      else           svg.appendChild(g);
+    });
+  }
+
+  function init(schema) {
+    buildClusters(schema);
+    drawClusters();
+    if (typeof cy !== 'undefined' && cy) {
+      cy.on('render', drawClusters);
+    }
+  }
+
+  return { init, buildClusters, drawClusters };
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   N4 - COLUMN SIMILARITY HEATMAP
+   Levenshtein edit distance implemented in pure JS (Wagner-Fischer DP).
+   Score = 0.6 * nameSim + 0.4 * typeMatch
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF4 = (() => {
+  let _tableA = null, _tableB = null;
+  let _threshold = 0.6;
+  let _scores    = [];   // _scores[i][j] = { sim, nameS, typeMatch }
+
+  /** Wagner-Fischer Levenshtein distance. */
+  function _lev(a, b) {
+    a = a.toLowerCase(); b = b.toLowerCase();
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, (_, i) =>
+      Array.from({ length: n + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+    );
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = a[i-1] === b[j-1]
+          ? dp[i-1][j-1]
+          : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    return dp[m][n];
+  }
+
+  /** Normalised name similarity 0-1 (1 = identical). */
+  function _nameSim(a, b) {
+    const d   = _lev(a, b);
+    const max = Math.max(a.length, b.length, 1);
+    return 1 - d / max;
+  }
+
+  /** Normalised type similarity (exact match or partial prefix). */
+  function _typeSim(ta, tb) {
+    if (!ta || !tb) return 0;
+    ta = ta.toLowerCase().replace(/\(.*\)/, '').trim();
+    tb = tb.toLowerCase().replace(/\(.*\)/, '').trim();
+    if (ta === tb) return 1;
+    // Partial prefix match (e.g. "int" vs "integer")
+    const minLen = Math.min(ta.length, tb.length);
+    if (minLen >= 3 && ta.slice(0, minLen) === tb.slice(0, minLen)) return 0.7;
+    return 0;
+  }
+
+  function _computeScores(tA, tB) {
+    return (tA.columns || []).map(ca =>
+      (tB.columns || []).map(cb => {
+        const nameS = _nameSim(ca.name, cb.name);
+        const typeM = _typeSim(ca.type, cb.type);
+        return { sim: 0.6 * nameS + 0.4 * typeM, nameS, typeM };
+      })
+    );
+  }
+
+  /** Cell background color: white (0) → deep blue (1), on dark surface. */
+  function _cellBg(sim) {
+    // Interpolate: 0 → #1a1d1e (surface), 1 → #1e3a5f (deep blue)
+    const t  = Math.max(0, Math.min(1, sim));
+    const r  = Math.round(26  + t * (30  - 26));
+    const g2 = Math.round(29  + t * (58  - 29));
+    const b  = Math.round(30  + t * (95  - 30));
+    return `rgb(${r},${g2},${b})`;
+  }
+
+  function _render() {
+    if (!_tableA || !_tableB) return;
+    const tbl = document.getElementById('sim-hm-table');
+    if (!tbl) return;
+    tbl.innerHTML = '';
+
+    const colsA = _tableA.columns || [];
+    const colsB = _tableB.columns || [];
+
+    // Header row
+    const thead = document.createElement('thead');
+    const hRow  = document.createElement('tr');
+    const corner = document.createElement('th');
+    corner.className = 'row-hdr';
+    corner.textContent = `${_tableA.name} \\ ${_tableB.name}`;
+    hRow.appendChild(corner);
+    colsB.forEach(cb => {
+      const th = document.createElement('th');
+      th.textContent = cb.name; th.title = cb.type || '';
+      hRow.appendChild(th);
+    });
+    thead.appendChild(hRow);
+    tbl.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    colsA.forEach((ca, i) => {
+      const tr = document.createElement('tr');
+      const rowHdr = document.createElement('th');
+      rowHdr.className = 'row-hdr';
+      rowHdr.textContent = ca.name; rowHdr.title = ca.type || '';
+      tr.appendChild(rowHdr);
+      colsB.forEach((cb, j) => {
+        const cell  = _scores[i] && _scores[i][j];
+        const sim   = cell ? cell.sim : 0;
+        const td    = document.createElement('td');
+        td.style.background = _cellBg(sim);
+        td.title = `${ca.name} ↔ ${cb.name}\nSimilarity: ${sim.toFixed(2)}\nName: ${cell ? cell.nameS.toFixed(2) : '?'} | Type: ${cell ? cell.typeM.toFixed(2) : '?'}`;
+        const valSpan = document.createElement('span');
+        valSpan.className = 'sim-cell-val';
+        valSpan.style.color = sim > 0.4 ? '#e2e6f0' : 'rgba(255,255,255,0.3)';
+        valSpan.textContent = sim.toFixed(2);
+        td.appendChild(valSpan);
+        if (sim >= _threshold) {
+          const badge = document.createElement('span');
+          badge.className = 'sim-fk-badge';
+          badge.textContent = 'FK?';
+          td.appendChild(badge);
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+
+    document.getElementById('sim-hm-title').textContent =
+      `Similarity: ${_tableA.name} × ${_tableB.name}`;
+  }
+
+  function open(tableA, tableB) {
+    const schema = typeof SCHEMA !== 'undefined' ? SCHEMA : [];
+    const tA = schema.find(t => t.name === tableA);
+    const tB = schema.find(t => t.name === tableB);
+    if (!tA || !tB) return;
+    _tableA = tA; _tableB = tB;
+    _scores = _computeScores(tA, tB);
+    _render();
+    document.getElementById('sim-heatmap-backdrop').classList.add('open');
+  }
+
+  function close() {
+    document.getElementById('sim-heatmap-backdrop').classList.remove('open');
+  }
+
+  function onThresholdChange(val) {
+    _threshold = parseFloat(val);
+    document.getElementById('sim-hm-threshold-val').textContent = _threshold.toFixed(2);
+    if (_tableA && _tableB) _render();
+  }
+
+  /** Populate and show the table-picker dialog. */
+  function openPicker() {
+    const schema = typeof SCHEMA !== 'undefined' ? SCHEMA : [];
+    const selA = document.getElementById('sim-picker-a');
+    const selB = document.getElementById('sim-picker-b');
+    if (!selA || !selB) return;
+    const opts = schema.map(t => `<option value="${t.name.replace(/"/g,'&quot;')}">${t.name}</option>`).join('');
+    selA.innerHTML = opts;
+    selB.innerHTML = opts;
+    // Default B to second table so the pair is different
+    if (schema.length > 1) selB.selectedIndex = 1;
+    _onPickerChange();
+    document.getElementById('sim-picker-panel').classList.add('open');
+    selA.focus();
+  }
+
+  function closePicker() {
+    document.getElementById('sim-picker-panel').classList.remove('open');
+  }
+
+  function _onPickerChange() {
+    const a = document.getElementById('sim-picker-a').value;
+    const b = document.getElementById('sim-picker-b').value;
+    const go = document.getElementById('sim-picker-go');
+    if (go) go.disabled = (!a || !b || a === b);
+  }
+
+  function _launchFromPicker() {
+    const a = document.getElementById('sim-picker-a').value;
+    const b = document.getElementById('sim-picker-b').value;
+    closePicker();
+    open(a, b);
+  }
+
+  function init() {
+    // Close heatmap panel on Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        close();
+        closePicker();
+      }
+    });
+    // Don't let clicks inside heatmap panel bubble and close it
+    const panel = document.getElementById('sim-heatmap-panel');
+    if (panel) panel.addEventListener('click', e => e.stopPropagation());
+  }
+
+  return { open, close, onThresholdChange, openPicker, closePicker, _onPickerChange, _launchFromPicker, init };
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   N5 - QUERY BOOKMARK BOARD
+   Kanban with 3 fixed columns. Persisted to metadata.saved_bookmarks via PATCH.
+   HTML5 native DnD - no library.
+   Expects window.getCurrentQuery() to be defined by host page (query.html / browse.html).
+   Falls back to empty string if not defined.
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF5 = (() => {
+  const COLS = ['exploration', 'reports', 'debug'];
+  /** @type {{ id:string, title:string, sql:string, col:string, ts:number }[]} */
+  let _cards = [];
+  let _dragId = null;
+
+  function _uid() {
+    return 'bk_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function _currentQuery() {
+    if (typeof window.getCurrentQuery === 'function') return window.getCurrentQuery();
+    // Try CodeMirror instances used by query.html
+    if (window._cmEditors && window._cmEditors.length) {
+      return window._cmEditors[0].getValue();
+    }
+    return '';
+  }
+
+  function _key() {
+    // KEY may be a global const (ERD/Browse classic script) or window.KEY
+    // (query.html module script exposes it via window.KEY).
+    return (typeof KEY !== 'undefined' ? KEY : '') || window.KEY || '';
+  }
+
+  async function _persist() {
+    const bp  = window.BASE_PATH || '';
+    const key = _key();
+    if (!key) return;
+    try {
+      await fetch(`${bp}/api/metadata/${encodeURIComponent(key)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saved_bookmarks: _cards }),
+      });
+    } catch (_) {}
+  }
+
+  async function load() {
+    const bp  = window.BASE_PATH || '';
+    const key = _key();
+    if (!key) return;
+    try {
+      const r = await fetch(`${bp}/api/metadata/${encodeURIComponent(key)}`);
+      if (!r.ok) return;
+      const meta = await r.json();
+      _cards = Array.isArray(meta.saved_bookmarks) ? meta.saved_bookmarks : [];
+    } catch (_) {}
+    _renderAll();
+  }
+
+  function _renderAll() {
+    COLS.forEach(col => {
+      const body  = document.getElementById('qbb-body-' + col);
+      const count = document.getElementById('qbb-cnt-' + col);
+      if (!body) return;
+      const colCards = _cards.filter(c => c.col === col);
+      if (count) count.textContent = colCards.length;
+      body.innerHTML = '';
+      colCards.forEach(card => body.appendChild(_makeCardEl(card)));
+    });
+  }
+
+  function _makeCardEl(card) {
+    const div = document.createElement('div');
+    div.className = 'qbb-card';
+    div.draggable = true;
+    div.dataset.id = card.id;
+    div.innerHTML = `
+      <div class="qbb-card-title" contenteditable="true"
+           spellcheck="false" data-id="${erdEsc(card.id)}">${erdEsc(card.title)}</div>
+      <textarea class="qbb-card-sql" rows="3" spellcheck="false"
+                placeholder="-- paste or type query here"
+                data-id="${erdEsc(card.id)}"></textarea>
+      <div class="qbb-card-actions">
+        <button class="qbb-card-btn primary" data-action="load" data-id="${erdEsc(card.id)}" title="Load this query into the editor">&#9654; Load</button>
+        <button class="qbb-card-btn" data-action="copy" data-id="${erdEsc(card.id)}" title="Copy SQL to clipboard">&#9003; Copy</button>
+        <button class="qbb-card-btn del" data-action="del" data-id="${erdEsc(card.id)}" title="Delete">&#128465;</button>
+      </div>
+    `;
+
+    // Inline title rename
+    const titleEl = div.querySelector('.qbb-card-title');
+    titleEl.addEventListener('blur', () => {
+      const c = _cards.find(x => x.id === card.id);
+      if (c) { c.title = titleEl.textContent.trim() || c.title; _persist(); }
+    });
+    titleEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+    });
+
+    // SQL textarea - set value directly (not via innerHTML to avoid HTML-encoding issues)
+    const sqlEl = div.querySelector('.qbb-card-sql');
+    sqlEl.value = card.sql;
+    sqlEl.addEventListener('mousedown', e => e.stopPropagation());
+    sqlEl.addEventListener('dragstart',  e => e.stopPropagation());
+    sqlEl.addEventListener('input', () => {
+      const c = _cards.find(x => x.id === card.id);
+      if (c) { c.sql = sqlEl.value; _persist(); }
+    });
+
+    // Action buttons
+    div.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const c  = _cards.find(x => x.id === id);
+      if (!c) return;
+      if (btn.dataset.action === 'load') {
+        // Always use the live textarea value (user may have edited it)
+        const liveSql = div.querySelector('.qbb-card-sql').value;
+        _loadQuery(liveSql);
+      } else if (btn.dataset.action === 'copy') {
+        const liveSql = div.querySelector('.qbb-card-sql').value;
+        navigator.clipboard.writeText(liveSql).then(() => {
+          if (typeof showToast === 'function') showToast('SQL copied to clipboard', 'success');
+        }).catch(() => {});
+      } else if (btn.dataset.action === 'del') {
+        _cards = _cards.filter(x => x.id !== id);
+        _persist();
+        _renderAll();
+      }
+    });
+
+    // HTML5 DnD
+    div.addEventListener('dragstart', e => {
+      _dragId = card.id;
+      div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.id);
+    });
+    div.addEventListener('dragend', () => {
+      _dragId = null;
+      div.classList.remove('dragging');
+    });
+
+    return div;
+  }
+
+  function _loadQuery(sql) {
+    // On the Query page - inject directly into the editor
+    if (typeof window.loadQueryIntoEditor === 'function') {
+      window.loadQueryIntoEditor(sql);
+      close();
+      if (typeof showToast === 'function') showToast('Query loaded into editor', 'success');
+      return;
+    }
+    // CodeMirror direct fallback (legacy path)
+    if (window._cmEditors && window._cmEditors.length) {
+      window._cmEditors[0].setValue(sql);
+      close();
+      if (typeof showToast === 'function') showToast('Query loaded into editor', 'success');
+      return;
+    }
+    // On ERD / Browse - navigate to the Query page with the SQL pre-filled via ?sql=
+    const key = _key();
+    if (key) {
+      const bp  = window.BASE_PATH || '';
+      const b64 = btoa(unescape(encodeURIComponent(sql)));  // UTF-8 safe base64
+      window.location.href = `${bp}/query/${encodeURIComponent(key)}?sql=${encodeURIComponent(b64)}`;
+      return;
+    }
+    // Last resort: copy to clipboard
+    navigator.clipboard.writeText(sql).then(() => {
+      if (typeof showToast === 'function') showToast('SQL copied to clipboard', 'info');
+    }).catch(() => {});
+  }
+
+  function addCard(col) {
+    const sql   = _currentQuery().trim();
+    const now   = new Date();
+    const dateStr = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const title = 'Query ' + dateStr + ' ' + timeStr;
+    const card  = { id: _uid(), title, sql: sql || '', col, ts: Date.now() };
+    _cards.push(card);
+    _persist();
+    _renderAll();
+    // Scroll the new card into view
+    const body = document.getElementById('qbb-body-' + col);
+    if (body) body.scrollTop = body.scrollHeight;
+  }
+
+  function onDragOver(e, col) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const body = document.getElementById('qbb-body-' + col);
+    if (body) body.classList.add('drag-over');
+  }
+
+  function onDragLeave(e) {
+    const body = e.currentTarget;
+    if (body) body.classList.remove('drag-over');
+  }
+
+  function onDrop(e, col) {
+    e.preventDefault();
+    const body = document.getElementById('qbb-body-' + col);
+    if (body) body.classList.remove('drag-over');
+    const id = _dragId || e.dataTransfer.getData('text/plain');
+    if (!id) return;
+    const card = _cards.find(c => c.id === id);
+    if (!card) return;
+    card.col = col;
+    _persist();
+    _renderAll();
+  }
+
+  function open() {
+    load();
+    document.getElementById('qbb-panel').classList.add('open');
+  }
+
+  function close() {
+    document.getElementById('qbb-panel').classList.remove('open');
+  }
+
+  function init() {
+    // Escape closes board
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.getElementById('qbb-panel').classList.contains('open')) {
+        close();
+      }
+    });
+  }
+
+  return { open, close, addCard, onDragOver, onDragLeave, onDrop, init, load };
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   NF6 - ERD NODE HOVER CARD  (Item 3)
+   Appears after 200ms on mouseenter of any Cytoscape node.
+   Content: table name, column count, FK in/out, description, top-3 tags.
+   Position: right of cursor; flips left if within 300px of right edge;
+             flips up if within 200px of bottom edge.
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF6 = (() => {
+  let _timer     = null;
+  let _curTable  = null;
+  let _meta      = {};
+  const CARD_W   = 220;
+  const FLIP_R   = 300;   // px from right edge to flip
+  const FLIP_B   = 200;   // px from bottom edge to flip
+  const OFFSET   = 14;    // px from cursor
+
+  function _cardEl()   { return document.getElementById('erd-hover-card'); }
+  function _actionsEl(){ return document.getElementById('erd-node-actions'); }
+
+  /** Build FK-in / FK-out counts from SCHEMA global. */
+  function _fkCounts(tableName) {
+    const schema = typeof SCHEMA !== 'undefined' ? SCHEMA : [];
+    let fkOut = 0, fkIn = 0;
+    schema.forEach(t => {
+      (t.columns || []).forEach(c => {
+        if (c.fk && t.name === tableName) fkOut++;
+        if (c.fk && c.fk_target) {
+          const lastDot = c.fk_target.lastIndexOf('.');
+          const ref = lastDot >= 0 ? c.fk_target.slice(0, lastDot) : c.fk_target;
+          if (ref === tableName) fkIn++;
+        }
+      });
+    });
+    return { fkIn, fkOut };
+  }
+
+  /** Get table object from SCHEMA. */
+  function _tableObj(name) {
+    const schema = typeof SCHEMA !== 'undefined' ? SCHEMA : [];
+    return schema.find(t => t.name === name) || null;
+  }
+
+  function _positionCard(card, mx, my) {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = mx + OFFSET;
+    let top  = my + OFFSET;
+    if (left + CARD_W + FLIP_R > vw) left = mx - CARD_W - OFFSET;
+    if (left < 0) left = 0;
+    if (top + 200 + FLIP_B > vh) top = my - 200 - OFFSET;
+    if (top < 0) top = 0;
+    card.style.left = left + 'px';
+    card.style.top  = top  + 'px';
+  }
+
+  function _showCard(tableName, mx, my) {
+    const card   = _cardEl();
+    if (!card) return;
+    const tObj   = _tableObj(tableName);
+    const tMeta  = (_meta.tables && _meta.tables[tableName]) || {};
+    const { fkIn, fkOut } = _fkCounts(tableName);
+    const colCount = tObj ? (tObj.columns || []).length : '-';
+
+    document.getElementById('ehc-name').textContent = tableName;
+    document.getElementById('ehc-cols').textContent = colCount;
+    document.getElementById('ehc-fk-in').textContent  = fkIn;
+    document.getElementById('ehc-fk-out').textContent = fkOut;
+
+    // Description
+    const descEl = document.getElementById('ehc-desc');
+    if (tMeta.description) {
+      descEl.textContent = tMeta.description;
+      descEl.style.display = '';
+    } else {
+      descEl.style.display = 'none';
+    }
+
+    // Tags (top 3 pills)
+    const tagsEl = document.getElementById('ehc-tags');
+    const tags   = tMeta.tags || [];
+    if (tags.length) {
+      tagsEl.innerHTML = tags.slice(0, 3).map(tag => {
+        const hue = NF_tagHash(tag) % 6;
+        return `<span class="tag-pill pill-h${hue}">${erdEsc(tag)}</span>`;
+      }).join('') + (tags.length > 3 ? `<span class="tag-pill-more">+${tags.length - 3}</span>` : '');
+      tagsEl.style.display = '';
+    } else {
+      tagsEl.style.display = 'none';
+    }
+
+    // Freshness dot
+    const dotEl = document.getElementById('ehc-freshness-dot');
+    if (tMeta.last_updated) {
+      const fc = NF_freshClass(tMeta.last_updated);
+      dotEl.className = `freshness-dot ${fc}`;
+      dotEl.title = 'Last updated: ' + new Date(tMeta.last_updated).toLocaleString();
+      dotEl.style.display = '';
+    } else {
+      dotEl.style.display = 'none';
+    }
+
+    // Footer action wiring
+    const browseBtn = document.getElementById('ehc-browse-btn');
+    const focusBtn  = document.getElementById('ehc-focus-btn');
+    browseBtn.onclick = () => {
+      const bp = window.BASE_PATH || '';
+      const k  = typeof KEY !== 'undefined' ? KEY : '';
+      if (k) window.open(`${bp}/browse/${k}?table=${encodeURIComponent(tableName)}`, '_blank');
+    };
+    focusBtn.onclick = () => {
+      if (typeof enterFocusMode === 'function') enterFocusMode(tableName, 1);
+      hideCard();
+    };
+
+    _positionCard(card, mx, my);
+    card.classList.add('visible');
+  }
+
+  function hideCard() {
+    clearTimeout(_timer);
+    _timer = null;
+    const card = _cardEl();
+    if (card) card.classList.remove('visible');
+    _curTable = null;
+  }
+
+  function _showNodeActions(tableName, mx, my) {
+    const el = _actionsEl();
+    if (!el) return;
+    el.style.left = (mx + 10) + 'px';
+    el.style.top  = (my - 32) + 'px';
+    el.classList.add('visible');
+
+    document.getElementById('erd-node-expand').onclick = () => {
+      // If focusMode available, expand to 2-hop
+      if (typeof enterFocusMode === 'function') enterFocusMode(tableName, 2);
+      el.classList.remove('visible');
+    };
+    document.getElementById('erd-node-focus').onclick = () => {
+      if (typeof enterFocusMode === 'function') enterFocusMode(tableName, 1);
+      el.classList.remove('visible');
+    };
+    document.getElementById('erd-node-pin').onclick = () => {
+      // Toggle pin (visual feedback only if no pinned-set API available)
+      const btn = document.getElementById('erd-node-pin');
+      const isPinned = btn.dataset.pinned === '1';
+      btn.dataset.pinned = isPinned ? '0' : '1';
+      btn.style.color = isPinned ? '' : 'var(--accent)';
+      const msg = isPinned ? `Unpinned ${tableName}` : `Pinned ${tableName}`;
+      if (typeof showToast === 'function') showToast(msg, 'info');
+    };
+  }
+
+  function _hideNodeActions() {
+    const el = _actionsEl();
+    if (el) el.classList.remove('visible');
+  }
+
+  function init(meta) {
+    _meta = meta || {};
+    if (typeof cy === 'undefined' || !cy) return;
+
+    cy.on('mouseover', 'node', e => {
+      const name = e.target.id();
+      _curTable  = name;
+      const pos  = e.renderedPosition || e.position;
+      const container = cy.container();
+      const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };
+      const mx = rect.left + pos.x;
+      const my = rect.top  + pos.y;
+
+      _timer = setTimeout(() => _showCard(name, mx, my), 200);
+    });
+
+    cy.on('mouseout', 'node', () => {
+      clearTimeout(_timer); _timer = null;
+      // Keep card visible briefly so user can click footer actions
+      setTimeout(() => {
+        // Only hide if mouse not over card itself
+        const card = _cardEl();
+        if (card && !card.matches(':hover')) hideCard();
+      }, 300);
+    });
+
+    // Also hide on canvas drag / zoom
+    cy.on('viewport', hideCard);
+  }
+
+  return { init, hideCard };
+})();
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   NF7 - FRESHNESS BADGES FOR ERD NODES
+   Injects a small colored dot into the top-right corner of each ERD node.
+   Calls computeFreshness() from browse.html if available; otherwise uses
+   the same internal heuristic.
+   ════════════════════════════════════════════════════════════════════════════ */
+const NF7 = (() => {
+  let _meta = {};
+
+  function _freshClass(ts) {
+    if (!ts) return null;
+    const ageMs = Date.now() - new Date(ts).getTime();
+    if (ageMs < 86400000)    return 'fresh';
+    if (ageMs < 7*86400000)  return 'warn';
+    return 'stale';
+  }
+  // Expose so NF6 can reuse
+  window.NF_freshClass = _freshClass;
+
+  function _drawFreshnessDots(meta) {
+    if (typeof cy === 'undefined' || !cy) return;
+    const layer = document.getElementById('health-rings-layer');
+    if (!layer) return;
+    let svgEl = layer.querySelector('svg');
+    if (!svgEl) return;
+
+    const tablesMeta = (meta && meta.tables) || {};
+    const zoom = cy.zoom(), pan = cy.pan();
+
+    // Remove existing freshness dots
+    svgEl.querySelectorAll('.freshness-svg-dot').forEach(el => el.remove());
+
+    cy.nodes().forEach(n => {
+      if (n.style('display') === 'none') return;
+      const tname   = n.id();
+      const tMeta   = tablesMeta[tname] || {};
+      if (!tMeta.last_updated) return;
+      const fc = _freshClass(tMeta.last_updated);
+      if (!fc) return;
+      const colorMap = { fresh: 'var(--color-fresh)', warn: 'var(--color-warn)', stale: 'var(--color-stale)' };
+      const clr = colorMap[fc];
+
+      const pos = n.position(), w = n.data('w'), h = n.data('h');
+      // Top-right corner
+      const rx = pos.x * zoom + pan.x + w * zoom / 2 - 10;
+      const ry = pos.y * zoom + pan.y - h * zoom / 2 + 6;
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('class', 'freshness-svg-dot');
+      circle.setAttribute('cx', rx); circle.setAttribute('cy', ry);
+      circle.setAttribute('r', 4);
+      circle.setAttribute('fill', clr);
+      circle.setAttribute('opacity', '0.9');
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `Last updated: ${new Date(tMeta.last_updated).toLocaleString()}`;
+      circle.appendChild(title);
+      svgEl.appendChild(circle);
+    });
+  }
+
+  function init(meta) {
+    _meta = meta || {};
+    _drawFreshnessDots(_meta);
+    if (typeof cy !== 'undefined' && cy) {
+      cy.on('render', () => _drawFreshnessDots(_meta));
+    }
+  }
+
+  return { init };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NF_tagHash - deterministic hash for tag pill colour slot assignment.
+   Shared utility used by NF6 (ERD hover card) and renderPills (browse.html).
+   ═══════════════════════════════════════════════════════════════════════════ */
+function NF_tagHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   BOOT ORCHESTRATOR
+   Called by host page after its own boot() completes.
+   Safe to call on both erd.html and browse.html - ERD-only features guard
+   themselves with `typeof cy !== 'undefined'` checks.
+   ════════════════════════════════════════════════════════════════════════════ */
+function bootNovelFeatures(meta) {
+  // N1 - Health Score (ERD + sidebar; sidebar works on browse.html too)
+  NF1.init(meta || {});
+
+  // N2 - Neighbourhood Lens (ERD only)
+  if (typeof cy !== 'undefined' && cy) NF2.init();
+
+  // N3 - Auto Clusters (ERD only, re-uses bbox-svg layer)
+  if (typeof cy !== 'undefined' && cy) {
+    NF3.init(typeof SCHEMA !== 'undefined' ? SCHEMA : []);
+  }
+
+  // N4 - Heatmap (ERD only - sidebar checkboxes only make sense alongside the ERD canvas)
+  if (typeof cy !== 'undefined' && cy) NF4.init();
+
+  // N5 - Bookmark Board (works on any page that has an editor)
+  NF5.init();
+
+  // NF6 - ERD Hover Card (ERD only; meta carries table metadata sidecar)
+  if (typeof cy !== 'undefined' && cy) NF6.init(meta || {});
+
+  // NF7 - Freshness dots on ERD nodes
+  if (typeof cy !== 'undefined' && cy) NF7.init(meta || {});
+}
+{% endraw %}
+</script>

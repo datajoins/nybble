@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ name }} - Dashboard - Nybble</title>
+{% include '_base_styles.html' %}
+<style>
+/* dashboard overrides: topbar is sticky (scrolls with page) */
+#topbar { position: sticky; top: 0; }
+
+/* ── App shell (with optional sidebar) ─────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+#main-area { flex: 1; display: flex; overflow: hidden; height: 0; }
+
+/* ── Snapshot sidebar ───────────────────────────────────────────── */
+/* Dashboard snap-sidebar - shell matches shared sidebar */
+#snap-sidebar {
+  width: 230px; min-width: 230px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; position: relative;
+}
+#snap-sidebar-hdr {
+  padding: 10px 12px 7px; display: flex; align-items: center; gap: 6px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#snap-sidebar-title {
+  font-size: var(--section-label-size, 10px); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing, 0.06em);
+  color: var(--text-dim); flex: 1;
+}
+#snap-sidebar-new {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px;
+  transition: color .12s;
+}
+#snap-sidebar-new:hover { color: var(--green); }
+#snap-sidebar-list { flex: 1; overflow-y: auto; padding: 4px 0; min-height: 0; }
+.snap-item {
+  padding: 6px 10px; font-size: 12px; cursor: pointer;
+  color: rgba(255,255,255,0.55); display: flex; align-items: center; gap: 6px;
+  border-left: 2px solid transparent; transition: background .1s;
+}
+.snap-item:hover { background: rgba(255,255,255,0.04); color: #fff; }
+.snap-item.active { background: rgba(29,237,131,0.06); border-left-color: var(--green); color: #e2e6f0; }
+.snap-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snap-item-del {
+  background: none; border: none; color: rgba(255,255,255,0.15);
+  cursor: pointer; font-size: 14px; flex-shrink: 0; padding: 0 2px;
+  transition: color .12s;
+}
+.snap-item-del:hover { color: var(--red); }
+.snap-sidebar-empty { padding: 12px; font-size: 11px; color: rgba(255,255,255,0.25); text-align: center; }
+
+/* ── Content ────────────────────────────────────────────────────── */
+#content { flex: 1; overflow-y: auto; padding: 20px 24px; min-height: 0; }
+
+/* ── Empty state ────────────────────────────────────────────────── */
+#empty-state {
+  display: none; text-align: center; padding: 80px 0;
+  color: rgba(255,255,255,0.25);
+}
+#empty-state.visible { display: block; }
+#empty-state .empty-icon { font-size: 40px; margin-bottom: 14px; }
+#empty-state h2 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: rgba(255,255,255,0.4); }
+#empty-state p { font-size: 13px; line-height: 1.6; max-width: 480px; margin: 0 auto; }
+#empty-state a { color: #a78bfa; }
+
+/* ── Tile grid ──────────────────────────────────────────────────── */
+#tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+/* ── Tile card ──────────────────────────────────────────────────── */
+.tile {
+  background: #1c1f20; border: 1px solid #2e3234; border-radius: 8px;
+  display: flex; flex-direction: column; overflow: hidden;
+  min-height: 220px; transition: border-color .15s;
+}
+.tile:hover { border-color: rgba(167,139,250,0.25); }
+.tile-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid #2e3234; flex-shrink: 0;
+}
+.tile-title { font-size: 12px; font-weight: 600; color: #e2e6f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.tile-query-label { font-size: 10px; color: rgba(255,255,255,0.25); white-space: nowrap; margin-left: 6px; flex-shrink: 0; font-family: Consolas, monospace; }
+.tile-actions { display: flex; gap: 4px; flex-shrink: 0; margin-left: 6px; }
+.tile-btn {
+  background: none; border: 1px solid #2e3234; color: rgba(255,255,255,0.3);
+  cursor: pointer; border-radius: 4px; font-size: 11px; height: 24px; padding: 0 7px;
+  transition: all .12s; white-space: nowrap;
+}
+.tile-btn:hover { border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); }
+.tile-btn.danger:hover { border-color: #f87171; color: #f87171; }
+.tile-type-badge {
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0; margin-right: 6px;
+}
+.badge-bar    { background: rgba(167,139,250,0.15); color: #a78bfa; }
+.badge-line   { background: rgba(29,237,131,0.12);  color: #1ded83; }
+.badge-number { background: rgba(96,165,250,0.12);  color: #60a5fa; }
+.badge-table  { background: rgba(251,191,36,0.12);  color: #fbbf24; }
+
+/* Tile body */
+.tile-body { flex: 1; display: flex; flex-direction: column; padding: 10px 14px; min-height: 0; }
+.tile-body canvas { flex: 1; min-height: 150px; max-height: 220px; }
+
+/* Number tile */
+.number-display {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 6px;
+}
+.number-val { font-size: 42px; font-weight: 700; color: #60a5fa; font-family: Consolas, monospace; }
+.number-label { font-size: 11px; color: rgba(255,255,255,0.3); }
+
+/* Table tile */
+.tile-table-wrap { flex: 1; overflow: auto; min-height: 0; }
+.tile-table { border-collapse: collapse; width: 100%; font-size: 11px; }
+.tile-table th {
+  position: sticky; top: 0; background: #1c1f20;
+  padding: 4px 8px; border-bottom: 1px solid #2e3234;
+  font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.4); text-align: left; white-space: nowrap;
+}
+.tile-table td { padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #c8ccd4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.tile-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+/* Loading / error */
+.tile-loading {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.25); font-size: 12px; gap: 8px;
+}
+.tile-error { flex: 1; padding: 10px; font-size: 11px; color: #f87171; font-family: Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+.mini-spinner {
+  width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: #a78bfa; border-radius: 50%;
+  animation: spin .8s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Config modal ────────────────────────────────────────────────── */
+#cfg-modal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+}
+#cfg-modal.open { display: flex; }
+#cfg-box {
+  background: #1c1f20; border: 1px solid #2e3234; border-radius: 8px;
+  padding: 20px 24px; width: 440px; max-width: 96vw;
+}
+#cfg-box h3 { font-size: 13px; margin-bottom: 14px; color: rgba(255,255,255,0.6); }
+.cfg-row { margin-bottom: 12px; }
+.cfg-label { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+.cfg-select, .cfg-input {
+  width: 100%; background: #141618; border: 1px solid #2e3234; color: #e2e6f0;
+  font-size: 12px; padding: 6px 10px; border-radius: 4px; outline: none;
+}
+.cfg-select:focus, .cfg-input:focus { border-color: rgba(167,139,250,0.4); }
+.cfg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.cfg-btn {
+  height: 30px; padding: 0 14px; border-radius: 4px; font-size: 12px;
+  cursor: pointer; border: 1px solid #2e3234; background: none;
+  color: rgba(255,255,255,0.45); transition: all .12s;
+}
+.cfg-btn:hover { background: rgba(255,255,255,0.07); color: #e2e6f0; }
+.cfg-btn.primary {
+  background: rgba(167,139,250,0.15); border-color: rgba(167,139,250,0.4);
+  color: #a78bfa;
+}
+.cfg-btn.primary:hover { background: rgba(167,139,250,0.25); }
+
+/* ── Add tile panel ──────────────────────────────────────────────── */
+#add-panel {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+}
+#add-panel.open { display: flex; }
+#add-box {
+  background: #1c1f20; border: 1px solid #2e3234; border-radius: 8px;
+  padding: 20px 24px; width: 500px; max-width: 96vw; max-height: 80vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#add-box h3 { font-size: 13px; margin-bottom: 4px; color: rgba(255,255,255,0.6); flex-shrink: 0; }
+#add-box .add-sub { font-size: 11px; color: rgba(255,255,255,0.3); margin-bottom: 10px; flex-shrink: 0; }
+#add-search {
+  width: 100%; background: #141618; border: 1px solid #2e3234; color: #e2e6f0;
+  font-size: 12px; padding: 6px 10px; border-radius: 4px; outline: none; margin-bottom: 10px; flex-shrink: 0;
+}
+#add-search:focus { border-color: rgba(167,139,250,0.4); }
+#add-list { flex: 1; overflow-y: auto; border: 1px solid #2e3234; border-radius: 4px; }
+.add-query-item {
+  padding: 10px 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05);
+  display: flex; align-items: center; gap: 8px; transition: background .1s;
+}
+.add-query-item:hover { background: rgba(167,139,250,0.07); }
+.add-query-item:last-child { border-bottom: none; }
+.add-q-name { font-size: 12px; color: #e2e6f0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-q-sql  { font-size: 10px; color: rgba(255,255,255,0.3); font-family: Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-q-use {
+  font-size: 10px; padding: 3px 8px; border-radius: 3px; border: 1px solid rgba(167,139,250,0.35);
+  background: rgba(167,139,250,0.1); color: #a78bfa; white-space: nowrap; flex-shrink: 0;
+  cursor: pointer; transition: background .1s;
+}
+.add-q-use:hover { background: rgba(167,139,250,0.25); }
+#add-empty { padding: 20px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.25); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+</style>
+</head>
+<body>
+{% set active_nav = 'sources' %}
+{% include '_global_nav.html' %}
+<script>
+/* gnav: schema name + stats for dashboard page */
+(function() {
+  var el = document.getElementById('gnav-source-count');
+  if (!el) return;
+  el.style.cssText = 'display:inline-flex;align-items:center;gap:0;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--text-muted);background:none;border:none;padding:0;border-radius:0;font-size:12px;letter-spacing:0;';
+  var tc = {{ tables | length }};
+  var fkc = 0;
+  {% for t in tables %}{% for c in t.columns %}{% if c.fk %}fkc++;{% endif %}{% endfor %}{% endfor %}
+  el.innerHTML =
+    '<span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:280px;" title="{{ name | e }}">{{ name | e }}</span>' +
+    '<span style="color:var(--border2);padding:0 6px;flex-shrink:0;">·</span>' +
+    '<span style="white-space:nowrap;flex-shrink:0;color:var(--text-muted);">' + tc + ' table' + (tc !== 1 ? 's' : '') + ' \xb7 ' + fkc + ' FK</span>';
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+})();
+</script>
+<div id="app">
+
+  <!-- Contextual bar (Dashboard - page actions + dynamic info) -->
+  <div id="topbar">
+    <!-- Tab strip -->
+    <a class="tbtn" href="/erd/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="17" x2="20" y2="17"/><line x1="17" y1="14" x2="17" y2="20"/></svg>
+      ERD
+    </a>
+    <a class="tbtn" href="/browse/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+      Browse
+    </a>
+    <a class="tbtn" href="/query/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      Query
+    </a>
+    <a class="tbtn" href="/report/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Reports
+    </a>
+    <a class="tbtn active" href="/dashboard/{{ key }}" style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+    <!-- Spacer pushes actions to the right (consistent with ERD) -->
+    <div class="tb-spacer"></div>
+    <div class="tb-sep"></div>
+    <!-- Action buttons -->
+    <button class="tbtn" onclick="refreshAll()" title="Re-run all queries and redraw tiles">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/>
+      </svg>
+      Refresh
+    </button>
+    <button class="tbtn" onclick="openSnapshotPanel()" title="Save or load a dashboard snapshot">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+      </svg>
+      Snapshots
+    </button>
+    <button class="tbtn" onclick="openAddPanel()" title="Add a new tile">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Add tile
+    </button>
+  </div>
+
+  <!-- Main area: sidebar + content -->
+  <div id="main-area">
+
+    <!-- Snapshot sidebar (named dashboards) -->
+    <div id="snap-sidebar">
+      <div id="snap-sidebar-hdr">
+        <span id="snap-sidebar-title">Dashboards</span>
+        <button id="snap-sidebar-new" title="Save current layout as a new dashboard" onclick="promptNewSnapshot()">&#43;</button>
+      </div>
+      <div id="snap-sidebar-list"><div class="snap-sidebar-empty">No saved dashboards.<br/>Click + to save one.</div></div>
+    </div>
+
+    <!-- Content -->
+    <div id="content">
+      <div id="empty-state">
+        <div class="empty-icon">&#9783;</div>
+        <h2>No dashboard tiles yet</h2>
+        <p>Click <strong>+ Add tile</strong> above to pick a saved query and configure it as a chart, number, or table tile.<br/>
+        You can add the same query multiple times with different visualisations.<br/>
+        Save queries first in the <a href="/query/{{ key }}">Query editor</a>.</p>
+      </div>
+      <div id="tile-grid"></div>
+    </div>
+
+  </div><!-- /main-area -->
+
+</div><!-- /app -->
+
+<!-- ── Configure tile modal ──────────────────────────────────────── -->
+<div id="cfg-modal">
+  <div id="cfg-box">
+    <h3 id="cfg-title">Configure tile</h3>
+    <div class="cfg-row">
+      <div class="cfg-label">Title</div>
+      <input class="cfg-input" id="cfg-tile-title" type="text" placeholder="Tile title"/>
+    </div>
+    <div class="cfg-row">
+      <div class="cfg-label">Tile type</div>
+      <select class="cfg-select" id="cfg-type">
+        <option value="bar">Bar chart</option>
+        <option value="line">Line chart</option>
+        <option value="number">Number (single value)</option>
+        <option value="table">Table</option>
+      </select>
+    </div>
+    <div class="cfg-row" id="cfg-x-row">
+      <div class="cfg-label">X axis / Group-by column</div>
+      <select class="cfg-select" id="cfg-x-col"></select>
+    </div>
+    <div class="cfg-row" id="cfg-agg-row">
+      <div class="cfg-label">Aggregate Y values by</div>
+      <select class="cfg-select" id="cfg-agg-fn">
+        <option value="none">No aggregation (raw values)</option>
+        <option value="sum">SUM</option>
+        <option value="avg">AVG (mean)</option>
+        <option value="count">COUNT</option>
+        <option value="count_distinct">COUNT DISTINCT</option>
+        <option value="min">MIN</option>
+        <option value="max">MAX</option>
+      </select>
+    </div>
+    <div class="cfg-row" id="cfg-y-row">
+      <div class="cfg-label">Y axis / Value column</div>
+      <select class="cfg-select" id="cfg-y-col"></select>
+    </div>
+    <div class="cfg-row" id="cfg-num-row" style="display:none;">
+      <div class="cfg-label">Value column (first row used)</div>
+      <select class="cfg-select" id="cfg-num-col"></select>
+    </div>
+    <div class="cfg-row">
+      <div class="cfg-label">Auto-refresh</div>
+      <select class="cfg-select" id="cfg-refresh">
+        <option value="0">Off</option>
+        <option value="60">Every 1 minute</option>
+        <option value="300">Every 5 minutes</option>
+        <option value="900">Every 15 minutes</option>
+        <option value="3600">Every hour</option>
+      </select>
+    </div>
+    <div class="cfg-actions">
+      <button class="cfg-btn" onclick="closeCfgModal()">Cancel</button>
+      <button class="cfg-btn primary" onclick="saveTileConfig()">Save tile</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Snapshot panel ────────────────────────────────────────────── -->
+<div id="snap-panel" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+  <div id="snap-box" style="background:#1c1f20;border:1px solid #2e3234;border-radius:8px;padding:20px 24px;width:440px;max-width:96vw;max-height:80vh;display:flex;flex-direction:column;gap:10px;">
+    <h3 style="font-size:13px;color:rgba(255,255,255,0.6);flex-shrink:0;">Dashboard Snapshots</h3>
+    <p style="font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;">Save the current tile arrangement as a named snapshot to restore later.</p>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <input id="snap-name-input" type="text" placeholder="Snapshot name…" style="flex:1;background:#141618;border:1px solid #2e3234;color:#e2e6f0;font-size:12px;padding:6px 10px;border-radius:4px;outline:none;" autocomplete="off"/>
+      <button onclick="saveSnapshot()" style="background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.4);color:#a78bfa;font-size:12px;padding:0 14px;border-radius:4px;cursor:pointer;white-space:nowrap;">Save current</button>
+    </div>
+    <div id="snap-list" style="flex:1;overflow-y:auto;border:1px solid #2e3234;border-radius:4px;min-height:60px;"></div>
+    <button onclick="closeSnapshotPanel()" style="align-self:flex-end;background:none;border:1px solid #2e3234;color:rgba(255,255,255,0.4);font-size:12px;padding:4px 14px;border-radius:4px;cursor:pointer;">Close</button>
+  </div>
+</div>
+
+<!-- ── Add tile panel ─────────────────────────────────────────────── -->
+<div id="add-panel">
+  <div id="add-box">
+    <h3>Add tile from saved query</h3>
+    <div class="add-sub">Each saved query can be used for multiple tiles with different chart types.</div>
+    <input id="add-search" type="search" placeholder="Filter queries…" autocomplete="off" spellcheck="false" oninput="filterAddList(this.value)"/>
+    <div id="add-list"></div>
+    <div id="add-empty" style="display:none;">No saved queries found. <a href="/query/{{ key }}" style="color:#a78bfa;">Go save one &#8594;</a></div>
+    <button class="cfg-btn" onclick="closeAddPanel()" style="align-self:flex-end;margin-top:10px;">Close</button>
+  </div>
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+
+<script>
+const KEY    = {{ key | tojson }};
+const SCHEMA = {{ schema_json | safe }};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _savedQueries   = [];   // all saved queries for this schema (id, name, sql)
+let _tiles          = [];   // all dashboard tiles (from /api/tiles/<key>)
+let _tileCharts     = {};   // { tileId: Chart instance }
+let _cfgTileId      = null; // tile id being edited in the config modal
+let _cfgCols        = [];   // columns returned by the query for that tile
+let _snapshots      = [];   // saved dashboard snapshots
+let _activeSnapId   = null; // currently selected snapshot id
+/** @type {Map<string, number>} tileId → setInterval id */
+const _refreshTimers = new Map();
+
+// ── Aggregation helper ────────────────────────────────────────────────────────
+function _aggregateRows(rows, cols, xCol, yCol, aggFn) {
+  const xi = cols.indexOf(xCol), yi = cols.indexOf(yCol);
+  if (xi < 0) return { labels: [], data: [], yLabel: yCol };
+
+  if (!aggFn || aggFn === 'none') {
+    return {
+      labels: rows.map(r => String(r[xi] ?? '')),
+      data:   rows.map(r => yi >= 0 ? (Number(r[yi]) || 0) : 0),
+      yLabel: yCol,
+    };
+  }
+
+  const needsNumeric = aggFn === 'sum' || aggFn === 'avg' || aggFn === 'min' || aggFn === 'max';
+  const order = [], groups = {};
+  rows.forEach(r => {
+    const k = String(r[xi] ?? '');
+    const rawVal = yi >= 0 ? r[yi] : null;
+    if (!groups[k]) { groups[k] = []; order.push(k); }
+    if (needsNumeric) {
+      const n = Number(rawVal);
+      if (!isNaN(n) && rawVal !== null && rawVal !== '') groups[k].push(n);
+    } else {
+      groups[k].push(rawVal);
+    }
+  });
+
+  const aggFnLabel = { sum:'SUM', avg:'AVG', count:'COUNT', count_distinct:'COUNT DISTINCT', min:'MIN', max:'MAX' };
+  const data = order.map(k => {
+    const vals = groups[k];
+    switch (aggFn) {
+      case 'sum':           return vals.length ? vals.reduce((a,b)=>a+b,0) : 0;
+      case 'avg':           return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+      case 'count':         return vals.length;
+      case 'count_distinct':return new Set(vals.map(v=>v===null?'__NULL__':String(v))).size;
+      case 'min':           return vals.length ? Math.min(...vals) : 0;
+      case 'max':           return vals.length ? Math.max(...vals) : 0;
+      default:              return vals.length ? vals[0] : 0;
+    }
+  });
+  return { labels: order, data, yLabel: `${aggFnLabel[aggFn]||aggFn}(${yCol})` };
+}
+
+const CHART_DARK = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#e2e6f0', font: { size: 10 } }, position: 'bottom' } },
+  scales: {
+    x: { ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 10 } }, grid: { color: '#2e3234' } },
+    y: { ticks: { color: 'rgba(255,255,255,0.35)', font: { size: 10 } }, grid: { color: '#2e3234' } },
+  },
+};
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Load data ─────────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const [qResp, tResp, sResp] = await Promise.all([
+      fetch(`/api/queries/${KEY}`),
+      fetch(`/api/tiles/${KEY}`),
+      fetch(`/api/dashboard_snapshots/${KEY}`),
+    ]);
+    const qData = await qResp.json();
+    const tData = await tResp.json();
+    const sData = await sResp.json();
+    if (!qData.error) _savedQueries = qData;
+    if (!tData.error) _tiles = tData;
+    if (!sData.error) _snapshots = sData;
+  } catch(e) {}
+}
+
+// ── Execute a query ───────────────────────────────────────────────────────────
+async function execQuery(sql) {
+  try {
+    const resp = await fetch(`/api/query/${KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql, limit: 500 }),
+    });
+    return await resp.json();
+  } catch(e) {
+    return { error: 'Network error: ' + e.message };
+  }
+}
+
+// ── Lazy tile loader (Item 9) ─────────────────────────────────────────────────
+// Chart tiles below the viewport fold are deferred until they scroll into view.
+// This avoids executing SQL queries for tiles the user never sees on load.
+// Uses IntersectionObserver (standard Web API, no dependency).
+// Falls back to immediate loading in environments without IntersectionObserver.
+const _lazyObserver = window.IntersectionObserver
+  ? new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const tid = entry.target.dataset.lazyTile;
+          if (tid) {
+            _lazyObserver.unobserve(entry.target);
+            entry.target.removeAttribute('data-lazy-tile');
+            loadTileById(tid);
+          }
+        });
+      },
+      { threshold: 0.05 }
+    )
+  : null;
+
+// ── Build tile grid ───────────────────────────────────────────────────────────
+function buildGrid() {
+  const grid  = document.getElementById('tile-grid');
+  const empty = document.getElementById('empty-state');
+
+  grid.innerHTML = '';
+  Object.values(_tileCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  _tileCharts = {};
+
+  if (!_tiles.length) {
+    empty.classList.add('visible');
+    _updateCtxTileCount(0);
+    return;
+  }
+  empty.classList.remove('visible');
+  _updateCtxTileCount(_tiles.length);
+
+  _tiles.forEach(tile => {
+    const q = _savedQueries.find(x => x.id === tile.query_id);
+    if (!q) return; // query was deleted
+    const el = buildTileDOM(tile, q);
+    grid.appendChild(el);
+
+    if (_lazyObserver) {
+      // Mark the tile element for lazy observation.
+      el.dataset.lazyTile = tile.id;
+      _lazyObserver.observe(el);
+    } else {
+      // Fallback: load immediately when IntersectionObserver is unavailable.
+      loadTileById(tile.id);
+    }
+  });
+}
+
+function typeBadgeClass(type) {
+  return { bar:'badge-bar', line:'badge-line', number:'badge-number', table:'badge-table' }[type] || 'badge-bar';
+}
+function typeBadgeLabel(type) {
+  return { bar:'Bar', line:'Line', number:'#', table:'Tbl' }[type] || type;
+}
+
+function buildTileDOM(tile, q) {
+  const el = document.createElement('div');
+  el.className = 'tile';
+  el.id = 'tile-' + tile.id;
+  const ttype = tile.type || 'bar';
+  el.innerHTML = `
+    <div class="tile-hdr">
+      <span class="tile-type-badge ${typeBadgeClass(ttype)}">${typeBadgeLabel(ttype)}</span>
+      <span class="tile-title">${esc(tile.title || q.name)}</span>
+      <span class="tile-query-label" title="Query: ${esc(q.name)}">${esc(q.name)}</span>
+      <div class="tile-actions">
+        <button class="tile-btn" title="Configure" onclick="openCfgModal('${esc(tile.id)}')">&#9965;</button>
+        <button class="tile-btn" title="Reload" onclick="loadTileById('${esc(tile.id)}')">&#8635;</button>
+        <button class="tile-btn danger" title="Remove tile" onclick="removeTile('${esc(tile.id)}')">&#10005;</button>
+      </div>
+    </div>
+    <div class="tile-body" id="tile-body-${esc(tile.id)}">
+      <div class="tile-loading"><div class="mini-spinner"></div> Loading…</div>
+    </div>`;
+  return el;
+}
+
+
+// ── Auto-refresh management ───────────────────────────────────────────────────
+function _armRefreshTimer(tile) {
+  const interval = Number(tile.refresh_interval) || 0;
+  // Clear any existing timer first to avoid duplicates.
+  if (_refreshTimers.has(tile.id)) {
+    clearInterval(_refreshTimers.get(tile.id));
+    _refreshTimers.delete(tile.id);
+  }
+  if (interval > 0) {
+    const id = setInterval(() => loadTileById(tile.id), interval * 1000);
+    _refreshTimers.set(tile.id, id);
+  }
+}
+
+function _clearRefreshTimer(tid) {
+  if (_refreshTimers.has(tid)) {
+    clearInterval(_refreshTimers.get(tid));
+    _refreshTimers.delete(tid);
+  }
+}
+
+
+async function loadTileById(tid) {
+  const tile = _tiles.find(t => t.id === tid);
+  if (!tile) return;
+  const q = _savedQueries.find(x => x.id === tile.query_id);
+  if (!q) return;
+
+  const body = document.getElementById('tile-body-' + tid);
+  if (!body) return;
+  body.innerHTML = '<div class="tile-loading"><div class="mini-spinner"></div> Loading…</div>';
+  if (_tileCharts[tid]) { try { _tileCharts[tid].destroy(); } catch(e) {} delete _tileCharts[tid]; }
+
+  const result = await execQuery(q.sql);
+  if (result.error) {
+    body.innerHTML = `<div class="tile-error">${esc(result.error)}</div>`;
+    return;
+  }
+
+  const { columns, rows } = result;
+  const ttype = tile.type || 'bar';
+
+  if (ttype === 'number') {
+    const col = tile.num_col || columns[0] || '';
+    const ci  = columns.indexOf(col) >= 0 ? columns.indexOf(col) : 0;
+    const val = rows[0]?.[ci] ?? '-';
+    const num = typeof val === 'number' ? val.toLocaleString() : String(val);
+    body.innerHTML = `<div class="number-display"><span class="number-val">${esc(num)}</span><span class="number-label">${esc(col)}</span></div>`;
+    return;
+  }
+
+  if (ttype === 'table') {
+    const header = columns.map(c => `<th>${esc(c)}</th>`).join('');
+    const tbody  = rows.slice(0, 50).map(r => '<tr>' + r.map(v => `<td title="${esc(String(v??''))}">${esc(String(v??''))}</td>`).join('') + '</tr>').join('');
+    body.innerHTML = `<div class="tile-table-wrap"><table class="tile-table"><thead><tr>${header}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+    return;
+  }
+
+  // bar / line
+  const xcol  = tile.x_col  || columns[0] || '';
+  const ycol  = tile.y_col  || columns[1] || columns[0] || '';
+  const aggFn = tile.agg_fn || 'none';
+  const color = tile.color  || (ttype === 'line' ? '#1ded83' : '#a78bfa');
+
+  const { labels, data, yLabel } = _aggregateRows(rows, columns, xcol, ycol, aggFn);
+
+  const canvas = document.createElement('canvas');
+  body.innerHTML = '';
+  body.appendChild(canvas);
+  _tileCharts[tid] = new Chart(canvas, {
+    type: ttype,
+    data: { labels, datasets: [{ label: yLabel, data, backgroundColor: color+'55', borderColor: color, borderWidth: 1.5 }] },
+    options: CHART_DARK,
+  });
+  // Arm auto-refresh timer after first successful load.
+  _armRefreshTimer(tile);
+}
+
+function refreshAll() {
+  // Bypass the lazy observer - a manual refresh always reloads all tiles.
+  _tiles.forEach(t => {
+    const el = document.getElementById('tile-' + t.id);
+    if (el && el.dataset.lazyTile) {
+      // Tile hasn't been loaded yet - load it now and stop observing.
+      if (_lazyObserver) _lazyObserver.unobserve(el);
+      delete el.dataset.lazyTile;
+    }
+    loadTileById(t.id);
+  });
+}
+
+// ── Remove tile ───────────────────────────────────────────────────────────────
+async function removeTile(tid) {
+  _clearRefreshTimer(tid);
+  await fetch(`/api/tiles/${KEY}/${encodeURIComponent(tid)}`, { method: 'DELETE' });
+  _tiles = _tiles.filter(t => t.id !== tid);
+  const el = document.getElementById('tile-' + tid);
+  if (el) el.remove();
+  if (_tileCharts[tid]) { try { _tileCharts[tid].destroy(); } catch(e) {} delete _tileCharts[tid]; }
+  if (!_tiles.length) document.getElementById('empty-state').classList.add('visible');
+}
+
+// ── Config modal ──────────────────────────────────────────────────────────────
+async function openCfgModal(tid) {
+  _cfgTileId = tid;
+  const tile = _tiles.find(t => t.id === tid);
+  if (!tile) return;
+  const q = _savedQueries.find(x => x.id === tile.query_id);
+  if (!q) return;
+
+  document.getElementById('cfg-title').textContent = `Configure tile - ${q.name}`;
+  document.getElementById('cfg-tile-title').value = tile.title || q.name;
+  document.getElementById('cfg-type').value = tile.type || 'bar';
+  toggleCfgRows(tile.type || 'bar');
+  document.getElementById('cfg-modal').classList.add('open');
+
+  const result = await execQuery(q.sql);
+  _cfgCols = result.columns || [];
+  const opts = _cfgCols.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  ['cfg-x-col','cfg-y-col','cfg-num-col'].forEach(id => {
+    document.getElementById(id).innerHTML = opts;
+  });
+
+  if (tile.x_col)   document.getElementById('cfg-x-col').value   = tile.x_col;
+  if (tile.y_col)   document.getElementById('cfg-y-col').value   = tile.y_col;
+  if (tile.num_col) document.getElementById('cfg-num-col').value = tile.num_col;
+  if (tile.agg_fn)  document.getElementById('cfg-agg-fn').value  = tile.agg_fn;
+  document.getElementById('cfg-refresh').value = String(tile.refresh_interval || 0);
+}
+
+function closeCfgModal() {
+  document.getElementById('cfg-modal').classList.remove('open');
+  _cfgTileId = null;
+}
+
+document.getElementById('cfg-type').addEventListener('change', e => toggleCfgRows(e.target.value));
+
+function toggleCfgRows(type) {
+  const isChart = type === 'bar' || type === 'line';
+  document.getElementById('cfg-x-row').style.display   = isChart ? '' : 'none';
+  document.getElementById('cfg-agg-row').style.display = isChart ? '' : 'none';
+  document.getElementById('cfg-y-row').style.display   = isChart ? '' : 'none';
+  document.getElementById('cfg-num-row').style.display = type === 'number' ? '' : 'none';
+}
+
+async function saveTileConfig() {
+  if (!_cfgTileId) return;
+  const type = document.getElementById('cfg-type').value;
+  const body = {
+    title:            document.getElementById('cfg-tile-title').value.trim() || 'Tile',
+    type,
+    x_col:            document.getElementById('cfg-x-col').value,
+    agg_fn:           document.getElementById('cfg-agg-fn').value,
+    y_col:            document.getElementById('cfg-y-col').value,
+    num_col:          document.getElementById('cfg-num-col').value,
+    refresh_interval: Number(document.getElementById('cfg-refresh').value) || 0,
+  };
+  try {
+    const resp = await fetch(`/api/tiles/${KEY}/${encodeURIComponent(_cfgTileId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      const updated = await resp.json();
+      const idx = _tiles.findIndex(t => t.id === _cfgTileId);
+      if (idx >= 0) { _tiles[idx] = updated; _armRefreshTimer(updated); }
+      // Update tile header badge + title without full rebuild
+      const tileEl = document.getElementById('tile-' + _cfgTileId);
+      if (tileEl) {
+        const badge = tileEl.querySelector('.tile-type-badge');
+        if (badge) { badge.className = `tile-type-badge ${typeBadgeClass(updated.type)}`; badge.textContent = typeBadgeLabel(updated.type); }
+        const titleEl = tileEl.querySelector('.tile-title');
+        if (titleEl) titleEl.textContent = updated.title;
+      }
+      loadTileById(_cfgTileId);
+    }
+  } catch(e) {}
+  closeCfgModal();
+}
+
+// ── Add tile panel ────────────────────────────────────────────────────────────
+function openAddPanel() {
+  filterAddList('');
+  document.getElementById('add-panel').classList.add('open');
+  document.getElementById('add-search').value = '';
+  setTimeout(() => document.getElementById('add-search').focus(), 50);
+}
+function closeAddPanel() {
+  document.getElementById('add-panel').classList.remove('open');
+}
+
+function filterAddList(q) {
+  renderAddList(q.toLowerCase());
+}
+
+function renderAddList(filter) {
+  const list  = document.getElementById('add-list');
+  const empty = document.getElementById('add-empty');
+  const items = _savedQueries.filter(q =>
+    !filter || q.name.toLowerCase().includes(filter) || q.sql.toLowerCase().includes(filter)
+  );
+  if (!items.length) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = items.map(q => {
+    const useCount = _tiles.filter(t => t.query_id === q.id).length;
+    const badge = useCount ? `<span style="font-size:9px;padding:2px 6px;border-radius:10px;background:rgba(29,237,131,0.1);color:#1ded83;flex-shrink:0;">${useCount} tile${useCount>1?'s':''}</span>` : '';
+    return `<div class="add-query-item" data-qid="${esc(q.id)}">
+      <div style="flex:1;min-width:0;">
+        <div class="add-q-name">${esc(q.name)}</div>
+        <div class="add-q-sql">${esc(q.sql.replace(/\s+/g,' ').slice(0,110))}</div>
+      </div>
+      ${badge}
+      <button class="add-q-use" data-qid="${esc(q.id)}" title="Add a new tile using this query">+ Add tile</button>
+    </div>`;
+  }).join('');
+
+  // Wire the "+ Add tile" buttons (not the row itself - row click is for preview)
+  list.querySelectorAll('.add-q-use[data-qid]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      addTileForQuery(btn.dataset.qid);
+    });
+  });
+}
+
+async function addTileForQuery(qid) {
+  const q = _savedQueries.find(x => x.id === qid);
+  if (!q) return;
+  closeAddPanel();
+
+  // Create a new tile with defaults, then open config
+  try {
+    const resp = await fetch(`/api/tiles/${KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query_id: qid,
+        title: q.name,
+        type: 'bar',
+        x_col: '', y_col: '', agg_fn: 'none', num_col: '',
+      }),
+    });
+    if (resp.ok) {
+      const newTile = await resp.json();
+      _tiles.push(newTile);
+      document.getElementById('empty-state').classList.remove('visible');
+      // Insert tile card immediately, then open config
+      const tileEl = buildTileDOM(newTile, q);
+      document.getElementById('tile-grid').appendChild(tileEl);
+      // Small delay so the modal opens after the panel closes
+      setTimeout(() => openCfgModal(newTile.id), 80);
+    }
+  } catch(e) {}
+}
+
+// ── Escape / backdrop close ───────────────────────────────────────────────────
+document.getElementById('cfg-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('cfg-modal')) closeCfgModal();
+});
+document.getElementById('add-panel').addEventListener('click', e => {
+  if (e.target === document.getElementById('add-panel')) closeAddPanel();
+});
+
+// ── Snapshot panel ────────────────────────────────────────────────────────────
+function openSnapshotPanel() {
+  _renderSnapshotList();
+  const panel = document.getElementById('snap-panel');
+  panel.style.display = 'flex';
+  document.getElementById('snap-name-input').focus();
+}
+function closeSnapshotPanel() {
+  document.getElementById('snap-panel').style.display = 'none';
+}
+
+function _renderSnapshotList() {
+  const list = document.getElementById('snap-list');
+  if (!_snapshots.length) {
+    list.innerHTML = '<div style="padding:12px;font-size:11px;color:rgba(255,255,255,0.25);text-align:center;">No snapshots yet. Save one using the button above.</div>';
+    return;
+  }
+  list.innerHTML = _snapshots.map(s => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05);">
+      <div style="flex:1;overflow:hidden;">
+        <div style="font-size:12px;color:#e2e6f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(s.name)}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.25);">${s.tile_ids.length} tile${s.tile_ids.length!==1?'s':''} &middot; ${new Date(s.created*1000).toLocaleDateString()}</div>
+      </div>
+      <button data-sid="${esc(s.id)}" title="Restore this snapshot" style="background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.35);color:#a78bfa;font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;white-space:nowrap;">Restore</button>
+      <button data-del="${esc(s.id)}" title="Delete snapshot" style="background:none;border:none;color:rgba(255,255,255,0.2);cursor:pointer;font-size:14px;">&#215;</button>
+    </div>`).join('');
+
+  list.querySelectorAll('[data-sid]').forEach(btn => {
+    btn.addEventListener('click', () => restoreSnapshot(btn.dataset.sid));
+  });
+  list.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => deleteSnapshot(btn.dataset.del));
+  });
+}
+
+async function saveSnapshot() {
+  const name = document.getElementById('snap-name-input').value.trim() || 'Dashboard';
+  const tile_ids = _tiles.map(t => t.id);
+  try {
+    const resp = await fetch(`/api/dashboard_snapshots/${KEY}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, tile_ids }),
+    });
+    if (resp.ok) {
+      const entry = await resp.json();
+      _snapshots.push(entry);
+      document.getElementById('snap-name-input').value = '';
+      _renderSnapshotList();
+    }
+  } catch(e) {}
+}
+
+async function restoreSnapshot(sid) {
+  const snap = _snapshots.find(s => s.id === sid);
+  if (!snap) return;
+  // Reorder tiles to match the snapshot's tile_ids order
+  const ordered = [];
+  snap.tile_ids.forEach(tid => {
+    const t = _tiles.find(x => x.id === tid);
+    if (t) ordered.push(t);
+  });
+  // Any tiles not in the snapshot remain at the end
+  _tiles.forEach(t => { if (!snap.tile_ids.includes(t.id)) ordered.push(t); });
+  _tiles = ordered;
+  closeSnapshotPanel();
+  buildGrid();
+}
+
+async function deleteSnapshot(sid) {
+  try {
+    await fetch(`/api/dashboard_snapshots/${KEY}/${encodeURIComponent(sid)}`, {method:'DELETE'});
+    _snapshots = _snapshots.filter(s => s.id !== sid);
+    _renderSnapshotList();
+  } catch(e) {}
+}
+
+// Backdrop close for snap panel
+document.getElementById('snap-panel').addEventListener('click', e => {
+  if (e.target === document.getElementById('snap-panel')) closeSnapshotPanel();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeCfgModal(); closeAddPanel(); closeSnapshotPanel(); }
+});
+
+// ── Snapshot sidebar (named dashboards) ──────────────────────────────────────
+function _renderSnapSidebar() {
+  const list = document.getElementById('snap-sidebar-list');
+  if (!list) return;
+  if (!_snapshots.length) {
+    list.innerHTML = '<div class="snap-sidebar-empty">No saved dashboards.<br/>Click + to save one.</div>';
+    return;
+  }
+  list.innerHTML = _snapshots.map(s => `
+    <div class="snap-item${s.id === _activeSnapId ? ' active' : ''}" data-sid="${esc(s.id)}">
+      <span class="snap-item-name" title="${esc(s.name)}">${esc(s.name)}</span>
+      <button class="snap-item-del" data-del="${esc(s.id)}" title="Delete">&#215;</button>
+    </div>`).join('');
+  list.querySelectorAll('.snap-item[data-sid]').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.dataset.del) return; // handled below
+      restoreSnapshot(el.dataset.sid);
+      _activeSnapId = el.dataset.sid;
+      _renderSnapSidebar();
+    });
+  });
+  list.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteSnapshot(btn.dataset.del).then(_renderSnapSidebar);
+    });
+  });
+}
+
+function promptNewSnapshot() {
+  const name = window.prompt('Dashboard name:', 'My Dashboard');
+  if (name == null) return; // cancelled
+  const safeName = name.trim() || 'Dashboard';
+  fetch(`/api/dashboard_snapshots/${KEY}`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name: safeName, tile_ids: _tiles.map(t => t.id) }),
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(entry => {
+      if (!entry) return;
+      _snapshots.push(entry);
+      _activeSnapId = entry.id;
+      _renderSnapSidebar();
+      _showToast('Dashboard saved', 'success', safeName);
+    });
+}
+
+// ── Context info zone helper ──────────────────────────────────────────────────
+function _updateCtxTileCount(n) {
+  const el  = document.getElementById('ctx-tile-count');
+  const sep = document.getElementById('ctx-tile-sep');
+  if (el) el.textContent = n ? n + ' tile' + (n === 1 ? '' : 's') : '';
+  if (sep) sep.style.display = n ? '' : 'none';
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function boot() {
+  await loadData();
+  buildGrid();
+  _renderSnapSidebar();
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,2582 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nybble - Sources</title>
+{% include '_base_styles.html' %}
+<style>
+/* ── Page layout ──────────────────────────────────────────────────── */
+body { display: flex; flex-direction: column; overflow: hidden; }
+#body-wrap { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Add-source drawer (left slide-in panel) ──────────────────────── */
+#add-source-backdrop {
+  display: none; position: fixed; inset: 0; z-index: 490;
+  background: rgba(0,0,0,0.45);
+}
+#add-source-backdrop.open { display: block; }
+#add-source-drawer {
+  position: fixed; top: 0; left: -480px; width: 480px; height: 100%;
+  background: var(--surface-card); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 500;
+  transition: left .22s cubic-bezier(0.22,1,0.36,1);
+  box-shadow: 8px 0 32px rgba(0,0,0,0.55);
+}
+#add-source-drawer.open { left: 0; }
+#add-source-drawer-hdr {
+  display: flex; align-items: center; gap: 10px; padding: 0 18px;
+  height: 52px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--surface-card);
+}
+#add-source-drawer-hdr .drawer-title {
+  font-size: 13px; font-weight: 600; color: var(--text); flex: 1;
+}
+#add-source-drawer-close {
+  width: 28px; height: 28px; background: none; border: none;
+  color: var(--text-muted); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); transition: background .12s, color .12s;
+}
+#add-source-drawer-close:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+#add-source-drawer-body {
+  flex: 1; overflow-y: auto; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* Connector tabs inside drawer */
+.conn-tabs {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
+  margin-bottom: 4px;
+}
+.conn-tab {
+  height: 34px; padding: 0 10px; background: var(--surface-inset);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  color: var(--text-muted); cursor: pointer; font-size: 11.5px; font-weight: 500;
+  display: flex; align-items: center; gap: 6px;
+  transition: background .12s, color .12s, border-color .12s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.conn-tab:hover { background: rgba(255,255,255,0.06); color: var(--text); border-color: rgba(255,255,255,0.18); }
+.conn-tab.active {
+  background: var(--accent-bg); color: var(--accent);
+  border-color: var(--accent-border);
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Upload zone ──────────────────────────────────────────────────── */
+#upload-zone {
+  border: 2px dashed var(--border); border-radius: var(--r-lg);
+  padding: 22px 18px; cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; gap: 16px;
+  color: var(--text-muted);
+}
+#upload-zone:hover, #upload-zone.drag {
+  border-color: var(--green); color: var(--green);
+  background: rgba(29,237,131,0.03);
+}
+#upload-zone input { display: none; }
+#upload-zone .uz-icon { flex-shrink: 0; opacity: .5; transition: opacity .15s; }
+#upload-zone:hover .uz-icon, #upload-zone.drag .uz-icon { opacity: 1; }
+#upload-zone .uz-text { text-align: left; }
+#upload-zone .uz-title { font-size: 13px; font-weight: 500; color: var(--text); }
+#upload-zone .uz-hint  { font-size: 11px; margin-top: 4px; color: var(--text-muted); line-height: 1.5; }
+#upload-queue { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.uq-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+.uq-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uq-bar-bg { width: 80px; height: 3px; background: var(--border); border-radius: 2px; flex-shrink: 0; }
+.uq-bar-fg { height: 100%; background: var(--green); border-radius: 2px; width: 0%; transition: width .2s; }
+.uq-status { width: 14px; text-align: center; flex-shrink: 0; }
+
+/* ── Form fields ──────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.field label {
+  font-size: var(--section-label-size); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing);
+  color: var(--text-dim);
+}
+.field input, .field select, .field textarea {
+  background: var(--surface-inset); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text); padding: 7px 10px;
+  font-size: 13px; outline: none; font-family: inherit;
+  transition: border-color .15s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: rgba(29,237,131,0.4);
+}
+.field input::placeholder, .field textarea::placeholder { color: var(--text-faint); }
+.field select { appearance: none; cursor: pointer; }
+textarea.mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; resize: vertical; }
+.conn-row { display: flex; gap: 10px; align-items: flex-end; }
+.url-row  { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: end; }
+.btn-primary {
+  background: var(--green-bg); border: 1px solid var(--green-border);
+  color: var(--green); font-size: 13px; font-weight: 600;
+  padding: 8px 18px; border-radius: var(--r-sm); cursor: pointer;
+  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+}
+.btn-primary:hover { background: rgba(29,237,131,0.22); }
+.btn-primary:disabled { opacity: .4; cursor: default; }
+.progress-label { font-size: 11px; color: var(--text-muted); margin-top: 5px; min-height: 16px; }
+.progress-bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-bar-fg { height: 100%; background: var(--green); border-radius: 2px; transition: width .2s ease; width: 0%; }
+
+/* ── Main content area ────────────────────────────────────────────── */
+#main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#list-section { flex: 1; overflow-y: auto; }
+#list-inner { max-width: 960px; margin: 0 auto; padding: 20px 28px; }
+/* compare-bar already has margin-bottom; give it a little top breathing room */
+#compare-bar { margin-top: 0; margin-bottom: 14px; }
+
+/* View-toggle active state inside topbar segment */
+#tb-view-toggle .tbtn.active {
+  background: var(--surface-card);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+#tb-view-toggle .tbtn:not(.active) {
+  background: none; color: var(--text-muted); border: none;
+}
+#tb-view-toggle .tbtn:not(.active):hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+/* ── Schema cards ─────────────────────────────────────────────────── */
+#schema-list.grid-view {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+#schema-list.grid-view .schema-card {
+  margin-bottom: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  /* prevent overflow in grid cells */
+  min-width: 0;
+  overflow: hidden;
+}
+#schema-list.grid-view .card-info {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+#schema-list.grid-view .card-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+#schema-list.grid-view .card-actions {
+  width: 100%;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+#schema-list.grid-view .card-header-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+#schema-list.grid-view .card-header-row .card-info {
+  flex: 1; min-width: 0;
+}
+.schema-card {
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 14px 16px;
+  margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.schema-card:hover { border-color: rgba(255,255,255,0.14); box-shadow: 0 2px 12px rgba(0,0,0,0.25); }
+.schema-card.state-error     { border-color: rgba(248,113,113,0.25); }
+.schema-card.state-processing { border-color: rgba(167,139,250,0.3); }
+.schema-card.cmp-selected    { border-color: var(--accent) !important; background: var(--accent-bg); }
+.schema-card.sel-selected    { border-color: rgba(96,165,250,0.6) !important; background: rgba(96,165,250,0.06); }
+.schema-card.join-card       { border-color: rgba(167,139,250,0.3); }
+.schema-card.join-card:hover { border-color: rgba(167,139,250,0.55); }
+.badge-join {
+  font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px;
+  background: var(--accent-bg); color: #c4b5fd; flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+.card-members { font-size: 10px; color: rgba(167,139,250,0.6); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* DB icon */
+.db-icon {
+  width: 38px; height: 38px; border-radius: 9px; position: relative;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: 17px; transition: box-shadow .15s;
+}
+.schema-card:hover .db-icon { box-shadow: 0 0 0 3px var(--db-icon-glow, rgba(255,255,255,0.06)); }
+.db-icon.pg       { background: rgba(51,103,145,0.22);  border-color: rgba(51,103,145,0.42);  --db-icon-glow: rgba(51,103,145,0.20); }
+.db-icon.mysql    { background: rgba(0,117,79,0.20);    border-color: rgba(0,117,79,0.38);    --db-icon-glow: rgba(0,117,79,0.18); }
+.db-icon.sqlite   { background: rgba(29,237,131,0.10);  border-color: rgba(29,237,131,0.22);  --db-icon-glow: rgba(29,237,131,0.14); }
+.db-icon.mssql    { background: rgba(0,114,198,0.18);   border-color: rgba(0,114,198,0.32);   --db-icon-glow: rgba(0,114,198,0.16); }
+.db-icon.file     { background: rgba(251,191,36,0.12);  border-color: rgba(251,191,36,0.24);  --db-icon-glow: rgba(251,191,36,0.14); }
+.db-icon.url      { background: rgba(96,165,250,0.12);  border-color: rgba(96,165,250,0.24);  --db-icon-glow: rgba(96,165,250,0.14); }
+.db-icon.ch       { background: rgba(255,205,30,0.14);  border-color: rgba(255,205,30,0.28);  --db-icon-glow: rgba(255,205,30,0.16); }
+.db-icon.mongodb  { background: rgba(0,237,100,0.12);   border-color: rgba(0,237,100,0.28);   --db-icon-glow: rgba(0,237,100,0.14); }
+.db-icon.snowflake{ background: rgba(41,182,246,0.14);  border-color: rgba(41,182,246,0.30);  --db-icon-glow: rgba(41,182,246,0.16); }
+.db-icon.bigquery { background: rgba(66,133,244,0.14);  border-color: rgba(66,133,244,0.30);  --db-icon-glow: rgba(66,133,244,0.16); }
+.db-icon.supabase { background: rgba(62,207,142,0.14);  border-color: rgba(62,207,142,0.30);  --db-icon-glow: rgba(62,207,142,0.16); }
+
+/* Card info */
+.card-info { flex: 1; min-width: 0; }
+.card-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.card-size { color: var(--text-faint); font-size: 10px; }
+.card-ts   { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.card-error{ font-size: 11px; color: var(--red); margin-top: 3px; font-family: Consolas, monospace; }
+.card-progress { margin-top: 6px; }
+.src-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 10px;
+  background: rgba(255,255,255,0.07); color: var(--text-muted); flex-shrink: 0;
+  white-space: nowrap;
+}
+.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; }
+.dot-ready      { background: var(--green); }
+.dot-uploaded   { background: var(--yellow); }
+.dot-processing { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.dot-error      { background: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* Card actions */
+.card-actions { display: flex; gap: 5px; flex-shrink: 0; align-items: center; flex-wrap: nowrap; }
+.btn-card {
+  background: none; border: 1px solid var(--border);
+  color: var(--text-muted); font-size: 11px; padding: 4px 10px;
+  border-radius: var(--r-sm); cursor: pointer; transition: all .12s; white-space: nowrap;
+  text-decoration: none; display: inline-flex; align-items: center;
+}
+.btn-card:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+.btn-card.btn-erd    { border-color: rgba(29,237,131,0.4);  color: var(--green); font-weight: 600; }
+.btn-card.btn-erd:hover  { background: rgba(29,237,131,0.1); }
+.btn-card.btn-delete { border-color: rgba(248,113,113,0.2); }
+.btn-card.btn-delete:hover { border-color: var(--red); color: var(--red); }
+.btn-card:disabled   { opacity: .35; cursor: default; }
+
+/* Actions overflow dropdown */
+.card-more-wrap { position: relative; flex-shrink: 0; }
+.card-more-menu {
+  display: none; position: fixed;
+  background: var(--surface-card); border: 1px solid var(--border2);
+  border-radius: var(--r-md); box-shadow: 0 8px 24px rgba(0,0,0,0.65);
+  min-width: 160px; z-index: 700; overflow: hidden;
+}
+.card-more-wrap.open .card-more-menu { display: block; }
+.card-more-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  font-size: 12px; cursor: pointer; color: var(--text-muted); transition: background .1s;
+  text-decoration: none; white-space: nowrap;
+}
+.card-more-item:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+.card-more-item.danger:hover { color: var(--red); background: rgba(248,113,113,0.07); }
+.card-more-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+/* Compare checkbox */
+.compare-check {
+  display: none; flex-shrink: 0; width: 18px; height: 18px; border-radius: 4px;
+  border: 2px solid var(--border2); background: transparent;
+  cursor: pointer; position: relative; transition: all .12s;
+  align-items: center; justify-content: center;
+}
+.compare-check::after {
+  content: ''; display: none; position: absolute;
+  left: 4px; top: 1px; width: 6px; height: 10px;
+  border: 2px solid var(--accent); border-top: none; border-left: none;
+  transform: rotate(45deg);
+}
+.compare-check.checked { background: var(--accent-bg); border-color: var(--accent); }
+.compare-check.checked::after { display: block; }
+body.compare-mode .compare-check { display: flex; }
+body.compare-mode .schema-card.state-ready { cursor: pointer; }
+
+/* ── Multi-select checkbox (always visible on hover / when bar active) ── */
+.sel-check {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 4px;
+  border: 2px solid var(--border2); background: transparent;
+  cursor: pointer; position: relative; transition: all .12s;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+}
+.sel-check::after {
+  content: ''; display: none; position: absolute;
+  left: 4px; top: 1px; width: 6px; height: 10px;
+  border: 2px solid #60a5fa; border-top: none; border-left: none;
+  transform: rotate(45deg);
+}
+.sel-check.checked {
+  background: rgba(96,165,250,0.15); border-color: #60a5fa; opacity: 1;
+}
+.sel-check.checked::after { display: block; }
+.schema-card:hover .sel-check,
+body.sel-mode .sel-check { opacity: 1; pointer-events: auto; }
+
+/* ── Multi-select action bar (slides up from bottom) ─────────────────── */
+#sel-bar {
+  position: fixed; bottom: -64px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  z-index: 480; transition: bottom .22s cubic-bezier(0.22,1,0.36,1);
+  white-space: nowrap;
+}
+#sel-bar.visible { bottom: 20px; }
+#sel-bar-count {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  min-width: 90px;
+}
+#sel-bar-count strong { color: var(--text); }
+#sel-bar .sel-bar-btn {
+  height: 30px; padding: 0 14px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-inset);
+  color: var(--text-muted); transition: all .12s; white-space: nowrap;
+}
+#sel-bar .sel-bar-btn:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+#sel-bar .sel-bar-btn.join {
+  background: rgba(167,139,250,0.1); border-color: rgba(167,139,250,0.35);
+  color: #c4b5fd;
+}
+#sel-bar .sel-bar-btn.join:hover { background: rgba(167,139,250,0.2); }
+#sel-bar .sel-bar-btn.join:disabled { opacity: .4; cursor: default; }
+#sel-bar .sel-bar-btn.danger {
+  background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.3);
+  color: var(--red);
+}
+#sel-bar .sel-bar-btn.danger:hover { background: rgba(248,113,113,0.18); }
+#sel-bar-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+
+/* Compare bar */
+#compare-bar {
+  display: none; margin-bottom: 14px; padding: 10px 14px;
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--r-md); align-items: center; gap: 10px; flex-wrap: wrap;
+}
+#compare-bar.visible { display: flex; }
+
+/* Empty state */
+#empty {
+  text-align: center; color: var(--text-muted); font-size: 13px;
+  padding: 60px 32px; display: flex; flex-direction: column;
+  align-items: center; gap: 12px;
+}
+#empty .empty-icon { opacity: 0.25; }
+#empty .empty-title { font-size: 14px; font-weight: 500; color: var(--text); }
+#empty .empty-hint { font-size: 12px; color: var(--text-muted); max-width: 320px; line-height: 1.5; }
+
+/* Import preview modal (Rank 10) */
+#preview-modal {
+  display: none; position: fixed; inset: 0; z-index: 9991;
+  background: rgba(0,0,0,0.75); align-items: center; justify-content: center;
+}
+#preview-modal.open { display: flex; }
+#preview-modal-box {
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 24px; width: 720px; max-width: 97vw;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+  display: flex; flex-direction: column; gap: 14px;
+}
+#preview-modal-box h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 0; }
+#preview-modal-box .pm-subtitle { font-size: 11px; color: var(--text-muted); margin-top: -6px; }
+#preview-table-wrap {
+  overflow: auto; max-height: 240px;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+}
+#preview-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+  font-family: var(--font-mono, monospace);
+}
+#preview-table th {
+  position: sticky; top: 0; background: var(--surface-inset);
+  padding: 5px 10px; text-align: left; font-weight: 600; color: var(--text);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+#preview-table td {
+  padding: 4px 10px; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.04);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#preview-table tr:last-child td { border-bottom: none; }
+.pm-meta { font-size: 11px; color: var(--text-muted); }
+.pm-meta strong { color: var(--text); }
+.pm-sqlite-list { font-size: 12px; color: var(--text); padding: 8px 0; }
+.pm-sqlite-list li { padding: 3px 0; }
+.pm-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* Join modal */
+#join-modal {
+  display: none; position: fixed; inset: 0; z-index: 9990;
+  background: rgba(0,0,0,0.7); align-items: center; justify-content: center;
+}
+#join-modal.open { display: flex; }
+#join-modal-box {
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 24px; width: 500px; max-width: 96vw;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+}
+#join-modal-box h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+.join-modal-section { margin-bottom: 14px; }
+.join-modal-section label {
+  font-size: var(--section-label-size); color: var(--text-dim); font-weight: 700;
+  text-transform: uppercase; letter-spacing: var(--section-label-spacing);
+  display: block; margin-bottom: 5px;
+}
+.join-modal-section input {
+  width: 100%; background: var(--surface-inset); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text); padding: 7px 10px;
+  font-size: 13px; outline: none; font-family: inherit;
+}
+.join-modal-section input:focus { border-color: var(--accent-border); }
+.join-alias-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.join-alias-row .member-name { flex: 1; font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.join-alias-row input { width: 140px; flex-shrink: 0; background: var(--surface-inset); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); padding: 5px 8px; font-size: 12px; outline: none; font-family: monospace; }
+.join-alias-row input:focus { border-color: var(--accent-border); }
+.join-modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.join-picker-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; transition: background .1s; user-select: none; }
+.join-picker-row:hover { background: rgba(255,255,255,0.04); }
+.join-picker-row input[type=checkbox] { accent-color: var(--accent); width: 13px; height: 13px; flex-shrink: 0; cursor: pointer; }
+.join-picker-name { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Command palette */
+#palette { display: none; position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,0.65); align-items: flex-start; justify-content: center; padding-top: 80px; }
+.palette-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; color: var(--text); font-size: 13px; transition: background .1s; outline: none; }
+.palette-item:hover, .palette-item:focus { background: rgba(255,255,255,0.06); }
+.palette-icon  { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+.palette-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-sub   { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.palette-type  { font-size: 10px; background: rgba(255,255,255,0.07); color: var(--text-dim); padding: 1px 5px; border-radius: 10px; font-family: monospace; flex-shrink: 0; }
+
+/* Indeterminate progress animation */
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); width: 40%; }
+  50%  { transform: translateX(60%);   width: 60%; }
+  100% { transform: translateX(200%);  width: 40%; }
+}
+
+/* ── Connection Info modal ────────────────────────────────────────────── */
+#conn-info-modal {
+  display: none; position: fixed; inset: 0; z-index: 9992;
+  background: rgba(0,0,0,0.55); align-items: center; justify-content: center;
+}
+#conn-info-modal.open { display: flex; }
+#conn-info-box {
+  background: var(--surface-card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); width: 500px; max-width: 95vw;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  display: flex; flex-direction: column;
+}
+#conn-info-hdr {
+  display: flex; align-items: center; gap: 10px; padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#conn-info-hdr h3 { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; margin: 0; }
+#conn-info-close {
+  width: 28px; height: 28px; background: none; border: none;
+  color: var(--text-muted); cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); transition: background .12s;
+}
+#conn-info-close:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+#conn-info-body { padding: 16px 18px; flex: 1; overflow-y: auto; }
+.ci-section { margin-bottom: 16px; }
+.ci-section:last-child { margin-bottom: 0; }
+.ci-section-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 8px;
+}
+.ci-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
+.ci-label {
+  color: var(--text-muted); width: 110px; flex-shrink: 0;
+  padding-top: 5px; font-size: 11px;
+}
+.ci-value {
+  color: var(--text); font-family: Consolas, "Courier New", monospace;
+  font-size: 11.5px; word-break: break-all; flex: 1;
+  background: var(--surface-inset); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; line-height: 1.5; min-height: 28px;
+}
+.ci-value.ci-masked { letter-spacing: 0.15em; color: var(--text-dim); user-select: none; }
+.ci-copy, .ci-reveal {
+  flex-shrink: 0; width: 26px; height: 26px; margin-top: 1px;
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-dim); cursor: pointer; font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+}
+.ci-copy:hover, .ci-reveal:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+.ci-name-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.ci-name-input {
+  flex: 1; background: var(--surface-inset); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text); padding: 6px 10px; font-size: 13px;
+  outline: none; font-family: inherit; transition: border-color .15s;
+}
+.ci-name-input:focus { border-color: rgba(29,237,131,0.4); }
+.ci-save-btn {
+  height: 32px; padding: 0 14px; background: var(--green-bg);
+  border: 1px solid var(--green-border); color: var(--green);
+  border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: all .15s;
+}
+.ci-save-btn:hover { background: rgba(29,237,131,0.22); }
+.ci-save-btn:disabled { opacity: .4; cursor: default; }
+#conn-info-footer {
+  display: flex; justify-content: flex-end; padding: 12px 18px;
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+{% set active_nav = 'sources' %}
+{% include '_global_nav.html' %}
+
+<!-- ── Sources action bar ─────────────────────────────────────────── -->
+<div id="topbar">
+  <!-- Left: Add Source -->
+  <button id="btn-add-source" class="tbtn accent" onclick="openAddSourceDrawer()" title="Add a new data source">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Source
+  </button>
+  <div class="tb-sep"></div>
+  <!-- Join Schemas -->
+  <button id="tb-join-btn" class="tbtn" onclick="openJoinModalDirect()" title="Create a joined schema from multiple sources">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+    Join Schemas
+  </button>
+  <!-- Compare -->
+  <button id="btn-compare-mode" class="tbtn" onclick="toggleCompareMode()" title="Select two schemas to compare side-by-side">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+    Compare
+  </button>
+  <div class="tb-sep"></div>
+  <!-- View toggle: List / Grid -->
+  <div id="tb-view-toggle" style="display:flex;align-items:center;gap:1px;background:var(--surface-inset);border:1px solid var(--border);border-radius:var(--r-sm);padding:2px;">
+    <button class="tbtn active" id="btn-view-list" onclick="setSchemaView('list')" title="List view"
+      style="height:24px;padding:0 8px;border:none;border-radius:3px;font-size:11px;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      List
+    </button>
+    <button class="tbtn" id="btn-view-grid" onclick="setSchemaView('grid')" title="Grid view"
+      style="height:24px;padding:0 8px;border:none;border-radius:3px;font-size:11px;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Grid
+    </button>
+  </div>
+  <!-- Spacer pushes search + logs to the right -->
+  <div class="tb-spacer"></div>
+  <!-- Global search trigger -->
+  <button class="tbtn" onclick="openPalette()" title="Search tables &amp; columns (⌘K)" style="min-width:180px;justify-content:flex-start;gap:6px;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <span style="flex:1;text-align:left;color:var(--text-dim);font-weight:400;font-size:11px;">Search tables &amp; columns…</span>
+    <span class="shortcut-hint">⌘K</span>
+  </button>
+  <div class="tb-gap"></div>
+  <!-- Logs -->
+  <button class="tbtn" id="btn-open-logs" onclick="openLogsDrawer()" title="Pipeline Logs">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    Logs
+  </button>
+</div>
+
+<!-- ── Add Source Drawer (left slide-in) ────────────────────────────── -->
+<div id="add-source-backdrop" onclick="closeAddSourceDrawer()"></div>
+<div id="add-source-drawer">
+  <div id="add-source-drawer-hdr">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <span class="drawer-title">Add Data Source</span>
+    <button id="add-source-drawer-close" onclick="closeAddSourceDrawer()" title="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div id="add-source-drawer-body">
+    <div class="conn-tabs">
+      <button class="conn-tab active" data-tab="file">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        File Upload
+      </button>
+      <button class="conn-tab" data-tab="connstring">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Connection String
+      </button>
+      <button class="conn-tab" data-tab="form">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        DB Form
+      </button>
+      <button class="conn-tab" data-tab="url">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Remote URL
+      </button>
+      <button class="conn-tab" data-tab="libsql">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        libSQL / Turso
+      </button>
+      <button class="conn-tab" data-tab="mongodb">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4caf7d" stroke-width="2"><path d="M12 2C8 2 5 6.5 5 10c0 4.5 4.5 10 7 12 2.5-2 7-7.5 7-12 0-3.5-3-8-7-8z"/></svg>
+        MongoDB
+      </button>
+      <button class="conn-tab" data-tab="snowflake">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#29b6f6" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/><circle cx="12" cy="12" r="2"/></svg>
+        Snowflake
+      </button>
+      <button class="conn-tab" data-tab="bigquery">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#4285f4" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+        BigQuery
+      </button>
+      <button class="conn-tab" data-tab="supabase">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Supabase
+      </button>
+      <button class="conn-tab" data-tab="restapi">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#f9a825" stroke-width="2"><path d="M4 6h16M4 10h16M4 14h8"/><circle cx="17" cy="17" r="3"/><path d="m21 21-1.9-1.9"/></svg>
+        REST API
+      </button>
+    </div>
+
+    <!-- File upload panel -->
+    <div class="tab-panel active" id="panel-file">
+        <div id="upload-zone" tabindex="0"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleDrop(event)"
+             onclick="document.getElementById('file-input').click()">
+          <svg class="uz-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div class="uz-text">
+            <div class="uz-title">Drop files here or <strong>click to browse</strong></div>
+            <div class="uz-hint">Multiple files &middot; .db &middot; .sqlite &middot; .sql &middot; .sql.gz &middot; .csv &middot; .json &middot; .jsonl &middot; .xlsx &middot; .parquet</div>
+          </div>
+          <input type="file" id="file-input" accept=".db,.sqlite,.sqlite3,.sql,.gz,.sql.gz,.csv,.json,.jsonl,.ndjson,.xlsx,.xls,.parquet" multiple onchange="handleFileInput(event)"/>
+        </div>
+        <div id="upload-queue" style="display:none"></div>
+      </div>
+
+      <!-- Connection string panel -->
+      <div class="tab-panel" id="panel-connstring">
+        <div class="conn-row">
+          <div class="field">
+            <label>Connection string</label>
+            <input id="cs-input" type="text"
+                   placeholder="postgresql://user:pass@host:5432/dbname   or   mysql://...   or   sqlite:///path/to/file.db"
+                   autocomplete="off" spellcheck="false"/>
+          </div>
+          <button class="btn-primary" id="cs-btn" onclick="submitConnstring()">Connect</button>
+        </div>
+        <div class="progress-label" id="cs-status" style="margin-top:8px"></div>
+      </div>
+
+      <!-- DB form panel -->
+      <div class="tab-panel" id="panel-form">
+        <div class="form-grid">
+          <div class="field"><label>Host</label><input id="db-host" type="text" value="localhost" autocomplete="off"/></div>
+          <div class="field" style="max-width:100px;"><label>Port</label><input id="db-port" type="number" value="5432"/></div>
+          <div class="field"><label>Database</label><input id="db-name" type="text" placeholder="mydb" autocomplete="off"/></div>
+          <div class="field"><label>User</label><input id="db-user" type="text" autocomplete="off"/></div>
+          <div class="field"><label>Password</label><input id="db-pass" type="password" autocomplete="off"/></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:flex-end;">
+          <div class="field" style="max-width:180px;">
+            <label>Engine</label>
+            <select id="db-engine" onchange="updateDefaultPort()">
+              <option value="postgresql">PostgreSQL</option>
+              <option value="mysql">MySQL / MariaDB</option>
+              <option value="sqlite">SQLite (path)</option>
+              <option value="mssql">SQL Server (MSSQL)</option>
+              <option value="clickhouse">ClickHouse</option>
+            </select>
+          </div>
+          <button class="btn-primary" onclick="submitForm()">Connect &amp; Extract</button>
+          <div class="progress-label" id="form-status" style="flex:1"></div>
+        </div>
+      </div>
+
+      <!-- Remote URL panel -->
+      <div class="tab-panel" id="panel-url">
+        <div class="url-row">
+          <div class="field">
+            <label>Remote SQL / dump URL</label>
+            <input id="url-input" type="url" placeholder="https://example.com/schema.sql.gz" autocomplete="off" spellcheck="false"/>
+          </div>
+          <button class="btn-primary" onclick="submitURL()">Download &amp; Extract</button>
+        </div>
+        <div class="progress-label" id="url-status" style="margin-top:8px"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.6;">
+          Accepts any publicly accessible URL to a <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">.sql</code>,
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">.sql.gz</code>,
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">.db</code> or
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">.csv</code> format.
+          <strong style="color:var(--yellow);">&#9888; Private GCS / S3:</strong> generate a signed URL first.
+        </div>
+      </div>
+
+      <!-- libSQL / Turso panel -->
+      <div class="tab-panel" id="panel-libsql">
+        <div class="url-row">
+          <div class="field">
+            <label>libSQL / Turso URL</label>
+            <input id="libsql-url" type="url" placeholder="libsql://yourdb.turso.io  or  https://yourdb.turso.io" autocomplete="off" spellcheck="false"/>
+          </div>
+          <div class="field" style="max-width:220px;">
+            <label>Auth Token <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional for local)</span></label>
+            <input id="libsql-token" type="password" placeholder="eyJ..." autocomplete="off"/>
+          </div>
+          <button class="btn-primary" onclick="submitLibSQL()">Connect</button>
+        </div>
+        <div class="progress-label" id="libsql-status" style="margin-top:8px"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.7;">
+          Connects to any <a href="https://turso.tech" target="_blank" style="color:var(--accent);text-decoration:none;">Turso</a> or self-hosted
+          <a href="https://github.com/tursodatabase/libsql" target="_blank" style="color:var(--accent);text-decoration:none;">libSQL</a> database via its HTTP API.
+          The URL format is <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">libsql://&lt;dbname&gt;-&lt;orgname&gt;.turso.io</code>  -  find it in your
+          <a href="https://app.turso.tech" target="_blank" style="color:var(--accent);text-decoration:none;">Turso dashboard</a> under the database's <strong>Connect</strong> tab.
+          The auth token is listed there too.
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+          URL format:
+          <a href="#" onclick="event.preventDefault();_libsqlFill('libsql://&lt;dbname&gt;-&lt;orgname&gt;.turso.io','');document.getElementById('libsql-url').select();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Turso Cloud
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_libsqlFill('http://localhost:8080','');document.getElementById('libsql-url').select();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Local sqld
+          </a>
+          &nbsp;&nbsp;<span style="color:var(--text-dim);">(fill in your own URL &amp; token)</span>
+        </div>
+      </div>
+
+      <!-- MongoDB panel -->
+      <div class="tab-panel" id="panel-mongodb">
+        <div class="form-grid">
+          <div class="field" style="grid-column:1/-1;">
+            <label>MongoDB URI</label>
+            <input id="mongo-uri" type="text" value="mongodb://localhost:27017" placeholder="mongodb://user:pass@host:27017  or  mongodb+srv://..." autocomplete="off" spellcheck="false"/>
+          </div>
+          <div class="field"><label>Database name</label><input id="mongo-db" type="text" placeholder="myDatabase" autocomplete="off"/></div>
+          <div class="field"><label>Sample size <span style="font-weight:400;text-transform:none;letter-spacing:0;">(docs per collection)</span></label><input id="mongo-sample" type="number" value="100" min="1" max="10000"/></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button class="btn-primary" onclick="submitMongoDB()">Connect &amp; Sample</button>
+          <div class="progress-label" id="mongo-status" style="flex:1"></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.7;">
+          Samples up to N documents per collection to infer the schema. Supports standalone,
+          replica sets, and Atlas
+          (<code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">mongodb+srv://</code>).
+          For Atlas, copy the connection string from your cluster's <strong>Connect → Drivers</strong> panel.
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+          URI format:
+          <a href="#" onclick="event.preventDefault();_mongoFill('mongodb://localhost:27017','',100);document.getElementById('mongo-db').focus();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Local
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_mongoFill('mongodb+srv://&lt;user&gt;:&lt;password&gt;@&lt;cluster&gt;.mongodb.net','',50);document.getElementById('mongo-uri').select();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Atlas (mongodb+srv)
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_mongoFill('mongodb://&lt;user&gt;:&lt;password&gt;@&lt;host&gt;:27017','',100);document.getElementById('mongo-uri').select();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Remote host
+          </a>
+          &nbsp;&nbsp;<span style="color:var(--text-dim);">(replace &lt;&gt; with your values)</span>
+        </div>
+      </div>
+
+      <!-- Snowflake panel -->
+      <div class="tab-panel" id="panel-snowflake">
+        <div class="form-grid" style="grid-template-columns:repeat(2,1fr);">
+          <div class="field" style="grid-column:1/-1;"><label>Account identifier</label><input id="sf-account" type="text" placeholder="orgname-accountname" autocomplete="off" spellcheck="false"/></div>
+          <div class="field"><label>User</label><input id="sf-user" type="text" autocomplete="off"/></div>
+          <div class="field"><label>Password</label><input id="sf-pass" type="password" autocomplete="off"/></div>
+          <div class="field"><label>Database</label><input id="sf-db" type="text" placeholder="MY_DB" autocomplete="off"/></div>
+          <div class="field"><label>Schema</label><input id="sf-schema" type="text" value="PUBLIC" autocomplete="off"/></div>
+          <div class="field" style="grid-column:1/-1;"><label>Warehouse <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label><input id="sf-warehouse" type="text" placeholder="COMPUTE_WH" autocomplete="off"/></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button class="btn-primary" onclick="submitSnowflake()">Connect &amp; Extract</button>
+          <div class="progress-label" id="sf-status" style="flex:1"></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.7;">
+          Find your account identifier in the Snowflake UI under
+          <strong>Admin → Accounts</strong>  -  it looks like
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">orgname-accountname</code>
+          (e.g. <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">acme-prod123</code>).
+          Snowflake's free <a href="https://trial.snowflake.com" target="_blank" style="color:var(--accent);text-decoration:none;">30-day trial</a>
+          includes the <strong>SNOWFLAKE_SAMPLE_DATA</strong> database.
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+          Fill template:
+          <a href="#" onclick="event.preventDefault();_sfFill('','','','MY_DATABASE','PUBLIC','COMPUTE_WH');document.getElementById('sf-account').focus();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Your account
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_sfFill('','','','SNOWFLAKE_SAMPLE_DATA','TPCH_SF1','COMPUTE_WH');document.getElementById('sf-account').focus();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Sample data (TPCH)
+          </a>
+          &nbsp;&nbsp;<span style="color:var(--text-dim);">(enter your account, user &amp; password)</span>
+        </div>
+      </div>
+
+      <!-- BigQuery panel -->
+      <div class="tab-panel" id="panel-bigquery">
+        <div class="form-grid">
+          <div class="field"><label>Project ID</label><input id="bq-project" type="text" placeholder="my-gcp-project" autocomplete="off" spellcheck="false"/></div>
+          <div class="field"><label>Dataset</label><input id="bq-dataset" type="text" placeholder="my_dataset" autocomplete="off"/></div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Service account JSON <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional - uses ADC if blank)</span></label>
+            <textarea id="bq-creds" rows="4" placeholder='{"type":"service_account","project_id":"..."}' autocomplete="off" spellcheck="false"
+              style="width:100%;background:var(--surface-inset);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:6px 8px;font-family:monospace;font-size:11px;resize:vertical;outline:none;"></textarea>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button class="btn-primary" onclick="submitBigQuery()">Connect &amp; Extract</button>
+          <div class="progress-label" id="bq-status" style="flex:1"></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.7;">
+          Leave Service account JSON blank to use
+          <a href="https://cloud.google.com/docs/authentication/application-default-credentials" target="_blank" style="color:var(--accent);text-decoration:none;">Application Default Credentials</a>
+          (gcloud CLI). BigQuery's
+          <a href="https://console.cloud.google.com/bigquery?p=bigquery-public-data" target="_blank" style="color:var(--accent);text-decoration:none;">public datasets</a>
+          are free to query  -  use project
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">bigquery-public-data</code>.
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+          Fill template:
+          <a href="#" onclick="event.preventDefault();_bqFill('','');document.getElementById('bq-project').focus();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Your project (ADC)
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_bqFill('bigquery-public-data','samples');document.getElementById('bq-project').focus();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Public samples dataset
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_bqFill('bigquery-public-data','chicago_taxi_trips');document.getElementById('bq-project').focus();"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Chicago taxi trips
+          </a>
+          &nbsp;&nbsp;<span style="color:var(--text-dim);">(public datasets require ADC or a service account)</span>
+        </div>
+      </div>
+
+      <!-- Supabase panel -->
+      <div class="tab-panel" id="panel-supabase">
+        <div class="form-grid">
+          <div class="field"><label>Project ref</label><input id="sb-ref" type="text" placeholder="abcdefghijklmnop" autocomplete="off" spellcheck="false"/></div>
+          <div class="field"><label>Database password</label><input id="sb-pass" type="password" autocomplete="off"/></div>
+          <div class="field">
+            <label>Region</label>
+            <select id="sb-region">
+              <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+              <option value="us-east-1" selected>us-east-1 (N. Virginia)</option>
+              <option value="us-west-1">us-west-1 (N. California)</option>
+              <option value="eu-west-1">eu-west-1 (Ireland)</option>
+              <option value="eu-west-2">eu-west-2 (London)</option>
+              <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+              <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+              <option value="ap-northeast-2">ap-northeast-2 (Seoul)</option>
+              <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+              <option value="sa-east-1">sa-east-1 (São Paulo)</option>
+              <option value="ca-central-1">ca-central-1 (Canada)</option>
+              <option value="au-southeast-1">au-southeast-1 (Sydney)</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;">
+          <button class="btn-primary" onclick="submitSupabase()">Connect &amp; Extract</button>
+          <div class="progress-label" id="sb-status" style="flex:1"></div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.7;">
+          Find your project ref in the Supabase dashboard URL:
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">app.supabase.com/project/<strong>&lt;ref&gt;</strong></code>.
+          The database password was set when you created the project (reset it under
+          <strong>Project Settings → Database</strong> if needed).
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">
+          Example:
+          <a href="#" onclick="event.preventDefault();_sbFill('abcdefghijklmnop','us-east-1')"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            My Supabase project
+          </a>
+        </div>
+      </div>
+
+      <!-- REST API panel -->
+      <div class="tab-panel" id="panel-restapi">
+        <div class="conn-row" style="flex-direction:column;gap:10px;">
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:260px;">
+              <label>API endpoint URL</label>
+              <input id="api-url" type="url"
+                     placeholder="https://api.example.com/v1/items"
+                     autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="field" style="max-width:180px;">
+              <label>Data path <span style="font-weight:400;text-transform:none;letter-spacing:0;">(key holding records array)</span></label>
+              <input id="api-data-path" type="text"
+                     placeholder="matches  or  data.items"
+                     autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="field" style="max-width:200px;">
+              <label>Display name <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
+              <input id="api-name" type="text" placeholder="My API" autocomplete="off"/>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:260px;">
+              <label>Authorization header value <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional - e.g. Bearer &lt;token&gt;)</span></label>
+              <input id="api-auth" type="text" placeholder="Bearer eyJ..." autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="field" style="max-width:160px;">
+              <label>Custom header name <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
+              <input id="api-header-name" type="text" placeholder="Authorization" autocomplete="off"/>
+            </div>
+            <button class="btn-primary" onclick="submitRestAPI()" style="flex-shrink:0;height:36px;margin-top:auto;">Fetch &amp; Import</button>
+          </div>
+        </div>
+        <div class="progress-label" id="api-status" style="margin-top:8px"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);line-height:1.7;">
+          Fetches a JSON REST endpoint and imports the records as a queryable table.
+          Set <strong>Data path</strong> to the key in the response that contains the array of records
+          (e.g. <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">data</code> for
+          <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">{"data":[...]}</code>).
+          Leave blank if the response root is an array.
+          Nested fields are flattened with dot notation
+          (e.g. <code style="font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">address.city</code>).
+        </div>
+        <!-- Quick-fill examples -->
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted);">
+          Try it:
+          <a href="#" onclick="event.preventDefault();_apiFill('https://jsonplaceholder.typicode.com/users','','JSONPlaceholder users','')"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            JSONPlaceholder users
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_apiFill('https://jsonplaceholder.typicode.com/posts','','JSONPlaceholder posts','')"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            JSONPlaceholder posts
+          </a>
+          &nbsp;&middot;&nbsp;
+          <a href="#" onclick="event.preventDefault();_apiFill('https://api.open-meteo.com/v1/forecast?latitude=40.71&longitude=-74.01&daily=temperature_2m_max,precipitation_sum&forecast_days=14&format=json','daily','Open-Meteo NYC forecast','')"
+             style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(167,139,250,0.35);">
+            Open-Meteo weather
+          </a>
+        </div>
+    </div>
+
+  </div><!-- /add-source-drawer-body -->
+</div><!-- /add-source-drawer -->
+
+<!-- ── Main body ──────────────────────────────────────────────────── -->
+<div id="body-wrap">
+  <div id="main-content">
+
+  <!-- Schema list section -->
+  <div id="list-section">
+    <div id="list-inner">
+
+      <!-- Compare bar -->
+      <div id="compare-bar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="flex-shrink:0;"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+        <span style="font-size:12px;color:var(--text-muted);flex:1;">Select 2 schemas to compare or join</span>
+        <span id="cmp-a-label" style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(96,165,250,0.12);color:#60a5fa;"></span>
+        <span style="font-size:11px;color:var(--text-dim);">vs</span>
+        <span id="cmp-b-label" style="font-size:11px;padding:2px 8px;border-radius:4px;background:var(--accent-bg);color:var(--accent);"></span>
+        <button id="cmp-btn" onclick="openDiff()" disabled
+          style="height:28px;padding:0 14px;background:var(--accent-bg);border:1px solid var(--accent-border);color:var(--accent);border-radius:4px;font-size:11px;cursor:pointer;transition:all .12s;white-space:nowrap;opacity:0.5;">
+          Compare &rarr;
+        </button>
+        <button id="join-btn" onclick="openJoinModal()" style="display:none;height:28px;padding:0 14px;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.3);color:#c4b5fd;border-radius:4px;font-size:11px;cursor:pointer;transition:all .12s;white-space:nowrap;">
+          &#10012; Join Schemas
+        </button>
+        <button onclick="clearCompare()" style="height:28px;padding:0 10px;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;font-size:11px;cursor:pointer;">Clear</button>
+      </div>
+
+      <!-- Schema cards list -->
+      <div id="schema-list">
+        {% if files %}
+          {% for f in files %}
+          {% if f.source == 'join' %}
+          <div class="schema-card join-card" id="card-{{ f.key }}"
+               data-join-key="{{ f.key }}"
+               data-join-name="{{ f.name | e }}"
+               data-join-members="{{ f.members | tojson | e }}"
+               data-ts="{{ f.processed or f.uploaded or '' }}">
+            <div class="sel-check" id="sel-{{ f.key }}" title="Select"></div>
+            <span class="badge-join">JOIN</span>
+            <div class="card-info">
+              <div class="card-name" id="jname-{{ f.key }}">{{ f.name }}</div>
+              <div class="card-members" id="jmembers-{{ f.key }}">{{ f.members | map(attribute='alias') | join(' &#10753; ') }}</div>
+              <div class="card-meta" id="jmeta-{{ f.key }}">{{ f.tables or 0 }} tables (merged)</div>
+              <div class="card-ts" id="jts-{{ f.key }}"></div>
+            </div>
+            <div class="card-actions">
+              <a class="btn-card btn-erd" href="/erd/{{ f.key }}">&#9655; ERD</a>
+              <a class="btn-card" href="/browse/{{ f.key }}">&#128065; Browse</a>
+              <a class="btn-card" href="/join/{{ f.key }}">&#9654; Query</a>
+              <div class="card-more-wrap">
+                <button class="btn-card" onclick="toggleMoreMenu(this)" title="More actions">&#8943;</button>
+                <div class="card-more-menu">
+                  <a class="card-more-item" href="/report/{{ f.key }}">&#128196; Reports</a>
+                  <a class="card-more-item" href="/dashboard/{{ f.key }}">&#9783; Dashboard</a>
+                  <div class="card-more-sep"></div>
+                  <div class="card-more-item" onclick="openUpdateJoinModal('{{ f.key }}')">&#9998; Edit Join</div>
+                  <div class="card-more-item danger" onclick="deleteJoin('{{ f.key }}')">&#128465; Delete</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          {% set src = f.source or 'file' %}
+          {% set eng_cls =
+            'pg'        if src in ('postgresql','postgres') else
+            'mysql'     if src in ('mysql','mariadb') else
+            'mssql'     if src == 'mssql' else
+            'ch'        if src == 'clickhouse' else
+            'mongodb'   if src == 'mongodb' else
+            'snowflake' if src == 'snowflake' else
+            'bigquery'  if src == 'bigquery' else
+            'supabase'  if src == 'supabase' else
+            'url'       if src in ('url','libsql','turso') else
+            'sqlite'    if src in ('sqlite','file') else
+            'file' %}
+          {% set eng_icon =
+            '🐘' if eng_cls == 'pg' else
+            '🐬' if eng_cls == 'mysql' else
+            '🪟' if eng_cls == 'mssql' else
+            '🌐' if eng_cls == 'url' else
+            '⚡' if eng_cls == 'ch' else
+            '🍃' if eng_cls == 'mongodb' else
+            '❄' if eng_cls == 'snowflake' else
+            '◎' if eng_cls == 'bigquery' else
+            '⚡' if eng_cls == 'supabase' else
+            '📄' %}
+          <div class="schema-card state-{{ f.status }}" id="card-{{ f.key }}"
+               data-ts="{{ f.processed or f.uploaded or '' }}"
+               data-source="{{ src }}">
+            <div class="sel-check" id="sel-{{ f.key }}" title="Select"></div>
+            {% if f.status == 'ready' %}
+            <div class="compare-check" id="chk-{{ f.key }}" title="Select for comparison"></div>
+            {% endif %}
+            <div class="db-icon {{ eng_cls }}" id="dot-{{ f.key }}" title="{{ src }}">
+              <span style="font-size:16px;">{{ eng_icon }}</span>
+              <span class="dot dot-{{ f.status }}"
+                style="position:absolute;bottom:3px;right:3px;width:7px;height:7px;"></span>
+            </div>
+            <div class="card-info" style="position:relative;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="card-name">{{ f.name }}</div>
+                <span class="src-badge">{{ src.upper() }}</span>
+              </div>
+              {% if f.status == 'ready' %}
+                <div class="card-meta">{{ f.tables or 0 }} tables &middot; {{ f.fks or 0 }} FK{% if f.file_size %} &middot; <span class="card-size">{{ f.file_size }}</span>{% endif %}</div>
+                <div class="card-ts" data-ts="{{ f.processed or f.uploaded or '' }}"></div>
+              {% elif f.status == 'processing' %}
+                <div class="card-meta" id="meta-{{ f.key }}">Processing&hellip;</div>
+                <div class="card-progress"><div class="progress-bar-bg"><div class="progress-bar-fg" id="prog-{{ f.key }}" style="width:40%;animation:indeterminate 1.5s ease-in-out infinite;"></div></div></div>
+              {% elif f.status == 'error' %}
+                <div class="card-meta" style="color:var(--yellow)">Failed</div>
+                {% if f.error_msg %}<div class="card-error">{{ f.error_msg[:120] }}</div>{% endif %}
+              {% else %}
+                <div class="card-meta">Not yet processed</div>
+              {% endif %}
+            </div>
+            <div class="card-actions">
+              {% if f.status == 'ready' %}
+                <a class="btn-card btn-erd" href="/erd/{{ f.key }}">&#9655; ERD</a>
+                <a class="btn-card" href="/browse/{{ f.key }}">&#128065; Browse</a>
+                <a class="btn-card" href="/query/{{ f.key }}">&#9654; Query</a>
+                <div class="card-more-wrap">
+                  <button class="btn-card" onclick="toggleMoreMenu(this)" title="More actions">&#8943;</button>
+                  <div class="card-more-menu">
+                    <a class="card-more-item" href="/report/{{ f.key }}">&#128196; Reports</a>
+                    <a class="card-more-item" href="/dashboard/{{ f.key }}">&#9783; Dashboard</a>
+                    <div class="card-more-sep"></div>
+                    <div class="card-more-item" onclick="openConnInfo('{{ f.key }}')">&#9432; Connection Info</div>
+                    <div class="card-more-item" onclick="triggerProcess('{{ f.key }}')">&#8635; Re-run Pipeline</div>
+                    <div class="card-more-item" onclick="showLogs('{{ f.key }}', '{{ f.name | e }}')">&#128196; View Logs</div>
+                    <div class="card-more-sep"></div>
+                    <div class="card-more-item danger" onclick="deleteEntry('{{ f.key }}')">&#128465; Delete</div>
+                  </div>
+                </div>
+              {% else %}
+                {% if f.status != 'processing' %}
+                  <button class="btn-card btn-retry" data-key="{{ f.key }}">
+                    {% if f.status == 'error' %}Retry{% else %}Process{% endif %}
+                  </button>
+                {% else %}
+                  <button class="btn-card" disabled>Processing&hellip;</button>
+                {% endif %}
+                <button class="btn-card btn-logs" data-key="{{ f.key }}" data-name="{{ f.name | e }}">Logs</button>
+                <button class="btn-card" onclick="openConnInfo('{{ f.key }}')">&#9432; Info</button>
+                {% if f.status != 'processing' %}
+                <button class="btn-card btn-delete" data-key="{{ f.key }}">Delete</button>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        {% else %}
+          <div id="empty">
+            <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <div class="empty-title">No data sources yet</div>
+            <div class="empty-hint">Click <strong>Add Source</strong> to connect a database, upload a file, or import from a URL.</div>
+            <button id="btn-add-source-empty" onclick="openAddSourceDrawer()" style="margin-top:4px;height:32px;padding:0 16px;background:rgba(29,237,131,0.1);border:1px solid rgba(29,237,131,0.35);color:var(--green);font-size:12px;font-weight:600;border-radius:var(--r-md);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .12s;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Source
+            </button>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div><!-- /list-section -->
+  </div><!-- /main-content -->
+</div><!-- /body-wrap -->
+
+<!-- ── Multi-select action bar ──────────────────────────────────────── -->
+<div id="sel-bar">
+  <span id="sel-bar-count"><strong>0</strong> selected</span>
+  <div id="sel-bar-sep"></div>
+  <button class="sel-bar-btn join" id="sel-bar-join" onclick="selBarJoin()" title="Join selected schemas">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>Join
+  </button>
+  <button class="sel-bar-btn danger" onclick="selBarDelete()" title="Delete selected sources">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>Delete
+  </button>
+  <button class="sel-bar-btn" onclick="selBarClear()" title="Clear selection" style="color:var(--text-dim);">&#10005; Clear</button>
+</div>
+
+<!-- ── Logs slide-in drawer ────────────────────────────────────────── -->
+<div id="logs-drawer-backdrop" onclick="closeLogsDrawer()"></div>
+<div id="logs-drawer">
+  <div id="logs-drawer-hdr">
+    <span id="logs-drawer-title">Pipeline Logs</span>
+    <span id="logs-drawer-key">- select a job to view logs -</span>
+    <button id="logs-drawer-clear" onclick="clearLogs()">Clear</button>
+    <button id="logs-drawer-close" onclick="closeLogsDrawer()" title="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div id="logs-drawer-body" class="empty">Select a job above to view its logs</div>
+</div>
+
+<!-- ── Command palette ──────────────────────────────────────────────── -->
+<div id="palette" style="display:none;align-items:flex-start;justify-content:center;padding-top:80px;">
+  <div style="background:var(--surface-card);border:1px solid var(--border);border-radius:var(--r-lg);width:560px;max-width:95vw;box-shadow:0 16px 48px rgba(0,0,0,0.7);overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input id="palette-input" type="text" placeholder="Search schemas, tables, columns, actions…"
+             style="flex:1;background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:inherit;"
+             oninput="_paletteSearch(this.value)"
+             onkeydown="if(event.key==='Escape') closePalette();if(event.key==='ArrowDown'){const f=document.querySelector('.palette-item');if(f)f.focus();event.preventDefault();}"/>
+      <button onclick="closePalette()" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;line-height:1;">&#10005;</button>
+    </div>
+    <div id="palette-results" style="max-height:360px;overflow-y:auto;padding:4px 0;"></div>
+  </div>
+</div>
+
+<!-- ── Import Preview Modal (Rank 10) ───────────────────────────────── -->
+<div id="preview-modal">
+  <div id="preview-modal-box">
+    <h3 id="pm-title">&#128269; File Preview</h3>
+    <p class="pm-subtitle" id="pm-subtitle"></p>
+    <!-- Tabular preview -->
+    <div id="pm-tabular">
+      <div id="preview-table-wrap">
+        <table id="preview-table"><thead id="pm-thead"></thead><tbody id="pm-tbody"></tbody></table>
+      </div>
+      <p class="pm-meta" id="pm-meta"></p>
+    </div>
+    <!-- SQLite table list -->
+    <div id="pm-sqlite" style="display:none">
+      <p class="pm-meta">Tables detected in this SQLite file:</p>
+      <ul id="pm-sqlite-list" class="pm-sqlite-list"></ul>
+    </div>
+    <div class="pm-footer">
+      <button class="btn-card" id="pm-cancel-btn">Cancel</button>
+      <button class="btn-primary" id="pm-confirm-btn" style="padding:7px 18px;font-size:12px;">Import File</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Join Schemas Modal ───────────────────────────────────────────── -->
+<div id="join-modal">
+  <div id="join-modal-box">
+    <h3 id="join-modal-title">&#10012; Create Join Schema</h3>
+    <div class="join-modal-section" id="join-picker-section" style="display:none;">
+      <label>Select Schemas to Join</label>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.5;">Pick 2 or more. Reference tables as <code style="font-family:monospace;font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">alias.tablename</code>.</p>
+      <div id="join-picker-rows" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);padding:4px 0;background:var(--surface-inset);"></div>
+      <p id="join-picker-hint" style="font-size:11px;color:var(--red);margin-top:6px;display:none;">Select at least 2 schemas</p>
+    </div>
+    <div class="join-modal-section">
+      <label>Join Name</label>
+      <input id="join-modal-name" type="text" placeholder="e.g. Medicine + Hospital" autocomplete="off"/>
+    </div>
+    <div class="join-modal-section">
+      <label>Schema Aliases</label>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.5;">Tables will be accessed as <code style="font-family:monospace;font-size:10px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px;">alias.tablename</code>.</p>
+      <div id="join-alias-rows"></div>
+    </div>
+    <div class="join-modal-footer">
+      <button class="btn-card" onclick="closeJoinModal()">Cancel</button>
+      <button id="join-confirm-btn" class="btn-primary" onclick="confirmJoin()" style="padding:7px 18px;font-size:12px;">Create Join</button>
+    </div>
+  </div>
+</div>
+<input type="hidden" id="join-update-key" value=""/>
+
+<!-- ── Connection Info modal ─────────────────────────────────────────── -->
+<div id="conn-info-modal" onclick="if(event.target===this)closeConnInfo()">
+  <div id="conn-info-box">
+    <div id="conn-info-hdr">
+      <h3>&#9432; Connection Details</h3>
+      <button id="conn-info-close" onclick="closeConnInfo()" title="Close">&#10005;</button>
+    </div>
+    <div id="conn-info-body">
+      <!-- filled dynamically -->
+    </div>
+    <div id="conn-info-footer">
+      <button class="btn-card" onclick="closeConnInfo()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.BASE_PATH = {{ base_path | tojson }};
+
+// ── Add-source drawer ─────────────────────────────────────────────────────────
+function openAddSourceDrawer(tab) {
+  document.getElementById('add-source-drawer').classList.add('open');
+  document.getElementById('add-source-backdrop').classList.add('open');
+  if (tab) {
+    const tabBtn = document.querySelector('.conn-tab[data-tab="' + tab + '"]');
+    if (tabBtn) tabBtn.click();
+  }
+}
+function closeAddSourceDrawer() {
+  document.getElementById('add-source-drawer').classList.remove('open');
+  document.getElementById('add-source-backdrop').classList.remove('open');
+}
+
+// ── Connector tab switching ───────────────────────────────────────────────────
+document.querySelectorAll('.conn-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.conn-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Timestamp formatting ──────────────────────────────────────────────────────
+function _fmtTs(epochSeconds) {
+  if (!epochSeconds) return '';
+  const d    = new Date(epochSeconds * 1000);
+  const now  = Date.now();
+  const diff = Math.round((now - d.getTime()) / 1000);
+  let rel;
+  if (diff < 60)           rel = 'just now';
+  else if (diff < 3600)    rel = Math.round(diff / 60) + ' min ago';
+  else if (diff < 86400)   rel = Math.round(diff / 3600) + ' hr ago';
+  else if (diff < 2592000) rel = Math.round(diff / 86400) + ' day' + (Math.round(diff/86400)!==1?'s':'') + ' ago';
+  else rel = null;
+  const abs = d.toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  return rel ? `Synced ${rel} · ${abs}` : `Synced ${abs}`;
+}
+function _applyTimestamps() {
+  document.querySelectorAll('.schema-card[data-ts]').forEach(card => {
+    const ts  = parseFloat(card.dataset.ts);
+    const els = card.querySelectorAll('.card-ts');
+    const txt = ts ? _fmtTs(ts) : '';
+    els.forEach(el => { el.textContent = txt; });
+  });
+}
+_applyTimestamps();
+
+// ── List / Grid view toggle ───────────────────────────────────────────────────
+function setSchemaView(mode) {
+  const list = document.getElementById('schema-list');
+  const btnL = document.getElementById('btn-view-list');
+  const btnG = document.getElementById('btn-view-grid');
+  if (!list) return;
+  if (mode === 'grid') {
+    list.classList.add('grid-view');
+    btnG && btnG.classList.add('active');
+    btnL && btnL.classList.remove('active');
+  } else {
+    list.classList.remove('grid-view');
+    btnL && btnL.classList.add('active');
+    btnG && btnG.classList.remove('active');
+  }
+  try { localStorage.setItem('erd-schema-view', mode); } catch(e) {}
+}
+(function() { var v = localStorage.getItem('erd-schema-view'); if (v === 'grid') setSchemaView('grid'); })();
+
+// ── Card more-menu toggle ─────────────────────────────────────────────────────
+// Menu uses position:fixed so it escapes overflow:hidden on grid cards.
+// Coordinates are calculated from the trigger button's bounding rect.
+function toggleMoreMenu(btn) {
+  const wrap = btn.closest('.card-more-wrap');
+  if (!wrap) return;
+  const isOpen = wrap.classList.contains('open');
+  // Close all open menus first
+  document.querySelectorAll('.card-more-wrap.open').forEach(w => w.classList.remove('open'));
+  if (isOpen) return;
+  // Position the menu relative to the button using viewport coords
+  const menu = wrap.querySelector('.card-more-menu');
+  if (menu) {
+    const rect = btn.getBoundingClientRect();
+    const menuW = 160; // min-width from CSS
+    // Prefer right-aligned; flip left if it would overflow viewport
+    const left = (rect.right - menuW < 0) ? rect.left : rect.right - menuW;
+    const top  = rect.bottom + 4;
+    menu.style.top  = top + 'px';
+    menu.style.left = left + 'px';
+    menu.style.right = '';
+  }
+  wrap.classList.add('open');
+}
+// Close menus on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.card-more-wrap')) {
+    document.querySelectorAll('.card-more-wrap.open').forEach(w => w.classList.remove('open'));
+  }
+});
+// Close menus on scroll (fixed menus drift otherwise)
+document.getElementById('list-section')?.addEventListener('scroll', () => {
+  document.querySelectorAll('.card-more-wrap.open').forEach(w => w.classList.remove('open'));
+}, { passive: true });
+
+// ── File upload ───────────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag');
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length) _startImport(files);
+}
+function handleFileInput(e) {
+  const files = Array.from(e.target.files);
+  if (files.length) _startImport(files);
+  e.target.value = '';
+}
+
+// ── Import preview flow (Rank 10) ─────────────────────────────────────────────
+// For single-file imports of supported flat formats, show a preview modal so
+// the user can verify columns and rows before committing to the full upload.
+// Multi-file batches skip the preview and go straight to enqueueFiles().
+
+const _PREVIEW_EXTS = new Set(['.csv', '.xlsx', '.xls', '.json', '.jsonl', '.ndjson', '.db', '.sqlite', '.sqlite3']);
+
+function _fileExt(name) {
+  const idx = name.lastIndexOf('.');
+  return idx >= 0 ? name.slice(idx).toLowerCase() : '';
+}
+
+async function _startImport(files) {
+  // Only preview single files with a supported extension
+  if (files.length === 1 && _PREVIEW_EXTS.has(_fileExt(files[0].name))) {
+    const confirmed = await _showPreviewModal(files[0]);
+    if (!confirmed) return;
+  }
+  enqueueFiles(files);
+}
+
+async function _showPreviewModal(file) {
+  return new Promise(resolve => {
+    const modal     = document.getElementById('preview-modal');
+    const title     = document.getElementById('pm-title');
+    const subtitle  = document.getElementById('pm-subtitle');
+    const tabular   = document.getElementById('pm-tabular');
+    const sqliteDiv = document.getElementById('pm-sqlite');
+    const thead     = document.getElementById('pm-thead');
+    const tbody     = document.getElementById('pm-tbody');
+    const meta      = document.getElementById('pm-meta');
+    const sqliteUl  = document.getElementById('pm-sqlite-list');
+    const cancelBtn = document.getElementById('pm-cancel-btn');
+    const confirmBtn= document.getElementById('pm-confirm-btn');
+
+    title.textContent   = '🔍 Preview - ' + file.name;
+    subtitle.textContent = 'Loading first 5 rows…';
+    thead.innerHTML = ''; tbody.innerHTML = '';
+    sqliteUl.innerHTML = '';
+    tabular.style.display = ''; sqliteDiv.style.display = 'none';
+    meta.textContent = '';
+    confirmBtn.disabled = true;
+    modal.classList.add('open');
+
+    // Wire up close/confirm buttons (one-shot)
+    function onCancel()  { cleanup(); modal.classList.remove('open'); resolve(false); }
+    function onConfirm() { cleanup(); modal.classList.remove('open'); resolve(true); }
+    function onOverlay(ev) { if (ev.target === modal) onCancel(); }
+    function cleanup() {
+      cancelBtn.removeEventListener('click', onCancel);
+      confirmBtn.removeEventListener('click', onConfirm);
+      modal.removeEventListener('click', onOverlay);
+    }
+    cancelBtn.addEventListener('click', onCancel);
+    confirmBtn.addEventListener('click', onConfirm);
+    modal.addEventListener('click', onOverlay);
+
+    // Send the file to the preview endpoint (reads only up to 4 MB server-side)
+    const fd = new FormData();
+    fd.append('file', file);
+    fetch('/api/preview', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          subtitle.textContent = '⚠ ' + data.error;
+          confirmBtn.disabled = false;
+          return;
+        }
+        if (data.type === 'unsupported') {
+          subtitle.textContent = 'Preview not available for this file type.';
+          confirmBtn.disabled = false;
+          return;
+        }
+        if (data.type === 'sqlite') {
+          subtitle.textContent = 'SQLite database - ' + data.tables.length + ' table' + (data.tables.length !== 1 ? 's' : '') + ' detected';
+          tabular.style.display = 'none'; sqliteDiv.style.display = '';
+          sqliteUl.innerHTML = data.tables.map(t => `<li>${_esc(t)}</li>`).join('');
+          confirmBtn.disabled = false;
+          return;
+        }
+        // tabular
+        subtitle.textContent = data.total_cols + ' column' + (data.total_cols !== 1 ? 's' : '') + ' detected';
+        const cols = data.columns || [];
+        thead.innerHTML = '<tr>' + cols.map(c => `<th>${_esc(c)}</th>`).join('') + '</tr>';
+        const rows = data.rows || [];
+        tbody.innerHTML = rows.map(r =>
+          '<tr>' + cols.map((_, i) => `<td>${_esc(r[i] !== undefined ? String(r[i]) : '')}</td>`).join('') + '</tr>'
+        ).join('');
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="${cols.length || 1}" style="text-align:center;padding:12px;color:var(--text-muted);">No data rows found</td></tr>`;
+        }
+        meta.textContent = 'Showing first ' + rows.length + ' row' + (rows.length !== 1 ? 's' : '') + ' of preview.';
+        confirmBtn.disabled = false;
+      })
+      .catch(err => {
+        subtitle.textContent = '⚠ Preview failed - ' + err.message + '. You can still import.';
+        confirmBtn.disabled = false;
+      });
+  });
+}
+
+async function enqueueFiles(files) {
+  const queueEl = document.getElementById('upload-queue');
+  queueEl.style.display = 'flex';
+  queueEl.innerHTML = '';
+  const rows = files.map(f => {
+    const div = document.createElement('div');
+    div.className = 'uq-item';
+    div.innerHTML = `<span class="uq-name" title="${_esc(f.name)}">${_esc(f.name)}</span><div class="uq-bar-bg"><div class="uq-bar-fg"></div></div><span class="uq-status">⋯</span>`;
+    queueEl.appendChild(div);
+    return { name: f.name, bar: div.querySelector('.uq-bar-fg'), status: div.querySelector('.uq-status') };
+  });
+  for (let i = 0; i < files.length; i++) {
+    rows[i].status.textContent = '↑';
+    await uploadFile(files[i], rows[i].bar, rows[i].status);
+  }
+  const names = files.map(f => f.name);
+  window._showToast(names.length === 1 ? 'Upload complete: ' + names[0] : names.length + ' files uploaded', 'success');
+  setTimeout(() => { queueEl.style.display = 'none'; queueEl.innerHTML = ''; }, 3000);
+}
+async function uploadFile(file, barEl, statusEl) {
+  const fg  = barEl  || null;
+  const st  = statusEl || null;
+  const setP = pct => { if (fg) fg.style.width = pct + '%'; };
+  const setSt = s   => { if (st) st.textContent = s; };
+  setP(0);
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/upload');
+      xhr.upload.addEventListener('progress', e => { if (e.lengthComputable) setP(Math.round(e.loaded / e.total * 80)); });
+      xhr.onload = () => { setP(90); try { resolve(JSON.parse(xhr.responseText)); } catch(err) { reject(new Error('Bad response')); } };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(fd);
+    });
+    if (res.error) { setSt('✗'); if (fg) fg.style.background = 'var(--red)'; return; }
+    setP(100);
+    if (res.cached && res.status === 'ready') { setSt('✓'); setTimeout(() => location.reload(), 1200); return; }
+    setSt('…');
+    await fetch('/api/process/' + res.key, { method: 'POST' }).then(r => r.json());
+    addOrUpdateCard({ key: res.key, name: res.name, status: 'processing', tables: 0, fks: 0, source: 'file', error_msg: null });
+    setSt('✓');
+    pollStatus(res.key);
+    showLogs(res.key, res.name);
+  } catch(err) { setSt('✗'); }
+}
+
+// ── Shared connect helper ─────────────────────────────────────────────────────
+async function _submitConnect(payload, btn, stat, source, successMsg) {
+  btn.disabled = true;
+  stat.textContent = '⏳ Connecting…'; stat.style.color = 'var(--text-muted)';
+  try {
+    const res = await fetch('/api/connect', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+    if (res.error) { stat.textContent = ''; window._showToast(res.error, 'error'); return; }
+    stat.textContent = '';
+    window._showToast(successMsg || ('Connected - ' + (res.name || source)), 'success');
+    await fetch('/api/process/' + res.key, { method: 'POST' });
+    addOrUpdateCard({ key: res.key, name: res.name, status: 'processing', tables: 0, fks: 0, source: source, error_msg: null });
+    pollStatus(res.key);
+    showLogs(res.key, res.name);
+  } catch(e) {
+    stat.textContent = '';
+    window._showToast('Connection error: ' + e.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+async function submitConnstring() {
+  const cs = document.getElementById('cs-input').value.trim();
+  const btn = document.getElementById('cs-btn');
+  const stat = document.getElementById('cs-status');
+  if (!cs) { window._showToast('Please enter a connection string.', 'warning'); return; }
+  await _submitConnect({ type: 'connstring', connstring: cs }, btn, stat, 'connstring');
+}
+function updateDefaultPort() {
+  const engine = document.getElementById('db-engine').value;
+  const ports = { postgresql: '5432', mysql: '3306', mariadb: '3306', sqlite: '', mssql: '1433', clickhouse: '9000' };
+  document.getElementById('db-port').value = ports[engine] || '';
+}
+async function submitForm() {
+  const stat = document.getElementById('form-status');
+  const body = { type: 'form', engine: document.getElementById('db-engine').value, host: document.getElementById('db-host').value.trim(), port: parseInt(document.getElementById('db-port').value, 10) || null, database: document.getElementById('db-name').value.trim(), user: document.getElementById('db-user').value.trim(), password: document.getElementById('db-pass').value };
+  if (!body.database) { window._showToast('Database name is required.', 'warning'); return; }
+  const btn = document.querySelector('#panel-form button.btn-primary');
+  await _submitConnect(body, btn || { disabled: false }, stat, body.engine || 'form');
+}
+async function submitURL() {
+  const url = document.getElementById('url-input').value.trim();
+  const stat = document.getElementById('url-status');
+  if (!url) { window._showToast('Please enter a URL.', 'warning'); return; }
+  const btn = document.querySelector('#panel-url button.btn-primary');
+  await _submitConnect({ type: 'url', url }, btn || { disabled: false }, stat, 'url', 'Downloaded - processing…');
+}
+async function submitLibSQL() {
+  const lurl = document.getElementById('libsql-url').value.trim();
+  const tok  = document.getElementById('libsql-token').value.trim();
+  const stat = document.getElementById('libsql-status');
+  if (!lurl) { window._showToast('Please enter a libSQL URL.', 'warning'); return; }
+  const btn = document.querySelector('#panel-libsql button.btn-primary');
+  await _submitConnect({ type: 'libsql', libsql_url: lurl, auth_token: tok }, btn || { disabled: false }, stat, 'libsql');
+}
+async function submitMongoDB() {
+  const uri = document.getElementById('mongo-uri').value.trim();
+  const db  = document.getElementById('mongo-db').value.trim();
+  const sample = document.getElementById('mongo-sample').value.trim() || '100';
+  const stat = document.getElementById('mongo-status');
+  if (!uri) { window._showToast('Please enter a MongoDB URI.', 'warning'); return; }
+  if (!db)  { window._showToast('Please enter a database name.', 'warning'); return; }
+  const btn = document.querySelector('#panel-mongodb button.btn-primary');
+  await _submitConnect({ type: 'mongodb', uri, database: db, sample_size: parseInt(sample, 10) }, btn || { disabled: false }, stat, 'mongodb', 'Sampling collections…');
+}
+async function submitSnowflake() {
+  const account = document.getElementById('sf-account').value.trim();
+  const user    = document.getElementById('sf-user').value.trim();
+  const password= document.getElementById('sf-pass').value.trim();
+  const database= document.getElementById('sf-db').value.trim();
+  const schema  = document.getElementById('sf-schema').value.trim() || 'PUBLIC';
+  const warehouse=document.getElementById('sf-warehouse').value.trim();
+  const stat    = document.getElementById('sf-status');
+  if (!account || !user || !password || !database) { window._showToast('Account, user, password and database are required.', 'warning'); return; }
+  const btn = document.querySelector('#panel-snowflake button.btn-primary');
+  await _submitConnect({ type: 'snowflake', account, user, password, database, schema, warehouse }, btn || { disabled: false }, stat, 'snowflake');
+}
+async function submitBigQuery() {
+  const project = document.getElementById('bq-project').value.trim();
+  const dataset = document.getElementById('bq-dataset').value.trim();
+  const creds   = document.getElementById('bq-creds').value.trim();
+  const stat    = document.getElementById('bq-status');
+  if (!project || !dataset) { window._showToast('Project ID and dataset are required.', 'warning'); return; }
+  const body = { type: 'bigquery', project, dataset };
+  if (creds) body.credentials_json = creds;
+  const btn = document.querySelector('#panel-bigquery button.btn-primary');
+  await _submitConnect(body, btn || { disabled: false }, stat, 'bigquery');
+}
+async function submitSupabase() {
+  const ref     = document.getElementById('sb-ref').value.trim();
+  const password= document.getElementById('sb-pass').value.trim();
+  const region  = document.getElementById('sb-region').value;
+  const stat    = document.getElementById('sb-status');
+  if (!ref || !password) { window._showToast('Project ref and password are required.', 'warning'); return; }
+  const btn = document.querySelector('#panel-supabase button.btn-primary');
+  await _submitConnect({ type: 'supabase', project_ref: ref, password, region }, btn || { disabled: false }, stat, 'supabase');
+}
+
+function _apiFill(url, dataPath, name, auth) {
+  openAddSourceDrawer('restapi');
+  document.getElementById('api-url').value = url;
+  document.getElementById('api-data-path').value = dataPath || '';
+  document.getElementById('api-name').value = name || '';
+  document.getElementById('api-auth').value = auth || '';
+}
+function _libsqlFill(url, token) {
+  openAddSourceDrawer('libsql');
+  document.getElementById('libsql-url').value = url;
+  document.getElementById('libsql-token').value = token || '';
+}
+function _mongoFill(uri, db, sample) {
+  openAddSourceDrawer('mongodb');
+  document.getElementById('mongo-uri').value = uri;
+  document.getElementById('mongo-db').value = db || '';
+  if (sample) document.getElementById('mongo-sample').value = sample;
+}
+function _sfFill(account, user, password, database, schema, warehouse) {
+  openAddSourceDrawer('snowflake');
+  document.getElementById('sf-account').value = account || '';
+  document.getElementById('sf-user').value = user || '';
+  document.getElementById('sf-pass').value = password || '';
+  document.getElementById('sf-db').value = database || '';
+  document.getElementById('sf-schema').value = schema || 'PUBLIC';
+  document.getElementById('sf-warehouse').value = warehouse || '';
+}
+function _bqFill(project, dataset) {
+  openAddSourceDrawer('bigquery');
+  document.getElementById('bq-project').value = project || '';
+  document.getElementById('bq-dataset').value = dataset || '';
+}
+function _sbFill(ref, region) {
+  openAddSourceDrawer('supabase');
+  document.getElementById('sb-ref').value = ref || '';
+  if (region) {
+    const sel = document.getElementById('sb-region');
+    const opt = Array.from(sel.options).find(o => o.value === region);
+    if (opt) sel.value = region;
+  }
+}
+
+async function submitRestAPI() {
+  const url      = document.getElementById('api-url').value.trim();
+  const dataPath = document.getElementById('api-data-path').value.trim();
+  const name     = document.getElementById('api-name').value.trim();
+  const authVal  = document.getElementById('api-auth').value.trim();
+  const hdrName  = (document.getElementById('api-header-name').value.trim()) || 'Authorization';
+  const stat     = document.getElementById('api-status');
+  const btn      = document.querySelector('#panel-restapi button.btn-primary');
+  if (!url) { window._showToast('API endpoint URL is required.', 'warning'); return; }
+  const headers = {};
+  if (authVal) headers[hdrName] = authVal;
+  const payload = { type: 'restapi', url, data_path: dataPath, name, headers };
+  const rowsLabel = async (key) => {
+    try { const s = await fetch('/api/status/' + key).then(r => r.json()); return s.rows != null ? ' (' + s.rows + ' rows)' : ''; } catch { return ''; }
+  };
+  stat.textContent = '⏳ Fetching…'; stat.style.color = 'var(--text-muted)';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/connect', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(r => r.json());
+    if (res.error) { stat.textContent = ''; window._showToast(res.error, 'error'); return; }
+    stat.textContent = '';
+    const extra = res.rows != null ? ' (' + res.rows + ' rows)' : '';
+    window._showToast('Imported' + extra + ' - ' + (res.name || url), 'success');
+    await fetch('/api/process/' + res.key, { method: 'POST' });
+    addOrUpdateCard({ key: res.key, name: res.name || name || url, status: 'processing', tables: 0, fks: 0, source: 'file', error_msg: null });
+    pollStatus(res.key);
+    showLogs(res.key, res.name || name || url);
+  } catch(e) {
+    stat.textContent = '';
+    window._showToast('Error: ' + e.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+// ── Process / Retry ───────────────────────────────────────────────────────────
+async function triggerProcess(key) {
+  try {
+    const res = await fetch('/api/status/' + key).then(r => r.json());
+    if (res.status === 'processing') return;
+    await fetch('/api/process/' + key, { method: 'POST' });
+    updateCard(key, { status: 'processing', error_msg: null });
+    pollStatus(key);
+    showLogs(key, res.name || key);
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteEntry(key) {
+  const name = document.getElementById('card-' + key)?.querySelector('.card-name')?.textContent || key;
+  window._openConfirm('Remove schema?', 'Remove "' + name + '" and all its files? This cannot be undone.', async function() {
+    try {
+      const res = await fetch('/api/delete/' + key, { method: 'DELETE' }).then(r => r.json());
+      if (res.error) { window._showToast(res.error, 'error'); return; }
+      const card = document.getElementById('card-' + key);
+      if (card) card.remove();
+      if (!document.querySelectorAll('.schema-card').length) {
+        document.getElementById('schema-list').innerHTML = '<div id="empty">No schema sources yet - upload a file or connect a database above.</div>';
+      }
+      if (logActiveKey === key) clearLogs();
+      window._showToast('Schema removed.', 'info');
+    } catch(e) { window._showToast('Delete failed: ' + e.message, 'error'); }
+  });
+}
+
+// ── Status polling ────────────────────────────────────────────────────────────
+const _pollers = {};
+function pollStatus(key) {
+  if (_pollers[key]) return;
+  _pollers[key] = setInterval(async () => {
+    try {
+      const s = await fetch('/api/status/' + key).then(r => r.json());
+      updateCard(key, s);
+      if (s.status !== 'processing' && s.status !== 'uploaded') { clearInterval(_pollers[key]); delete _pollers[key]; }
+    } catch(e) {}
+  }, 1500);
+}
+document.querySelectorAll('.schema-card.state-processing').forEach(card => {
+  const key = card.id.replace('card-', '');
+  pollStatus(key);
+});
+
+// ── Card DOM helpers ──────────────────────────────────────────────────────────
+function addOrUpdateCard(f) {
+  const empty = document.getElementById('empty');
+  if (empty) empty.remove();
+  const existing = document.getElementById('card-' + f.key);
+  if (existing) { updateCard(f.key, f); return; }
+  const list = document.getElementById('schema-list');
+  const div = document.createElement('div');
+  div.id = 'card-' + f.key;
+  div.className = 'schema-card state-processing';
+  if (f.processed || f.uploaded) div.dataset.ts = f.processed || f.uploaded;
+  div.innerHTML = _cardHTML(f);
+  list.insertAdjacentElement('afterbegin', div);
+  _bindCardButtons(div, f.key, f.name);
+}
+function updateCard(key, s) {
+  const card = document.getElementById('card-' + key);
+  if (!card) return;
+  card.className = 'schema-card state-' + s.status;
+  if (s.processed || s.uploaded) card.dataset.ts = s.processed || s.uploaded;
+  const dot = card.querySelector('.dot');
+  if (dot) dot.className = 'dot dot-' + s.status;
+  let metaEl = card.querySelector('.card-meta');
+  if (!metaEl) { metaEl = document.createElement('div'); metaEl.className = 'card-meta'; const info = card.querySelector('.card-info'); if (info) info.appendChild(metaEl); }
+  metaEl.style.color = '';
+  let errEl = card.querySelector('.card-error');
+  if (s.status === 'ready') {
+    metaEl.textContent = `${s.tables || 0} tables · ${s.fks || 0} FK relations`;
+    if (errEl) errEl.remove();
+    const prog = card.querySelector('.card-progress'); if (prog) prog.remove();
+    if (!card.querySelector('.compare-check')) {
+      const chkEl = document.createElement('div');
+      chkEl.className = 'compare-check'; chkEl.id = 'chk-' + key; chkEl.title = 'Select for comparison';
+      card.insertAdjacentElement('afterbegin', chkEl);
+    }
+    delete card.dataset.cmpWired;
+    let tsEl = card.querySelector('.card-ts');
+    if (!tsEl) { tsEl = document.createElement('div'); tsEl.className = 'card-ts'; metaEl.after(tsEl); }
+    const ts = s.processed || s.uploaded || parseFloat(card.dataset.ts) || 0;
+    tsEl.textContent = ts ? _fmtTs(ts) : '';
+  } else if (s.status === 'processing') {
+    metaEl.textContent = 'Processing…';
+    if (errEl) errEl.remove();
+    const tsEl = card.querySelector('.card-ts'); if (tsEl) tsEl.textContent = '';
+  } else if (s.status === 'error') {
+    metaEl.style.color = 'var(--yellow)'; metaEl.textContent = 'Failed';
+    if (!errEl) { errEl = document.createElement('div'); errEl.className = 'card-error'; metaEl.after(errEl); }
+    errEl.textContent = (s.error_msg || 'Unknown error').slice(0, 120);
+    const prog = card.querySelector('.card-progress'); if (prog) prog.remove();
+  } else {
+    metaEl.textContent = 'Not yet processed'; if (errEl) errEl.remove();
+  }
+  const actions = card.querySelector('.card-actions');
+  if (actions) {
+    const nameEl = card.querySelector('.card-name');
+    const name = nameEl ? nameEl.textContent : key;
+    actions.innerHTML = _cardActionsHTML(key, s.status, name);
+    _bindCardButtons(card, key, name);
+  }
+}
+function _cardHTML(f) {
+  const selChk = `<div class="sel-check" id="sel-${f.key}" title="Select"></div>`;
+  const chk = f.status === 'ready' ? `<div class="compare-check" id="chk-${f.key}" title="Select for comparison"></div>` : '';
+  const ts  = f.processed || f.uploaded || 0;
+  const tsHtml = (f.status === 'ready' && ts) ? `<div class="card-ts">${_fmtTs(ts)}</div>` : '';
+  return `
+    ${selChk}
+    ${chk}
+    <div class="db-icon file" id="dot-${f.key}" style="position:relative;">
+      <span style="font-size:16px;">📄</span>
+      <span class="dot dot-${f.status}" style="position:absolute;bottom:3px;right:3px;width:7px;height:7px;"></span>
+    </div>
+    <div class="card-info">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <div class="card-name">${_esc(f.name)}</div>
+        <span class="src-badge">${_esc((f.source||'file').toUpperCase())}</span>
+      </div>
+      <div class="card-meta">${f.status === 'processing' ? 'Processing…' : f.status === 'error' ? 'Failed' : 'Not yet processed'}</div>
+      ${tsHtml}
+      ${f.status === 'processing' ? '<div class="card-progress"><div class="progress-bar-bg"><div class="progress-bar-fg" style="width:40%;animation:indeterminate 1.5s ease-in-out infinite;"></div></div></div>' : ''}
+      ${f.error_msg ? `<div class="card-error">${_esc((f.error_msg||'').slice(0,120))}</div>` : ''}
+    </div>
+    <div class="card-actions">${_cardActionsHTML(f.key, f.status, f.name)}</div>`;
+}
+function _cardActionsHTML(key, status, name) {
+  let html = '';
+  if (status === 'ready') {
+    html += `<a class="btn-card btn-erd" href="/erd/${key}">&#9655; ERD</a>`;
+    html += `<a class="btn-card" href="/browse/${key}">&#128065; Browse</a>`;
+    html += `<a class="btn-card" href="/query/${key}">&#9654; Query</a>`;
+    html += `<div class="card-more-wrap"><button class="btn-card" onclick="toggleMoreMenu(this)" title="More">&#8943;</button><div class="card-more-menu">`;
+    html += `<a class="card-more-item" href="/report/${key}">&#128196; Reports</a>`;
+    html += `<a class="card-more-item" href="/dashboard/${key}">&#9783; Dashboard</a>`;
+    html += `<div class="card-more-sep"></div>`;
+    html += `<div class="card-more-item" onclick="openConnInfo('${key}')">&#9432; Connection Info</div>`;
+    html += `<div class="card-more-item" onclick="triggerProcess('${key}')">&#8635; Re-run Pipeline</div>`;
+    html += `<div class="card-more-item" onclick="showLogs('${key}', '${_esc(name)}')">&#128196; View Logs</div>`;
+    html += `<div class="card-more-sep"></div>`;
+    html += `<div class="card-more-item danger" onclick="deleteEntry('${key}')">&#128465; Delete</div>`;
+    html += `</div></div>`;
+  } else {
+    const label = status === 'error' ? 'Retry' : 'Process';
+    if (status !== 'processing') {
+      html += `<button class="btn-card btn-retry" data-key="${key}">${label}</button>`;
+      html += `<button class="btn-card btn-delete" data-key="${key}">Delete</button>`;
+    } else {
+      html += `<button class="btn-card" disabled>Processing…</button>`;
+    }
+    html += `<button class="btn-card btn-logs" data-key="${key}" data-name="${_esc(name)}">Logs</button>`;
+    html += `<button class="btn-card" onclick="openConnInfo('${key}')">&#9432; Info</button>`;
+  }
+  return html;
+}
+function _bindCardButtons(card, key, name) {
+  card.querySelectorAll('.btn-retry[data-key]').forEach(b => b.addEventListener('click', () => triggerProcess(b.dataset.key)));
+  card.querySelectorAll('.btn-delete[data-key]').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.key)));
+  card.querySelectorAll('.btn-logs[data-key]').forEach(b => b.addEventListener('click', () => showLogs(b.dataset.key, b.dataset.name)));
+  if (typeof _wireCompareCard === 'function') _wireCompareCard(card);
+  _wireSelCheck(card);
+}
+document.querySelectorAll('.schema-card').forEach(card => {
+  card.querySelectorAll('.btn-retry[data-key]').forEach(b => b.addEventListener('click', () => triggerProcess(b.dataset.key)));
+  card.querySelectorAll('.btn-delete[data-key]').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.key)));
+  card.querySelectorAll('.btn-logs[data-key]').forEach(b => b.addEventListener('click', () => showLogs(b.dataset.key, b.dataset.name)));
+  _wireSelCheck(card);
+});
+
+// ── Logs drawer ───────────────────────────────────────────────────────────────
+let logActiveKey = null;
+let logPoller    = null;
+let logSent      = 0;
+
+function openLogsDrawer() {
+  document.getElementById('logs-drawer').classList.add('open');
+  document.getElementById('logs-drawer-backdrop').classList.add('open');
+}
+function closeLogsDrawer() {
+  document.getElementById('logs-drawer').classList.remove('open');
+  document.getElementById('logs-drawer-backdrop').classList.remove('open');
+}
+function showLogs(key, name) {
+  logActiveKey = key; logSent = 0;
+  document.getElementById('logs-drawer-key').textContent = name || key;
+  const body = document.getElementById('logs-drawer-body');
+  body.classList.remove('empty'); body.innerHTML = '';
+  openLogsDrawer();
+  fetch('/api/log/' + key).then(r => r.text()).then(text => {
+    const lines = text.trim().split('\n').filter(Boolean);
+    lines.forEach(l => appendLogLine(l));
+    logSent = lines.length;
+    body.scrollTop = body.scrollHeight;
+    _startLogPoller(key);
+  }).catch(() => {});
+}
+function _startLogPoller(key) {
+  if (logPoller) { clearInterval(logPoller); logPoller = null; }
+  if (!key) return;
+  logPoller = setInterval(async () => {
+    if (logActiveKey !== key) { clearInterval(logPoller); logPoller = null; return; }
+    try {
+      const s = await fetch('/api/status/' + key).then(r => r.json());
+      const lines = (s.log || []);
+      while (logSent < lines.length) { appendLogLine(lines[logSent]); logSent++; }
+      const body = document.getElementById('logs-drawer-body');
+      body.scrollTop = body.scrollHeight;
+      if (s.status !== 'processing' && s.status !== 'uploaded') { clearInterval(logPoller); logPoller = null; }
+    } catch(e) {}
+  }, 800);
+}
+function appendLogLine(line) {
+  if (!line) return;
+  const body = document.getElementById('logs-drawer-body');
+  const span = document.createElement('div');
+  span.className = 'log-line';
+  const m = line.match(/^(\[[\d:]+\])\s+(INFO|WARN|ERROR|DEBUG)\s+(.*)$/);
+  if (m) {
+    const ts = document.createElement('span'); ts.className = 'log-ts'; ts.textContent = m[1];
+    const lvl = document.createElement('span');
+    const level = m[2];
+    if (level === 'ERROR') { lvl.className = 'log-error'; lvl.textContent = '[ERROR] ' + m[3]; }
+    else if (level === 'WARN') { lvl.className = 'log-warn'; lvl.textContent = m[3]; }
+    else if (m[3].includes('written') || m[3].includes('extracted') || m[3].includes('done')) { lvl.className = 'log-ok'; lvl.textContent = m[3]; }
+    else { lvl.className = 'log-info'; lvl.textContent = m[3]; }
+    span.appendChild(ts); span.appendChild(lvl);
+  } else { span.className += ' log-info'; span.textContent = line; }
+  body.appendChild(span);
+}
+function clearLogs() {
+  logActiveKey = null; logSent = 0;
+  if (logPoller) { clearInterval(logPoller); logPoller = null; }
+  const body = document.getElementById('logs-drawer-body');
+  body.innerHTML = 'Select a job above to view its logs';
+  body.classList.add('empty');
+  document.getElementById('logs-drawer-key').textContent = '- select a job to view logs -';
+}
+// Log line style classes - used by appendLogLine
+// .log-ts / .log-info / .log-ok / .log-warn / .log-error defined in _base_styles.html indirectly;
+// declare them here for the drawer
+const _logStyle = document.createElement('style');
+_logStyle.textContent = `.log-line{white-space:pre-wrap;word-break:break-all}.log-info{color:rgba(255,255,255,0.55)}.log-ok{color:var(--green)}.log-warn{color:var(--yellow)}.log-error{color:var(--red)}.log-ts{color:rgba(255,255,255,0.2);user-select:none;margin-right:6px}`;
+document.head.appendChild(_logStyle);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+if (!window._showToast) { window._showToast = function(msg, kind) { console.warn('[toast]', kind, msg); }; }
+
+// ── Cmd+K Command Palette ─────────────────────────────────────────────────────
+function openPalette() {
+  const dlg = document.getElementById('palette');
+  if (!dlg) return;
+  dlg.style.display = 'flex';
+  document.getElementById('palette-input').value = '';
+  document.getElementById('palette-input').focus();
+  _paletteSearch('');
+}
+function closePalette() {
+  const dlg = document.getElementById('palette');
+  if (dlg) dlg.style.display = 'none';
+}
+async function _paletteSearch(q) {
+  const list = document.getElementById('palette-results');
+  q = q.trim().toLowerCase();
+  const results = [];
+  const actions = [
+    { type: 'action', label: 'Upload file', icon: '&#8679;', action: () => { closePalette(); openAddSourceDrawer('file'); setTimeout(() => document.getElementById('file-input')?.click(), 300); } },
+    { type: 'action', label: 'Connect database', icon: '&#128279;', action: () => { closePalette(); openAddSourceDrawer('connstring'); setTimeout(() => document.getElementById('cs-input')?.focus(), 300); } },
+  ];
+  actions.forEach(a => { if (!q || a.label.toLowerCase().includes(q)) results.push(a); });
+  document.querySelectorAll('.schema-card').forEach(card => {
+    const name = card.querySelector('.card-name')?.textContent || '';
+    const key  = card.id.replace('card-', '');
+    if (!q || name.toLowerCase().includes(q)) {
+      const isReady = card.classList.contains('state-ready');
+      results.push({ type: 'schema', label: name, key, icon: '&#9112;', href: isReady ? `/erd/${key}` : null });
+    }
+  });
+  if (q) {
+    try {
+      const remote = await fetch('/api/search?q=' + encodeURIComponent(q)).then(r => r.json());
+      remote.forEach(r => {
+        if (r.type === 'table') results.push({ type: 'table', label: r.table, sublabel: r.schema_name, icon: '&#9632;', href: `/browse/${r.key}?table=${encodeURIComponent(r.table)}` });
+        else if (r.type === 'column') results.push({ type: 'column', label: r.column, sublabel: `${r.schema_name} / ${r.table}`, icon: '&#9675;', href: `/erd/${r.key}#table=${encodeURIComponent(r.table)}` });
+        if (results.length >= 24) return;
+      });
+    } catch(e) {}
+  }
+  if (!results.length) { list.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-dim);font-size:12px;">No results</div>'; return; }
+  list.innerHTML = results.slice(0, 20).map((r, i) => `<div class="palette-item" data-idx="${i}" tabindex="-1"><span class="palette-icon">${r.icon || '&#9632;'}</span><span class="palette-label">${_esc(r.label)}</span>${r.sublabel ? `<span class="palette-sub">${_esc(r.sublabel)}</span>` : ''}<span class="palette-type">${r.type}</span></div>`).join('');
+  list._results = results;
+  list.querySelectorAll('.palette-item').forEach((el, i) => {
+    el.addEventListener('click', () => _activatePaletteItem(list._results[i]));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') _activatePaletteItem(list._results[i]);
+      if (e.key === 'ArrowDown') { const next = el.nextElementSibling; if (next) next.focus(); }
+      if (e.key === 'ArrowUp')   { const prev = el.previousElementSibling; if (prev) prev.focus(); else document.getElementById('palette-input').focus(); }
+    });
+  });
+}
+function _activatePaletteItem(r) {
+  closePalette();
+  if (r.action) { r.action(); return; }
+  if (r.href)   { window.location.href = r.href; }
+}
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openPalette(); }
+  if (e.key === 'Escape') { closePalette(); closeLogsDrawer(); }
+});
+
+// ── Compare mode ──────────────────────────────────────────────────────────────
+let _compareMode = false;
+let _compareKeys = [];
+
+function toggleCompareMode() {
+  _compareMode = !_compareMode;
+  _compareKeys = [];
+  const btn = document.getElementById('btn-compare-mode');
+  const bar = document.getElementById('compare-bar');
+  if (_compareMode) {
+    document.body.classList.add('compare-mode');
+    btn.classList.add('active');
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cancel';
+    bar.classList.add('visible');
+  } else {
+    document.body.classList.remove('compare-mode');
+    btn.classList.remove('active');
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg> Compare';
+    bar.classList.remove('visible');
+    document.querySelectorAll('.compare-check').forEach(c => c.classList.remove('checked'));
+    document.querySelectorAll('.schema-card').forEach(c => c.classList.remove('cmp-selected'));
+  }
+  _updateCompareBadges();
+}
+function _toggleCardSelection(key, name) {
+  if (!_compareMode) return;
+  const idx = _compareKeys.findIndex(k => k[0] === key);
+  if (idx >= 0) { _compareKeys.splice(idx, 1); }
+  else {
+    if (_compareKeys.length >= 2) {
+      const [oldKey] = _compareKeys.shift();
+      const oldChk = document.getElementById('chk-' + oldKey);
+      if (oldChk) oldChk.classList.remove('checked');
+      document.getElementById('card-' + oldKey)?.classList.remove('cmp-selected');
+    }
+    _compareKeys.push([key, name]);
+  }
+  const isSelected = _compareKeys.some(k => k[0] === key);
+  const chk  = document.getElementById('chk-' + key);
+  const card = document.getElementById('card-' + key);
+  if (chk)  chk.classList.toggle('checked', isSelected);
+  if (card) card.classList.toggle('cmp-selected', isSelected);
+  _updateCompareBadges();
+}
+function _updateCompareBadges() {
+  const la  = document.getElementById('cmp-a-label');
+  const lb  = document.getElementById('cmp-b-label');
+  const btn = document.getElementById('cmp-btn');
+  const jbtn= document.getElementById('join-btn');
+  la.textContent  = _compareKeys[0]?.[1] || '';
+  lb.textContent  = _compareKeys[1]?.[1] || '';
+  btn.disabled    = _compareKeys.length < 2;
+  btn.style.opacity = _compareKeys.length < 2 ? '0.5' : '1';
+  btn.style.cursor  = _compareKeys.length < 2 ? 'default' : 'pointer';
+  if (jbtn) jbtn.style.display = _compareKeys.length >= 2 ? '' : 'none';
+}
+function openDiff() {
+  if (_compareKeys.length < 2) return;
+  window.location.href = `/diff/${_compareKeys[0][0]}/${_compareKeys[1][0]}`;
+}
+function clearCompare() {
+  _compareKeys = [];
+  _updateCompareBadges();
+  document.querySelectorAll('.compare-check').forEach(c => c.classList.remove('checked'));
+  document.querySelectorAll('.schema-card').forEach(c => c.classList.remove('cmp-selected'));
+}
+
+// ── Join Schemas ──────────────────────────────────────────────────────────────
+function _slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 20) || 'schema';
+}
+let _joinDirectMode = false;
+let _joinUpdateKey  = '';
+
+function openJoinModal() {
+  if (_compareKeys.length < 2) return;
+  _joinDirectMode = false;
+  document.getElementById('join-picker-section').style.display = 'none';
+  const nameInput = document.getElementById('join-modal-name');
+  if (nameInput) nameInput.value = _compareKeys.map(k => k[1]).join(' + ');
+  const aliasSection = document.getElementById('join-alias-rows');
+  if (aliasSection) {
+    aliasSection.innerHTML = _compareKeys.map(([key, name]) => `<div class="join-alias-row"><span class="member-name" title="${_esc(name)}">${_esc(name)}</span><input type="text" data-key="${_esc(key)}" value="${_esc(_slugify(name))}" placeholder="alias" maxlength="30"/></div>`).join('');
+  }
+  document.getElementById('join-modal').classList.add('open');
+}
+function openJoinModalDirect() {
+  _joinDirectMode = true;
+  const allReady = [...document.querySelectorAll('.schema-card.state-ready:not(.join-card)')].map(card => ({ key: card.id.replace('card-', ''), name: card.querySelector('.card-name')?.textContent?.trim() || '' }));
+  if (allReady.length < 2) { window._showToast('You need at least 2 processed schemas to create a join.', 'info'); return; }
+  const pickerRows = document.getElementById('join-picker-rows');
+  if (pickerRows) {
+    pickerRows.innerHTML = allReady.map(s => `<label class="join-picker-row" data-key="${_esc(s.key)}"><input type="checkbox" class="join-picker-chk" data-key="${_esc(s.key)}" data-name="${_esc(s.name)}"/><span class="join-picker-name">${_esc(s.name)}</span></label>`).join('');
+    pickerRows.addEventListener('change', _rebuildJoinAliasRows);
+  }
+  document.getElementById('join-picker-section').style.display = '';
+  document.getElementById('join-modal-name').value = '';
+  document.getElementById('join-alias-rows').innerHTML = '';
+  document.getElementById('join-picker-hint').style.display = 'none';
+  document.getElementById('join-modal').classList.add('open');
+}
+function _rebuildJoinAliasRows() {
+  const checked = [...document.querySelectorAll('.join-picker-chk:checked')];
+  const aliasSection = document.getElementById('join-alias-rows');
+  if (aliasSection) aliasSection.innerHTML = checked.map(chk => `<div class="join-alias-row"><span class="member-name" title="${_esc(chk.dataset.name)}">${_esc(chk.dataset.name)}</span><input type="text" data-key="${_esc(chk.dataset.key)}" value="${_esc(_slugify(chk.dataset.name))}" placeholder="alias" maxlength="30"/></div>`).join('');
+  const nameInput = document.getElementById('join-modal-name');
+  if (nameInput && !nameInput.dataset.userEdited) nameInput.value = checked.map(c => c.dataset.name).join(' + ');
+}
+function openUpdateJoinModal(joinKey) {
+  const card = document.getElementById('card-' + joinKey);
+  if (!card) return;
+  const currentName = card.dataset.joinName || '';
+  let currentMembers = [];
+  try { currentMembers = JSON.parse(card.dataset.joinMembers || '[]'); } catch(e) {}
+  _joinDirectMode = true; _joinUpdateKey = joinKey;
+  const allReady = [...document.querySelectorAll('.schema-card.state-ready:not(.join-card)')].map(c => ({ key: c.id.replace('card-', ''), name: c.querySelector('.card-name')?.textContent?.trim() || '' }));
+  const currentKeys = new Set(currentMembers.map(m => m.key));
+  const aliasMap = {}; currentMembers.forEach(m => { aliasMap[m.key] = m.alias; });
+  const pickerRows = document.getElementById('join-picker-rows');
+  if (pickerRows) {
+    pickerRows.innerHTML = allReady.map(s => `<label class="join-picker-row" data-key="${_esc(s.key)}"><input type="checkbox" class="join-picker-chk" data-key="${_esc(s.key)}" data-name="${_esc(s.name)}" ${currentKeys.has(s.key) ? 'checked' : ''}/><span class="join-picker-name">${_esc(s.name)}</span></label>`).join('');
+    pickerRows.removeEventListener('change', _rebuildJoinAliasRows);
+    pickerRows.addEventListener('change', _rebuildJoinAliasRows);
+  }
+  document.getElementById('join-picker-section').style.display = '';
+  const nameInput = document.getElementById('join-modal-name');
+  if (nameInput) { nameInput.value = currentName; nameInput.dataset.userEdited = '1'; }
+  const aliasSection = document.getElementById('join-alias-rows');
+  if (aliasSection) {
+    aliasSection.innerHTML = currentMembers.map(m => {
+      const schemaName = allReady.find(r => r.key === m.key)?.name || m.key;
+      return `<div class="join-alias-row"><span class="member-name" title="${_esc(schemaName)}">${_esc(schemaName)}</span><input type="text" data-key="${_esc(m.key)}" value="${_esc(m.alias)}" placeholder="alias" maxlength="30"/></div>`;
+    }).join('');
+  }
+  const titleEl = document.getElementById('join-modal-title');
+  const confirmEl = document.getElementById('join-confirm-btn');
+  if (titleEl) titleEl.textContent = '✎ Update Join Schema';
+  if (confirmEl) confirmEl.textContent = 'Save Changes';
+  document.getElementById('join-picker-hint').style.display = 'none';
+  document.getElementById('join-modal').classList.add('open');
+}
+function closeJoinModal() {
+  document.getElementById('join-modal').classList.remove('open');
+  _joinUpdateKey = '';
+  const titleEl = document.getElementById('join-modal-title');
+  const confirmEl = document.getElementById('join-confirm-btn');
+  if (titleEl) titleEl.textContent = '✦ Create Join Schema';
+  if (confirmEl) confirmEl.textContent = 'Create Join';
+  const nameInput = document.getElementById('join-modal-name');
+  if (nameInput) delete nameInput.dataset.userEdited;
+}
+async function confirmJoin() {
+  if (_joinDirectMode) {
+    const checked = [...document.querySelectorAll('.join-picker-chk:checked')];
+    if (checked.length < 2) { document.getElementById('join-picker-hint').style.display = ''; return; }
+    document.getElementById('join-picker-hint').style.display = 'none';
+  }
+  const nameInput = document.getElementById('join-modal-name');
+  const name = (nameInput?.value || '').trim();
+  if (!name) { nameInput?.focus(); return; }
+  const aliasInputs = document.querySelectorAll('#join-alias-rows input[data-key]');
+  const members = [];
+  for (const inp of aliasInputs) { const alias = inp.value.trim(); if (!alias) { inp.focus(); return; } members.push({ key: inp.dataset.key, alias }); }
+  if (members.length < 2) { window._showToast('Select at least 2 schemas to join.', 'info'); return; }
+  const confirmBtn = document.getElementById('join-confirm-btn');
+  const isUpdate = !!_joinUpdateKey;
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = isUpdate ? 'Saving…' : 'Creating…'; }
+  try {
+    let res;
+    if (isUpdate) {
+      res = await fetch('/api/joins/' + _joinUpdateKey, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, members }) }).then(r => r.json());
+      if (res.error) { window._showToast('Error: ' + res.error, 'error'); return; }
+      closeJoinModal(); window._showToast('Join updated!', 'success');
+      const card = document.getElementById('card-' + _joinUpdateKey);
+      if (card) { card.dataset.joinName = name; card.dataset.joinMembers = JSON.stringify(members); const nameEl = document.getElementById('jname-' + _joinUpdateKey); const membersEl = document.getElementById('jmembers-' + _joinUpdateKey); if (nameEl) nameEl.textContent = name; if (membersEl) membersEl.textContent = members.map(m => m.alias).join(' ✺ '); }
+      setTimeout(() => location.reload(), 800);
+    } else {
+      res = await fetch('/api/joins', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, members }) }).then(r => r.json());
+      if (res.error) { window._showToast('Error: ' + res.error, 'error'); return; }
+      closeJoinModal(); window._showToast('Join created - reloading…', 'success');
+      setTimeout(() => location.reload(), 800);
+    }
+  } catch(e) { window._showToast('Error: ' + e.message, 'error'); }
+  finally { if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = isUpdate ? 'Save Changes' : 'Create Join'; } }
+}
+async function deleteJoin(joinKey) {
+  const name = document.getElementById('card-' + joinKey)?.querySelector('.card-name')?.textContent || joinKey;
+  window._openConfirm('Remove join schema?', 'Remove "' + name + '"? Member schemas are not affected.', async function() {
+    try {
+      const res = await fetch('/api/joins/' + joinKey, { method: 'DELETE' }).then(r => r.json());
+      if (res.error) { window._showToast(res.error, 'error'); return; }
+      const card = document.getElementById('card-' + joinKey); if (card) card.remove();
+      window._showToast('Join removed.', 'info');
+    } catch(e) { window._showToast('Delete failed: ' + e.message, 'error'); }
+  }, 'Remove');
+}
+
+// ── Compare card wiring ───────────────────────────────────────────────────────
+function _wireCompareCard(card) {
+  if (!card.classList.contains('state-ready')) return;
+  if (card.dataset.cmpWired) return;
+  card.dataset.cmpWired = '1';
+  const key  = card.id.replace('card-', '');
+  const name = card.querySelector('.card-name')?.textContent?.trim() || key;
+  const chk  = card.querySelector('.compare-check');
+  if (chk) chk.addEventListener('click', e => { e.stopPropagation(); _toggleCardSelection(key, name); });
+  card.addEventListener('click', e => {
+    if (!_compareMode) return;
+    if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+    if (e.target.classList.contains('compare-check')) return;
+    _toggleCardSelection(key, name);
+  });
+}
+document.querySelectorAll('.schema-card.state-ready').forEach(_wireCompareCard);
+
+// ── Update gnav source-count pill whenever the card list changes ──────────────
+function _updateCtxInfo() {
+  const count = document.querySelectorAll('.schema-card').length;
+  const gnavEl = document.getElementById('gnav-source-count');
+  if (gnavEl) {
+    if (count > 0) {
+      gnavEl.style.display = '';
+      gnavEl.textContent = count + ' source' + (count === 1 ? '' : 's');
+    } else {
+      gnavEl.style.display = 'none';
+    }
+  }
+}
+_updateCtxInfo();
+// Re-run after any card add/remove (MutationObserver on schema-list)
+const _schemaListEl = document.getElementById('schema-list');
+if (_schemaListEl) {
+  new MutationObserver(_updateCtxInfo).observe(_schemaListEl, { childList: true });
+}
+
+// ── Escape key closes add-source drawer too ────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeAddSourceDrawer();
+});
+
+// ── Update palette actions to open drawer instead of clicking hidden tabs ────
+// The palette already calls _paletteSearch - patch actions to open drawer
+document.addEventListener('DOMContentLoaded', () => {});  // no-op placeholder
+
+// ── Connection Info modal ─────────────────────────────────────────────────────
+function closeConnInfo() {
+  document.getElementById('conn-info-modal').classList.remove('open');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeConnInfo();
+});
+
+async function openConnInfo(key) {
+  const modal = document.getElementById('conn-info-modal');
+  const body  = document.getElementById('conn-info-body');
+  modal.classList.add('open');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">Loading…</div>';
+
+  let rec;
+  try {
+    rec = await fetch('/api/status/' + key).then(r => r.json());
+  } catch(e) {
+    body.innerHTML = `<div style="padding:20px;color:var(--red);font-size:12px;">Failed to load: ${_esc(e.message)}</div>`;
+    return;
+  }
+  if (rec.error) {
+    body.innerHTML = `<div style="padding:20px;color:var(--red);font-size:12px;">${_esc(rec.error)}</div>`;
+    return;
+  }
+
+  const src = rec.source || 'file';
+  const rows = [];
+
+  // ── Build field rows based on source type ──────────────────────────────
+  function _row(label, value, secret) {
+    if (!value && value !== 0) return;
+    rows.push({ label, value: String(value), secret: !!secret });
+  }
+
+  _row('Source type', src.toUpperCase());
+  _row('Status', rec.status);
+  _row('Tables', rec.tables != null ? rec.tables : undefined);
+  _row('FK relations', rec.fks != null ? rec.fks : undefined);
+
+  if (rec.conn_url) {
+    // Parse SQLAlchemy URL into readable parts
+    try {
+      // Regex: scheme://user:pass@host:port/database
+      const m = rec.conn_url.match(/^([^:]+):\/\/(?:([^:@]*)(?::([^@]*))?@)?([^:/\?]*)?(?::(\d+))?\/([^\?]*)(.*)$/);
+      if (m) {
+        _row('Engine', m[1]);
+        if (m[2]) _row('User',     m[2]);
+        if (m[3]) _row('Password', m[3], true);
+        if (m[4]) _row('Host',     m[4]);
+        if (m[5]) _row('Port',     m[5]);
+        if (m[6]) _row('Database', m[6]);
+        if (m[7]) _row('Options',  m[7]);
+      }
+    } catch(e) {}
+    _row('Connection string', rec.conn_url, true);
+  }
+  if (rec.libsql_url) _row('libSQL URL', rec.libsql_url);
+  if (rec.auth_token) _row('Auth token', rec.auth_token, true);
+  if (rec.mongo_uri)  _row('MongoDB URI', rec.mongo_uri, true);
+  if (rec.mongo_database) _row('Database', rec.mongo_database);
+  if (rec.mongo_sample_size) _row('Sample size', rec.mongo_sample_size + ' docs/collection');
+  if (rec.api_url)    _row('API URL', rec.api_url);
+  if (rec.api_data_path) _row('Data path', rec.api_data_path);
+  if (rec.source_url) _row('Source URL', rec.source_url);
+  if (rec.path)       _row('File path', rec.path);
+
+  // Timestamps
+  if (rec.uploaded) {
+    const d = new Date(rec.uploaded * 1000);
+    _row('Added', d.toLocaleString());
+  }
+  if (rec.processed) {
+    const d = new Date(rec.processed * 1000);
+    _row('Last synced', d.toLocaleString());
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  function _copyBtn(val) {
+    const id = 'ci-cp-' + Math.random().toString(36).slice(2);
+    setTimeout(() => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', () => {
+        navigator.clipboard?.writeText(val).then(() => {
+          btn.textContent = '✓'; setTimeout(() => { btn.textContent = '⎘'; }, 1200);
+        }).catch(() => {});
+      });
+    }, 0);
+    return `<button class="ci-copy" id="${id}" title="Copy">⎘</button>`;
+  }
+
+  function _revealBtn(valId) {
+    const id = 'ci-rv-' + Math.random().toString(36).slice(2);
+    setTimeout(() => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', () => {
+        const el = document.getElementById(valId);
+        if (!el) return;
+        if (el.classList.contains('ci-masked')) {
+          el.classList.remove('ci-masked');
+          el.textContent = el.dataset.real;
+          btn.textContent = '🙈';
+          btn.title = 'Hide';
+        } else {
+          el.classList.add('ci-masked');
+          el.textContent = '••••••••••••';
+          btn.textContent = '👁';
+          btn.title = 'Reveal';
+        }
+      });
+    }, 0);
+    return `<button class="ci-reveal" id="${id}" title="Reveal">👁</button>`;
+  }
+
+  let html = '';
+
+  // Name editor section
+  html += `<div class="ci-section">`;
+  html += `<div class="ci-section-title">Display name</div>`;
+  html += `<div class="ci-name-row">`;
+  html += `<input class="ci-name-input" id="ci-name-input" value="${_esc(rec.name || '')}" placeholder="Source name" autocomplete="off"/>`;
+  html += `<button class="ci-save-btn" id="ci-save-btn" onclick="_ciSaveName('${_esc(key)}')">Save</button>`;
+  html += `</div>`;
+  html += `</div>`;
+
+  // Connection details section
+  html += `<div class="ci-section">`;
+  html += `<div class="ci-section-title">Connection details</div>`;
+  for (const r of rows) {
+    const vid = 'ci-v-' + Math.random().toString(36).slice(2);
+    if (r.secret) {
+      html += `<div class="ci-row">`;
+      html += `<span class="ci-label">${_esc(r.label)}</span>`;
+      html += `<span class="ci-value ci-masked" id="${vid}" data-real="${_esc(r.value)}" title="Click 👁 to reveal">••••••••••••</span>`;
+      html += _revealBtn(vid);
+      html += _copyBtn(r.value);
+      html += `</div>`;
+    } else {
+      html += `<div class="ci-row">`;
+      html += `<span class="ci-label">${_esc(r.label)}</span>`;
+      html += `<span class="ci-value" id="${vid}">${_esc(r.value)}</span>`;
+      html += _copyBtn(r.value);
+      html += `</div>`;
+    }
+  }
+  html += `</div>`;
+
+  body.innerHTML = html;
+
+  // Auto-focus name input and select-all
+  const ni = document.getElementById('ci-name-input');
+  if (ni) { ni.focus(); ni.select(); }
+}
+
+async function _ciSaveName(key) {
+  const input = document.getElementById('ci-name-input');
+  const btn   = document.getElementById('ci-save-btn');
+  if (!input) return;
+  const newName = input.value.trim();
+  if (!newName) { input.focus(); return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/registry/' + key, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    }).then(r => r.json());
+    if (res.error) { window._showToast('Error: ' + res.error, 'error'); return; }
+    // Update card name in DOM
+    const card = document.getElementById('card-' + key);
+    if (card) {
+      const nameEl = card.querySelector('.card-name');
+      if (nameEl) nameEl.textContent = newName;
+    }
+    btn.textContent = 'Saved ✓';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = 'Save'; btn.style.color = ''; btn.disabled = false; }, 1500);
+    window._showToast('Name updated.', 'success');
+  } catch(e) {
+    window._showToast('Error: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+// ── Multi-select system ───────────────────────────────────────────────────────
+const _selKeys = new Set();   // set of selected card keys
+
+function _wireSelCheck(card) {
+  if (card.dataset.selWired) return;
+  card.dataset.selWired = '1';
+  const key  = card.id.replace('card-', '');
+  const chk  = card.querySelector('.sel-check');
+  if (!chk) return;
+  chk.addEventListener('click', e => { e.stopPropagation(); _selToggle(key); });
+}
+
+function _selToggle(key) {
+  const card = document.getElementById('card-' + key);
+  const chk  = document.getElementById('sel-' + key);
+  if (_selKeys.has(key)) {
+    _selKeys.delete(key);
+    chk?.classList.remove('checked');
+    card?.classList.remove('sel-selected');
+  } else {
+    _selKeys.add(key);
+    chk?.classList.add('checked');
+    card?.classList.add('sel-selected');
+  }
+  _selUpdateBar();
+}
+
+function _selUpdateBar() {
+  const n    = _selKeys.size;
+  const bar  = document.getElementById('sel-bar');
+  const countEl = document.getElementById('sel-bar-count');
+  const joinBtn = document.getElementById('sel-bar-join');
+  if (!bar) return;
+  // Count how many selected are ready (non-join)  -  eligible for join action
+  const readyCount = [..._selKeys].filter(k => {
+    const c = document.getElementById('card-' + k);
+    return c && c.classList.contains('state-ready') && !c.classList.contains('join-card');
+  }).length;
+  countEl.innerHTML = `<strong>${n}</strong> selected`;
+  if (joinBtn) {
+    joinBtn.disabled = readyCount < 2;
+    joinBtn.title    = readyCount < 2 ? 'Select 2+ ready (non-join) sources to join' : 'Join selected schemas';
+  }
+  bar.classList.toggle('visible', n > 0);
+  document.body.classList.toggle('sel-mode', n > 0);
+}
+
+function selBarClear() {
+  [..._selKeys].forEach(k => {
+    document.getElementById('sel-' + k)?.classList.remove('checked');
+    document.getElementById('card-' + k)?.classList.remove('sel-selected');
+  });
+  _selKeys.clear();
+  _selUpdateBar();
+}
+
+function selBarJoin() {
+  const readyKeys = [..._selKeys].filter(k => {
+    const c = document.getElementById('card-' + k);
+    return c && c.classList.contains('state-ready') && !c.classList.contains('join-card');
+  });
+  if (readyKeys.length < 2) {
+    window._showToast('Select at least 2 ready (non-join) sources to join.', 'info');
+    return;
+  }
+  // Build the members list with keys + names, then open join modal directly
+  const allReady = readyKeys.map(k => {
+    const name = document.getElementById('card-' + k)?.querySelector('.card-name')?.textContent?.trim() || k;
+    return { key: k, name };
+  });
+  // Use the existing join modal infrastructure
+  _joinDirectMode = true;
+  _joinUpdateKey  = '';
+  const pickerRows = document.getElementById('join-picker-rows');
+  if (pickerRows) {
+    // Show all ready non-join cards in picker, pre-check the selected ones
+    const allReadyCards = [...document.querySelectorAll('.schema-card.state-ready:not(.join-card)')].map(c => ({
+      key: c.id.replace('card-', ''), name: c.querySelector('.card-name')?.textContent?.trim() || ''
+    }));
+    pickerRows.innerHTML = allReadyCards.map(s =>
+      `<label class="join-picker-row" data-key="${_esc(s.key)}"><input type="checkbox" class="join-picker-chk" data-key="${_esc(s.key)}" data-name="${_esc(s.name)}" ${readyKeys.includes(s.key) ? 'checked' : ''}/><span class="join-picker-name">${_esc(s.name)}</span></label>`
+    ).join('');
+    pickerRows.removeEventListener('change', _rebuildJoinAliasRows);
+    pickerRows.addEventListener('change', _rebuildJoinAliasRows);
+  }
+  document.getElementById('join-picker-section').style.display = '';
+  const nameInput = document.getElementById('join-modal-name');
+  if (nameInput) { nameInput.value = allReady.map(s => s.name).join(' + '); delete nameInput.dataset.userEdited; }
+  _rebuildJoinAliasRows();
+  const titleEl   = document.getElementById('join-modal-title');
+  const confirmEl = document.getElementById('join-confirm-btn');
+  if (titleEl)   titleEl.textContent   = '✦ Create Join Schema';
+  if (confirmEl) confirmEl.textContent = 'Create Join';
+  document.getElementById('join-picker-hint').style.display = 'none';
+  document.getElementById('join-modal').classList.add('open');
+}
+
+async function selBarDelete() {
+  const keys = [..._selKeys];
+  if (!keys.length) return;
+  const names = keys.map(k => document.getElementById('card-' + k)?.querySelector('.card-name')?.textContent || k);
+  const isJoins = keys.map(k => document.getElementById('card-' + k)?.classList.contains('join-card'));
+  const label = keys.length === 1 ? `"${names[0]}"` : `${keys.length} sources`;
+  window._openConfirm(
+    `Delete ${label}?`,
+    keys.length === 1
+      ? `Remove "${names[0]}"? This cannot be undone.`
+      : `Remove ${keys.length} selected sources? This cannot be undone.`,
+    async () => {
+      let failed = 0;
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        const isJoin = isJoins[i];
+        try {
+          const endpoint = isJoin ? '/api/joins/' + k : '/api/delete/' + k;
+          const res = await fetch(endpoint, { method: 'DELETE' }).then(r => r.json());
+          if (res.error) { failed++; continue; }
+          const card = document.getElementById('card-' + k);
+          if (card) card.remove();
+          _selKeys.delete(k);
+        } catch(e) { failed++; }
+      }
+      if (!document.querySelectorAll('.schema-card').length) {
+        document.getElementById('schema-list').innerHTML =
+          '<div id="empty">No schema sources yet - upload a file or connect a database above.</div>';
+      }
+      _selUpdateBar();
+      if (failed) window._showToast(`${failed} deletion(s) failed.`, 'error');
+      else window._showToast(keys.length === 1 ? 'Source removed.' : `${keys.length} sources removed.`, 'info');
+    },
+    'Delete'
+  );
+}
+
+// Wire all cards already on the page
+document.querySelectorAll('.schema-card').forEach(_wireSelCheck);
+</script>
+</body>
+</html>

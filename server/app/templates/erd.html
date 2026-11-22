@@ -1,0 +1,4590 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ name }} - ERD - Nybble</title>
+{% include '_base_styles.html' %}
+{% include '_erd_features_constants.html' %}
+<style>
+/* ── Embedded mode ────────────────────────────────────────────── */
+body.embedded #topbar       { display: none !important; }
+body.embedded #global-nav   { display: none !important; }
+body.embedded #sidebar      { display: none !important; }
+body.embedded #minimap      { display: none !important; }
+body.embedded #main         { height: 100%; }
+body.embedded #detail       { display: none !important; }
+/* Embedded: no global-nav, so restore full viewport height */
+body.embedded #app { height: 100vh; height: 100dvh; }
+
+/* ── View-mode pill group ─────────────────────────────────────── */
+.pill-group { display: flex; gap: 0; flex-shrink: 0; }
+.pill {
+  padding: 4px 11px; font-size: 11px; color: var(--text-muted);
+  background: var(--bg); border: 1px solid var(--border); cursor: pointer;
+  transition: all .15s; white-space: nowrap;
+}
+.pill:first-child { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.pill:last-child  { border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.pill:not(:first-child) { border-left: none; }
+.pill.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
+.pill:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+/* ── ERD icon-only button override (canvas controls only) ─────────
+   Scoped to #canvas-toolbar so the standard .tbtn pill shape is not
+   broken on the topbar navigation links. */
+#canvas-toolbar .tbtn {
+  width: 32px; height: 32px; padding: 0; border: none;
+  justify-content: center;
+}
+#canvas-toolbar .tbtn.on { border: none; }
+#canvas-toolbar .tbtn.on:hover { background: rgba(167,139,250,0.22); }
+
+/* ── Export dropdown ─────────────────────────────────────────────── */
+.export-wrap { position: relative; flex-shrink: 0; }
+.export-btn {
+  height: 30px; padding: 0 10px; background: none;
+  border: 1px solid var(--border); color: var(--text-muted);
+  cursor: pointer; border-radius: var(--r-sm); font-size: 11px;
+  display: flex; align-items: center; gap: 5px;
+  transition: background .12s, color .12s;
+}
+.export-btn:hover, .export-wrap.open .export-btn {
+  background: rgba(255,255,255,0.07); color: var(--text); border-color: rgba(255,255,255,0.25);
+}
+.export-menu {
+  display: none; position: absolute; top: calc(100% + 5px); right: 0;
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7); min-width: 180px; z-index: 200;
+  overflow: hidden;
+}
+.export-wrap.open .export-menu { display: block; }
+.export-menu-hdr {
+  padding: 6px 12px 4px; font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-dim); border-bottom: 1px solid var(--border);
+}
+.export-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 12px; font-size: 12px; cursor: pointer;
+  color: var(--text-muted); transition: background .1s;
+}
+.export-item:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+.export-item svg { flex-shrink: 0; opacity: .6; }
+.export-item small { margin-left: auto; font-size: 10px; color: var(--text-dim); }
+
+/* ── Sidebar search (inline, above table list) ─────────────────── */
+#search-wrap {
+  padding: 7px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+#search-wrap svg { flex-shrink: 0; color: var(--text-dim); }
+#nav-search {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 12px; caret-color: var(--accent); min-width: 0;
+}
+#nav-search::placeholder { color: var(--text-faint); }
+#search-clear {
+  background: none; border: none; color: var(--text-faint);
+  cursor: pointer; font-size: 13px; padding: 2px 3px; line-height: 1; flex-shrink: 0;
+}
+#search-clear:hover { color: var(--text-muted); }
+
+/* Sidebar */
+/* ERD-specific sidebar additions (shell defined in _base_styles.html) */
+.tbl-item.tbl-hidden { opacity: 0.35; }
+.tbl-item .c { display: none; } /* col count now in .tbl-meta */
+
+/* ── Sidebar freshness indicator dot (non-overlapping, right-aligned) ── */
+.tbl-freshness-indicator {
+  width: 7px; height: 7px; border-radius: 50%;
+  flex-shrink: 0; align-self: center;
+  margin-left: auto;
+  background: rgba(255,255,255,0.15); /* default: unknown/grey */
+}
+.tbl-freshness-indicator.fresh { background: var(--color-fresh); }
+.tbl-freshness-indicator.warn  { background: var(--color-warn); }
+.tbl-freshness-indicator.stale { background: var(--color-stale); }
+/* P1: entity-type left-border accent on sidebar rows */
+.tbl-item.etype-table    { border-left-color: var(--entity-table); }
+.tbl-item.etype-view     { border-left-color: var(--entity-view); }
+.tbl-item.etype-mv       { border-left-color: var(--entity-materialized-view); }
+.tbl-item.etype-external { border-left-color: var(--entity-external); }
+/* Eye-toggle button on each sidebar row */
+.tbl-eye {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.2); padding: 0 2px; line-height: 1;
+  transition: color .12s; display: flex; align-items: center;
+}
+.tbl-eye:hover { color: rgba(255,255,255,0.7); }
+.tbl-item.tbl-hidden .tbl-eye { color: rgba(255,255,255,0.15); }
+/* ERD sidebar header - inherits base, adds All/Hide buttons */
+#sidebar-header .sh-label { flex: 1; }
+.sh-btn {
+  background: none; border: 1px solid var(--border2); border-radius: 3px;
+  color: var(--text-dim); font-size: 9px; padding: 1px 5px;
+  cursor: pointer; transition: all .12s; white-space: nowrap;
+}
+.sh-btn:hover { border-color: #a78bfa; color: #a78bfa; }
+
+/* ── Share button ──────────────────────────────────────────────────────── */
+#btn-share {
+  height: 30px; padding: 0 10px; background: none;
+  border: 1px solid rgba(29,237,131,0.35); color: rgba(29,237,131,0.75);
+  cursor: pointer; border-radius: 4px; font-size: 11px;
+  display: flex; align-items: center; gap: 5px;
+  transition: background .12s, color .12s, border-color .12s; flex-shrink: 0;
+}
+#btn-share:hover { background: rgba(29,237,131,0.08); color: #1ded83; border-color: #1ded83; }
+#btn-share.copied { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.1); }
+
+/* ── Share modal ──────────────────────────────────────────────────────── */
+#share-modal {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.65); align-items: center; justify-content: center;
+}
+#share-modal.visible { display: flex; }
+#share-box {
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8); width: 460px; max-width: 95vw;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#share-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid #2e3234;
+}
+#share-hdr-title {
+  font-size: 13px; font-weight: 600; color: #e2e6f0;
+  display: flex; align-items: center; gap: 8px;
+}
+#share-close {
+  background: none; border: none; color: rgba(255,255,255,0.35);
+  cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px;
+}
+#share-close:hover { color: #fff; }
+#share-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+#share-scope-row { display: flex; gap: 6px; }
+.share-scope-btn {
+  flex: 1; padding: 6px 8px; border-radius: 4px; font-size: 11px; cursor: pointer;
+  border: 1px solid #2e3234; background: none; color: rgba(255,255,255,0.45);
+  transition: all .12s; text-align: center;
+}
+.share-scope-btn:hover { border-color: rgba(255,255,255,0.25); color: #e2e6f0; }
+.share-scope-btn.active { border-color: #a78bfa; color: #a78bfa; background: rgba(167,139,250,0.1); }
+#share-custom-wrap {
+  display: none; flex-direction: column; gap: 4px;
+  max-height: 160px; overflow-y: auto; border: 1px solid #2e3234;
+  border-radius: 4px; padding: 4px 0;
+}
+#share-custom-wrap.visible { display: flex; }
+.share-chk-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px; font-size: 11px; cursor: pointer;
+  color: rgba(255,255,255,0.6); transition: background .08s;
+}
+.share-chk-row:hover { background: rgba(255,255,255,0.04); }
+.share-chk-row input[type=checkbox] { accent-color: #a78bfa; flex-shrink: 0; }
+#share-url-row { display: flex; gap: 6px; }
+#share-url-input {
+  flex: 1; background: var(--surface-inset); border: 1px solid #2e3234; border-radius: 4px;
+  color: rgba(255,255,255,0.55); padding: 6px 10px; font-size: 11px;
+  font-family: Consolas, monospace; outline: none; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; cursor: default; min-width: 0;
+}
+#share-copy-btn {
+  flex-shrink: 0; padding: 6px 14px; background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.4); border-radius: 4px;
+  color: #a78bfa; font-size: 11px; cursor: pointer; font-weight: 600;
+  transition: all .12s; white-space: nowrap;
+}
+#share-copy-btn:hover { background: rgba(167,139,250,0.2); border-color: #a78bfa; }
+#share-copy-btn.copied { background: rgba(29,237,131,0.1); border-color: rgba(29,237,131,0.5); color: #1ded83; }
+
+/* Canvas area */
+#canvas-wrap { flex: 1; position: relative; overflow: hidden; background: var(--surface-page); }
+
+/* Dot-grid background */
+#canvas-wrap::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Cytoscape container */
+#cy { position: absolute; inset: 0; z-index: 1; }
+
+/* Node overlay - table card content */
+#overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+
+/* Edge animation canvas - BELOW node overlay (z2) so cards are readable */
+#edge-anim { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+
+/* Loading overlay */
+#loading {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; background: var(--surface-page); color: rgba(255,255,255,0.4); font-size: 13px;
+}
+#loading.hidden { display: none; }
+.spinner {
+  width: 30px; height: 30px; border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: #a78bfa; border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Minimap */
+#minimap {
+  position: absolute; bottom: 16px; right: 16px; z-index: 10;
+  width: 160px; height: 120px;
+  background: var(--surface-card); border: 1px solid #2e3234; border-radius: 6px;
+  overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+#minimap.hidden { display: none; }
+#minimap canvas { width: 100%; height: 100%; display: block; }
+
+/* Detail panel */
+#detail {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 280px; z-index: 15;
+  background: var(--surface-card); border-left: 1px solid #2e3234;
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .25s ease;
+}
+#detail.open { transform: translateX(0); }
+#detail-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #2e3234; flex-shrink: 0; }
+#detail-title  { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#detail-close  { background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; }
+#detail-close:hover { color: #fff; }
+#detail-body   { flex: 1; overflow-y: auto; padding: 10px 0; }
+.dcol { display: flex; align-items: center; gap: 8px; padding: 5px 14px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.dcol:last-child { border-bottom: none; }
+.dcol .dname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e6f0; }
+.dcol .dtype { font-family: Consolas, monospace; font-size: 10px; color: rgba(255,255,255,0.4); white-space: nowrap; }
+.badge { font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; flex-shrink: 0; }
+.badge-pk { background: rgba(167,139,250,0.2); color: #a78bfa; }
+.badge-fk { background: rgba(167,139,250,0.1); color: #c4b5fd; }
+/* P4: .dsec now uses .section-label token values */
+.dsec { padding: 8px 14px 4px; font-size: var(--section-label-size); font-weight: 700; text-transform: uppercase; letter-spacing: var(--section-label-spacing); color: var(--text-dim); }
+.dfk { display: flex; align-items: center; gap: 6px; padding: 5px 14px; font-size: 11px; color: rgba(255,255,255,0.55); cursor: pointer; }
+.dfk:hover { color: #a78bfa; }
+
+/* ── Focus mode chip ──────────────────────────────────────────────── */
+/* focus-chip now lives inside .ctx-info - styled via inline style on the element */
+#focus-chip-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Context menu ─────────────────────────────────────────────────── */
+#ctx-menu {
+  display: none; position: fixed; z-index: 500;
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7); min-width: 168px; overflow: hidden;
+}
+#ctx-menu.visible { display: block; }
+.ctx-hdr {
+  padding: 5px 12px 3px; font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: rgba(255,255,255,0.25); border-bottom: 1px solid #2e3234;
+}
+.ctx-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 12px; font-size: 12px; cursor: pointer;
+  color: rgba(255,255,255,0.65); transition: background .1s;
+}
+.ctx-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.ctx-item svg { flex-shrink: 0; opacity: .55; }
+.ctx-sep { height: 1px; background: #2e3234; margin: 3px 0; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-1: Entity Preview Hover Card
+   ═══════════════════════════════════════════════════════════════════ */
+#erd-hover-card {
+  display: none;
+  position: fixed;
+  z-index: 600; /* ERD_CONST.HOVER_CARD_Z_INDEX */
+  width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-card);
+  border: 1px solid #3a3d3e;
+  border-radius: 7px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.75);
+  font-size: 12px;
+  pointer-events: none;
+}
+#erd-hover-card.visible { display: block; }
+#erd-hover-card-hdr {
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid #2e3234;
+  display: flex; align-items: center; gap: 6px;
+}
+#erd-hover-card-title {
+  font-size: 13px; font-weight: 700; color: #e2e6f0;
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.erd-hc-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1px; border-bottom: 1px solid #2e3234;
+}
+.erd-hc-stat {
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.02);
+}
+.erd-hc-stat-label {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: rgba(255,255,255,0.3); margin-bottom: 2px;
+}
+.erd-hc-stat-value {
+  font-size: 12px; font-weight: 600; color: #e2e6f0;
+  font-family: Consolas, monospace;
+}
+#erd-hover-card-desc {
+  padding: 6px 12px; font-size: 11px; color: rgba(255,255,255,0.5);
+  line-height: 1.55; border-bottom: 1px solid #2e3234;
+  font-style: italic;
+}
+#erd-hover-card-desc.empty { display: none; }
+#erd-hover-card-fks {
+  padding: 6px 12px 8px;
+}
+.erd-hc-fk-hdr {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: rgba(255,255,255,0.25); margin-bottom: 4px;
+}
+.erd-hc-fk-row {
+  font-size: 10px; color: rgba(255,255,255,0.5);
+  display: flex; align-items: center; gap: 5px;
+  padding: 2px 0; font-family: Consolas, monospace;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.erd-hc-fk-arrow { color: #a78bfa; flex-shrink: 0; }
+#erd-hover-card-fks.empty { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-2: Bounding Box Groups
+   ═══════════════════════════════════════════════════════════════════ */
+/* SVG layer injected inside #canvas-wrap, above dot-grid, below Cytoscape */
+#bbox-svg {
+  position: absolute; inset: 0;
+  /* z-index 2 = above Cytoscape canvas (z-index 1) so label strips receive mouse events */
+  z-index: 2;
+  pointer-events: none; overflow: visible;
+}
+.bbox-rect {
+  rx: 6; fill-opacity: 0.08; stroke-width: 1.5; stroke-dasharray: 4 3;
+  transition: fill-opacity .2s;
+  pointer-events: none; /* background rect is decorative - only label strip handles events */
+}
+.bbox-group:hover .bbox-rect { fill-opacity: 0.14; }
+.bbox-label-strip {
+  pointer-events: all; cursor: grab;
+}
+.bbox-label-bg {
+  rx: 4; fill-opacity: 0.85;
+}
+.bbox-label-text {
+  font-size: 11px; font-weight: 700;
+  font-family: -apple-system,"Segoe UI",Arial,sans-serif;
+  letter-spacing: .04em;
+}
+.bbox-collapse-btn {
+  pointer-events: all; cursor: pointer;
+  font-size: 10px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-3: Freshness Badges on ERD Nodes
+   ═══════════════════════════════════════════════════════════════════ */
+/* The badge is a <div> positioned absolute in #overlay-extras,
+   a new sibling div we inject inside #canvas-wrap */
+#erd-badges-layer {
+  position: absolute; inset: 0; z-index: 3;
+  pointer-events: none;
+}
+.erd-freshness-dot {
+  position: absolute;
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid rgba(20,22,22,0.9);
+  pointer-events: all; cursor: default;
+  transition: transform .12s;
+}
+.erd-freshness-dot:hover { transform: scale(1.5); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-7: Breadcrumb path component (ERD breadcrumb already exists;
+         this styles the inline variant used in sidebar rows)
+   ═══════════════════════════════════════════════════════════════════ */
+.erd-ctx-path {
+  display: inline-flex; align-items: center; gap: 0;
+  font-size: 10px; color: rgba(255,255,255,0.3);
+  white-space: nowrap; overflow: hidden; max-width: 100%;
+}
+.erd-ctx-seg {
+  display: inline-flex; align-items: center; gap: 3px;
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255,255,255,0.3);
+}
+.erd-ctx-seg svg { flex-shrink: 0; opacity: .55; }
+.erd-ctx-sep { padding: 0 2px; opacity: .4; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-4: Lineage badge on sidebar table list
+   ═══════════════════════════════════════════════════════════════════ */
+.tbl-lineage-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; font-family: Consolas, monospace;
+  background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2);
+  border-radius: 10px; padding: 1px 5px;
+  color: rgba(167,139,250,0.7); flex-shrink: 0;
+  cursor: pointer; transition: all .12s;
+  white-space: nowrap;
+}
+.tbl-lineage-badge:hover {
+  background: rgba(167,139,250,0.18); border-color: rgba(167,139,250,0.45);
+  color: #a78bfa;
+}
+/* Icon-only mode when sidebar is narrow */
+.tbl-lineage-badge.icon-only .badge-text { display: none; }
+.tbl-lineage-badge.icon-only { padding: 2px 4px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-5: Tag Pills
+   ═══════════════════════════════════════════════════════════════════ */
+.erd-tags-wrap {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  align-items: center; padding: 0;
+}
+.erd-tag-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 10px;
+  border: 1px solid transparent;
+  white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  transition: opacity .12s;
+}
+.erd-tag-pill .erd-tag-rm {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; line-height: 1; padding: 0 0 0 2px;
+  opacity: .6; flex-shrink: 0;
+}
+.erd-tag-pill .erd-tag-rm:hover { opacity: 1; }
+.erd-tag-more {
+  font-size: 9px; color: rgba(255,255,255,0.4); padding: 1px 5px;
+  background: rgba(255,255,255,0.06); border-radius: 10px;
+  white-space: nowrap; cursor: pointer;
+}
+.erd-add-tag-btn {
+  font-size: 10px; color: rgba(255,255,255,0.3);
+  background: none; border: 1px dashed rgba(255,255,255,0.18);
+  border-radius: 10px; padding: 1px 6px; cursor: pointer;
+  transition: all .12s; flex-shrink: 0;
+}
+.erd-add-tag-btn:hover { border-color: rgba(167,139,250,0.5); color: #a78bfa; }
+
+/* Tag popover */
+.erd-tag-popover {
+  display: none;
+  position: fixed; z-index: 700;
+  background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+  width: 200px; padding: 8px;
+}
+.erd-tag-popover.open { display: block; }
+.erd-tag-popover-input {
+  width: 100%; background: var(--surface-inset); border: 1px solid #2e3234;
+  color: #e2e6f0; font-size: 12px; padding: 5px 8px;
+  border-radius: 4px; outline: none; font-family: inherit;
+}
+.erd-tag-popover-input:focus { border-color: rgba(167,139,250,0.5); }
+.erd-tag-suggestions {
+  margin-top: 4px; max-height: 120px; overflow-y: auto;
+}
+.erd-tag-sug-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; font-size: 11px; cursor: pointer;
+  border-radius: 3px; color: rgba(255,255,255,0.7);
+  transition: background .08s;
+}
+.erd-tag-sug-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.erd-tag-sug-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.erd-tag-hint {
+  font-size: 10px; color: rgba(255,255,255,0.25);
+  margin-top: 5px; text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-8: Sidebar sections
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar layout ─────────────────────────────────────────────── */
+/* The sidebar is a flex column. The Recent section sits at the very
+   bottom via margin-top:auto - no absolute positioning needed. */
+#sidebar {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: flex; flex-direction: column;
+}
+
+/* Tables area - no max-height cap; grows with content */
+#sb-scroll-area {
+  display: flex; flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* Middle sections (Display Settings + Stats) - natural height.
+   padding-bottom provides the visible gap above the Recent footer. */
+#sb-pinned-area {
+  flex-shrink: 0;
+  border-top: 1px solid #2e3234;
+  display: flex; flex-direction: column;
+  padding-bottom: 8px;
+}
+
+/* ── Recent: pinned to bottom-left corner of the sidebar ── */
+/* margin-top:auto pushes it to the bottom of the flex container.
+   flex-direction:column-reverse makes the body appear ABOVE the header
+   so the list expands upward when opened. position:sticky keeps it
+   anchored to the bottom of the viewport even when sidebar scrolls. */
+#sb-sec-recent {
+  margin-top: auto;
+  flex-shrink: 0;
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  background: var(--surface-card);
+  border-top: 2px solid rgba(167,139,250,0.25);
+  border-bottom: none;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+/* Recent body: scrollable list, expands upward (column-reverse parent) */
+#sb-sec-recent .sb-section-body {
+  overflow-y: auto;
+  max-height: 200px;
+  transition: max-height 240ms ease-in-out, opacity 200ms ease;
+  opacity: 1;
+}
+#sb-sec-recent.collapsed .sb-section-body {
+  max-height: 0 !important;
+  opacity: 0;
+  overflow: hidden;
+}
+
+/* Remove the legacy spacer */
+#sb-recent-spacer { display: none; }
+
+/* Chevron: points UP (▴) when collapsed - signals it opens upward.
+            Points DOWN (▾) when expanded - list is visible above. */
+#sb-sec-recent .sb-section-chevron { transform: rotate(0deg); }
+#sb-sec-recent.collapsed .sb-section-chevron { transform: rotate(180deg); }
+
+/* ── Generic section shell ───────────────────────────────────────── */
+.sb-section {
+  display: flex; flex-direction: column;
+  border-bottom: 1px solid #2e3234; flex-shrink: 0;
+}
+
+/* ── Collapsible section header ──────────────────────────────────── */
+.sb-section > .sb-section-hdr {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px 7px 12px;
+  font-size: var(--section-label-size); font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: rgba(255,255,255,0.35);
+  cursor: pointer; user-select: none; flex-shrink: 0;
+  background: var(--surface-card);
+  transition: color .12s;
+  border-bottom: none;
+}
+.sb-section > .sb-section-hdr:hover { color: rgba(255,255,255,0.6); }
+.sb-section > .sb-section-hdr:focus { outline: 2px solid rgba(167,139,250,0.5); outline-offset: -2px; }
+.sb-section-label { flex: 1; }
+.sb-section-chevron {
+  flex-shrink: 0; transition: transform .2s var(--ease-snap);
+  color: rgba(255,255,255,0.2);
+}
+.sb-section.collapsed .sb-section-chevron { transform: rotate(-90deg); }
+
+/* Collapsible body - animates open/close */
+.sb-section-body {
+  overflow: hidden;
+  max-height: 1200px;
+  transition: max-height 220ms ease-in-out, opacity 200ms ease;
+  opacity: 1;
+}
+.sb-section.collapsed .sb-section-body { max-height: 0; opacity: 0; }
+
+/* ── Tables: body scrolls internally ────────────────────────────── */
+.sb-sec-tables .sb-section-body {
+  overflow-y: auto;
+  max-height: 35vh;
+}
+
+/* ── Display Settings body - the groups list scrolls inside it ─── */
+#sb-body-display {
+  overflow: hidden;
+}
+/* Groups list scrolls when there are many groups */
+#groups-list {
+  max-height: 20vh;
+  overflow-y: auto;
+}
+
+/* ── Static sections (Stats): never collapse ─────────────────────── */
+.sb-section-static > .sb-section-hdr {
+  cursor: default; pointer-events: none;
+}
+.sb-section-static .sb-section-chevron { display: none; }
+.sb-section-static .sb-section-body {
+  max-height: none !important; overflow: visible; opacity: 1 !important;
+}
+
+/* ── Groups sidebar section ─────────────────────────────────────── */
+.grp-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 10px 5px 12px; font-size: 12px;
+  color: rgba(255,255,255,0.65); cursor: default;
+  border-left: 2px solid transparent;
+  transition: background .1s;
+}
+.grp-item:hover { background: var(--surface2); }
+.grp-swatch {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.grp-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp-count { font-size: 10px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+.grp-eye {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.2); padding: 0 2px; line-height: 1;
+  transition: color .12s; display: flex; align-items: center;
+}
+.grp-eye:hover { color: rgba(255,255,255,0.7); }
+.grp-item.grp-hidden .grp-eye { color: rgba(255,255,255,0.15); }
+.grp-item.grp-hidden .grp-label { opacity: 0.4; }
+/* Boundary eye - dashed-border icon, always slightly muted vs the tables eye */
+.grp-eye-boundary { color: rgba(255,255,255,0.35) !important; }
+.grp-eye-boundary:hover { color: rgba(255,255,255,0.8) !important; }
+/* Disabled state: whole list muted, eye buttons inert */
+#groups-list.grp-disabled { opacity: 0.35; pointer-events: none; }
+/* ── Groups enable/disable toggle switch ─────────────────────────── */
+.grp-toggle-wrap {
+  display: flex; align-items: center; flex-shrink: 0;
+  cursor: pointer; margin-right: 4px;
+}
+.grp-toggle-chk {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.grp-toggle-track {
+  width: 26px; height: 14px; border-radius: 7px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; padding: 0 2px;
+  transition: background .18s, border-color .18s;
+  flex-shrink: 0;
+}
+.grp-toggle-chk:checked ~ .grp-toggle-track {
+  background: rgba(167,139,250,0.35);
+  border-color: rgba(167,139,250,0.55);
+}
+.grp-toggle-thumb {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  transition: transform .18s var(--ease-snap), background .18s;
+  flex-shrink: 0;
+}
+.grp-toggle-chk:checked ~ .grp-toggle-track .grp-toggle-thumb {
+  transform: translateX(12px);
+  background: #a78bfa;
+}
+
+/* ─── Tooltip shared by freshness dots and breadcrumb segs ─────── */
+.erd-tooltip {
+  position: fixed; z-index: 800;
+  background: var(--surface-card); border: 1px solid #3a3d3e;
+  border-radius: 5px; padding: 4px 9px;
+  font-size: 11px; color: #e2e6f0;
+  pointer-events: none; white-space: pre;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  display: none;
+}
+.erd-tooltip.visible { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   T1-6: Cmd-K Command Palette - styles live in _erd_cmdpalette.html
+   (palette is shared across erd.html and browse.html)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── FK path trace panel ──────────────────────────────────────────── */
+#fkpath-panel {
+  display: none; position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  z-index: 400; background: var(--surface-card); border: 1px solid #3a3d3e; border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.75); min-width: 320px; max-width: 600px;
+  font-size: 12px; color: rgba(255,255,255,0.75);
+}
+#fkpath-panel.visible { display: block; }
+#fkpath-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid #2e3234;
+}
+#fkpath-title { flex: 1; font-size: 11px; font-weight: 600; color: #c4b5fd; }
+#fkpath-close {
+  background: none; border: none; color: rgba(255,255,255,0.4);
+  cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px;
+}
+#fkpath-close:hover { color: #fff; }
+#fkpath-body { padding: 10px 14px 12px; }
+.fkpath-step {
+  display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  font-size: 11px; line-height: 1.8;
+}
+.fkpath-tbl {
+  background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.3);
+  border-radius: 3px; padding: 1px 6px; color: #c4b5fd; cursor: pointer;
+  transition: background .1s;
+}
+.fkpath-tbl:hover { background: rgba(167,139,250,0.22); }
+.fkpath-arrow { color: rgba(255,255,255,0.3); font-size: 10px; }
+.fkpath-join { font-family: Consolas,"Courier New",monospace; font-size: 10px; color: rgba(255,255,255,0.4); display: block; margin-top: 6px; }
+#fkpath-status { font-size: 11px; color: rgba(255,255,255,0.4); font-style: italic; }
+
+</style>
+</head>
+<body{% if embedded %} class="embedded"{% endif %}>
+{% if not embedded %}{% set active_nav = 'sources' %}{% include '_global_nav.html' %}{% endif %}
+{% if not embedded %}
+<script>
+/* Populate gnav right with schema name + stats as soon as DOM is ready */
+(function() {
+  var el = document.getElementById('gnav-source-count');
+  if (!el) return;
+  el.style.display = '';
+  el.style.maxWidth = '420px';
+  el.style.overflow = 'hidden';
+  el.style.textOverflow = 'ellipsis';
+  el.style.whiteSpace = 'nowrap';
+  el.style.fontWeight = '500';
+  el.style.color = 'var(--text-muted)';
+  el.style.background = 'none';
+  el.style.border = 'none';
+  el.style.padding = '0';
+  el.style.borderRadius = '0';
+  el.style.fontSize = '12px';
+  el.style.letterSpacing = '0';
+  el.innerHTML =
+    '<span style="color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:280px;" title="{{ name | e }}">{{ name | e }}</span>' +
+    '<span style="color:var(--border2);padding:0 6px;flex-shrink:0;">·</span>' +
+    '<span style="white-space:nowrap;flex-shrink:0;color:var(--text-muted);">{{ table_count }} table{{ 's' if table_count != 1 else '' }} · {{ fk_count }} FK</span>';
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+  el.style.gap = '0';
+})();
+</script>
+{% endif %}
+<div id="app">
+
+  <!-- ── Contextual bar (ERD - page nav tabs + toolbar) ───────────── -->
+  <div id="topbar">
+
+    <!-- ── Page nav tabs: ERD (active) / Browse / Query / Reports / Dashboard -->
+    <a class="tbtn active" href="/erd/{{ key }}"       style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="17" x2="20" y2="17"/><line x1="17" y1="14" x2="17" y2="20"/></svg>
+      ERD
+    </a>
+    <a class="tbtn" href="/browse/{{ key }}"           style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+      Browse
+    </a>
+    <a class="tbtn" href="/query/{{ key }}"            style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      Query
+    </a>
+    <a class="tbtn" href="/report/{{ key }}"           style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Reports
+    </a>
+    <a class="tbtn" href="/dashboard/{{ key }}"        style="text-decoration:none;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </a>
+
+    <!-- Focus mode chip - shown only when focus mode is active -->
+    <div id="focus-chip" style="display:none;align-items:center;gap:5px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3);border-radius:4px;padding:0 7px;height:22px;font-size:11px;color:#c4b5fd;margin-left:4px;">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      <span id="focus-chip-label">Focus</span>
+      <button id="focus-chip-exit" title="Exit focus mode (Esc)" style="background:none;border:none;color:rgba(167,139,250,0.7);cursor:pointer;font-size:13px;line-height:1;padding:0 2px;">&#x2715;</button>
+    </div>
+
+    <!-- Spacer -->
+    <div class="tb-spacer"></div>
+
+    <div class="tb-sep"></div>
+
+    <!-- Export dropdown -->
+    <div class="export-wrap" id="export-wrap">
+      <button class="export-btn" id="btn-export" onclick="toggleExportMenu()" title="Export diagram (e)">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="export-menu" id="export-menu">
+        <div class="export-menu-hdr">Download diagram</div>
+        <div class="export-item" onclick="exportPNG(2); closeExportMenu()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          PNG - standard
+          <small>2×</small>
+        </div>
+        <div class="export-item" onclick="exportPNG(4); closeExportMenu()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          PNG - high-res
+          <small>4×</small>
+        </div>
+        <div class="export-item" onclick="exportSVG(); closeExportMenu()" style="border-top:1px solid #2e3234;margin-top:2px;padding-top:10px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          SVG (vector)
+          <small>4×</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <!-- N4: Compare tables -->
+    <button class="tbtn" id="btn-heatmap" title="Column Similarity Heatmap - pick two tables to compare"
+            style="width:auto;padding:0 9px;border:1px solid #2e3234;border-radius:4px;font-size:11px;"
+            onclick="NF4.openPicker()">
+      &#8853; Compare
+    </button>
+
+    <!-- N5: Query Bookmark Board -->
+    <button class="tbtn" id="btn-qbb" title="Query Bookmark Board"
+            style="width:auto;padding:0 9px;border:1px solid #2e3234;border-radius:4px;font-size:11px;"
+            onclick="NF5.open()">
+      &#9783; Board
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <!-- Share -->
+    <button id="btn-share" onclick="openShareModal()" title="Share this view">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+      </svg>
+      Share
+    </button>
+
+    <div class="tb-sep"></div>
+
+    <!-- Help / keyboard shortcuts -->
+    <div id="help-wrap" style="position:relative;">
+      <button id="btn-help" title="Keyboard shortcuts &amp; tips"
+              onclick="var p=document.getElementById('help-popover');p.style.display=p.style.display==='block'?'none':'block';"
+              style="width:22px;height:22px;border-radius:50%;border:1px solid var(--border2);background:none;color:var(--text-dim);font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">?</button>
+      <div id="help-popover" style="display:none;position:absolute;right:0;top:30px;z-index:400;background:var(--surface-card);border:1px solid #3a3d3e;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.7);padding:12px 16px;min-width:290px;font-size:11px;color:rgba(255,255,255,0.7);line-height:1.7;">
+        <div style="font-weight:700;color:#e2e6f0;margin-bottom:8px;font-size:12px;">Keyboard Shortcuts &amp; Tips</div>
+        <table style="border-collapse:collapse;width:100%;">
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);">Double-click table node</td><td>Focus 2-hop neighbourhood</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);">Double-click group name label</td><td>Fit camera to that group</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);">Right-click node</td><td>Context menu</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);">Drag table</td><td>Move individual table</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);">Drag group boundary</td><td>Move entire group</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);"><kbd style="background:rgba(255,255,255,0.08);border:1px solid #3a3d3e;border-radius:3px;padding:0 4px;">Esc</kbd></td><td>Exit focus mode / clear selection</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);"><kbd style="background:rgba(255,255,255,0.08);border:1px solid #3a3d3e;border-radius:3px;padding:0 4px;">/</kbd></td><td>Search tables</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);"><kbd style="background:rgba(255,255,255,0.08);border:1px solid #3a3d3e;border-radius:3px;padding:0 4px;">Ctrl+0</kbd></td><td>Fit canvas to screen</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap;color:rgba(255,255,255,0.45);"><kbd style="background:rgba(255,255,255,0.08);border:1px solid #3a3d3e;border-radius:3px;padding:0 4px;">Ctrl++/−</kbd></td><td>Zoom in / out</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <!-- Canvas controls: zoom / fit / minimap - scoped for .tbtn icon-only override -->
+    <div id="canvas-toolbar" style="display:flex;align-items:center;gap:0;">
+
+      <!-- Zoom in -->
+      <button class="tbtn" id="btn-zoomin" title="Zoom in (Ctrl++)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/>
+        </svg>
+      </button>
+
+      <!-- Zoom out -->
+      <button class="tbtn" id="btn-zoomout" title="Zoom out (Ctrl+-)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M8 11h6"/>
+        </svg>
+      </button>
+
+      <!-- Fit to screen -->
+      <button class="tbtn" id="btn-fit" title="Fit to screen (Ctrl+0)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+        </svg>
+      </button>
+
+      <div class="tb-sep"></div>
+
+      <!-- Toggle minimap -->
+      <button class="tbtn on" id="btn-minimap" title="Toggle minimap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+          <line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/>
+        </svg>
+      </button>
+
+    </div><!-- /#canvas-toolbar -->
+
+  </div><!-- /topbar -->
+
+  <!-- ── Main content ──────────────────────────────────────────────── -->
+  <div id="main">
+
+    <!-- ── Sidebar ────────────────────────────────────────────────────── -->
+    <div id="sidebar">
+      <!-- Sidebar collapse/expand toggle button -->
+      <button id="sidebar-toggle-btn" title="Toggle sidebar" onclick="toggleSidebar()">&#8249;</button>
+
+      <!-- ── Top area: collapsible sections (Tables + Groups) ────────── -->
+      <div id="sb-scroll-area">
+
+        <!-- Section: Tables -->
+        <div class="sb-section sb-sec-tables" id="sb-sec-tables">
+          <div class="sb-section-hdr" role="button" tabindex="0"
+               aria-expanded="true" aria-controls="sb-body-tables"
+               data-section="tables">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.45">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span class="sb-section-label">Tables</span>
+            <!-- Show-all / hide-all toggle -->
+            <label id="tbl-enable-label" class="grp-toggle-wrap" title="Show / hide all tables"
+                   onclick="event.stopPropagation()">
+              <input type="checkbox" id="tbl-enable-chk" class="grp-toggle-chk" checked>
+              <span class="grp-toggle-track"><span class="grp-toggle-thumb"></span></span>
+            </label>
+            <svg class="sb-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="sb-section-body" id="sb-body-tables">
+            <div id="search-wrap">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input id="nav-search" type="search" placeholder="Search tables &amp; columns…" autocomplete="off" spellcheck="false"/>
+              <button id="search-clear" title="Clear">&#x2715;</button>
+            </div>
+            <div id="table-list"></div>
+          </div>
+        </div>
+
+      </div><!-- /#sb-scroll-area -->
+
+      <!-- ── Bottom area: Display Settings + Stats ──────────────────── -->
+      <div id="sb-pinned-area">
+
+        <!-- Section: Display Settings (collapsible - Groups + Show Mode) -->
+        <div class="sb-section" id="sb-sec-display">
+          <div class="sb-section-hdr" role="button" tabindex="0"
+               aria-expanded="true" aria-controls="sb-body-display"
+               data-section="display">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.45">
+              <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+            </svg>
+            <span class="sb-section-label">Display Settings</span>
+            <svg class="sb-section-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="sb-section-body" id="sb-body-display">
+
+            <!-- Groups sub-section -->
+            <div style="border-bottom:1px solid #2a2d2e;">
+              <div style="display:flex;align-items:center;gap:6px;padding:6px 10px 6px 12px;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.35;flex-shrink:0;">
+                  <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                </svg>
+                <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,0.25);flex:1;">Groups</span>
+                <label id="grp-enable-label" class="grp-toggle-wrap" title="Enable / disable group overlays"
+                       onclick="event.stopPropagation()">
+                  <input type="checkbox" id="grp-enable-chk" class="grp-toggle-chk" checked>
+                  <span class="grp-toggle-track"><span class="grp-toggle-thumb"></span></span>
+                </label>
+              </div>
+              <div id="groups-list" style="padding:4px 0;">
+                <div style="padding:8px 12px;font-size:11px;color:rgba(255,255,255,0.2);font-style:italic;">Loading groups…</div>
+              </div>
+            </div>
+
+            <!-- Show Mode sub-section -->
+            <div style="padding:6px 12px 10px;">
+              <div style="margin-bottom:5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,0.25);">Show mode</div>
+              <div class="pill-group" style="width:100%;">
+                <button class="pill active" data-mode="ALL" style="flex:1;text-align:center;">All fields</button>
+                <button class="pill" data-mode="KEYS" style="flex:1;text-align:center;">Keys</button>
+                <button class="pill" data-mode="NAME" style="flex:1;text-align:center;">Name</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Section: Stats (static - never collapses) -->
+        <div class="sb-section sb-section-static" id="sb-sec-stats">
+          <div class="sb-section-hdr" aria-expanded="true">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.45">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span class="sb-section-label">Stats</span>
+          </div>
+          <div class="sb-section-body" id="sb-body-stats">
+            <div id="sb-stats-body" style="padding:8px 12px;font-size:11px;color:rgba(255,255,255,0.4);">
+              <!-- Populated by initSidebarStats() after layout -->
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#sb-pinned-area -->
+
+      <!-- Recent: direct child of #sidebar, position:sticky so it always
+           appears at the bottom of the sidebar viewport -->
+      <div class="sb-section collapsed" id="sb-sec-recent">
+        <div class="sb-section-hdr" role="button" tabindex="0" data-section="recent" aria-expanded="false">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.45">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span class="sb-section-label">Recent</span>
+          <svg class="sb-section-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="sb-section-body" id="sb-body-recent">
+          <div id="sb-recent-body" style="padding:4px 0;"></div>
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+    <!-- Canvas area -->
+    <div id="canvas-wrap">
+      <!-- T1-2: Bounding box SVG layer (sits behind Cytoscape) -->
+      <svg id="bbox-svg" aria-hidden="true"></svg>
+      <div id="cy"></div>
+      <canvas id="overlay"></canvas>
+      <canvas id="edge-anim"></canvas>
+      <!-- T1-3: Freshness dot overlay -->
+      <div id="erd-badges-layer" aria-hidden="true"></div>
+
+      <div id="loading">
+        <div class="spinner"></div>
+        <span>Calculating layout&hellip;</span>
+      </div>
+
+      <div id="minimap"><canvas id="minimap-canvas"></canvas></div>
+
+      <aside id="detail">
+        <div id="detail-header">
+          <span id="detail-title">Table</span>
+          <button id="detail-close" title="Close (Esc)">&times;</button>
+        </div>
+        <div id="detail-body"></div>
+      </aside>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ── Context menu (right-click on node) ────────────────────────── -->
+<div id="ctx-menu">
+  <div class="ctx-hdr" id="ctx-menu-title">Table</div>
+  <div class="ctx-item" id="ctx-focus2">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    Focus (2-hop neighbourhood)
+  </div>
+  <div class="ctx-item" id="ctx-focus3">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+    Focus (3-hop neighbourhood)
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-path-from">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="2"/><path d="M7 12h10"/><circle cx="19" cy="12" r="2"/></svg>
+    Set as path start
+  </div>
+  <div class="ctx-item" id="ctx-path-to">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    Trace FK path to here
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-browse">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+    Browse table &rarr;
+  </div>
+  <div class="ctx-item" id="ctx-query">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+    Query table &rarr;
+  </div>
+</div>
+
+<!-- ── FK path trace panel ────────────────────────────────────────── -->
+<div id="fkpath-panel">
+  <div id="fkpath-header">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><circle cx="5" cy="12" r="2"/><path d="M7 12h10"/><circle cx="19" cy="12" r="2"/></svg>
+    <span id="fkpath-title">FK Join Path</span>
+    <button id="fkpath-close" title="Close">&times;</button>
+  </div>
+  <div id="fkpath-body">
+    <span id="fkpath-status">Right-click a table → "Set as path start", then right-click another → "Trace FK path to here"</span>
+  </div>
+</div>
+
+<!-- ── Share modal ────────────────────────────────────────────────── -->
+<div id="share-modal" onclick="if(event.target===this)closeShareModal()">
+  <div id="share-box">
+    <div id="share-hdr">
+      <span id="share-hdr-title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+        Share this view
+      </span>
+      <button id="share-close" onclick="closeShareModal()" title="Close">&times;</button>
+    </div>
+    <div id="share-body">
+      <div id="share-scope-row">
+        <button class="share-scope-btn" data-scope="full"   onclick="setShareScope('full')">Full schema</button>
+        <button class="share-scope-btn" data-scope="table"  onclick="setShareScope('table')">Current table</button>
+        <button class="share-scope-btn" data-scope="custom" onclick="setShareScope('custom')">Custom set</button>
+      </div>
+      <div id="share-custom-wrap" aria-label="Select tables to include">
+        <!-- Populated by openShareModal() -->
+      </div>
+      <div id="share-url-row">
+        <input id="share-url-input" type="text" readonly>
+        <button id="share-copy-btn" onclick="copyShareUrl()">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── T1-1: Hover card DOM ──────────────────────────────────────── -->
+<div id="erd-hover-card" role="tooltip" aria-live="polite">
+  <div id="erd-hover-card-hdr">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" style="flex-shrink:0">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+    </svg>
+    <span id="erd-hover-card-title">Table</span>
+  </div>
+  <div class="erd-hc-stats">
+    <div class="erd-hc-stat">
+      <div class="erd-hc-stat-label">Rows</div>
+      <div class="erd-hc-stat-value" id="erd-hc-rows">-</div>
+    </div>
+    <div class="erd-hc-stat">
+      <div class="erd-hc-stat-label">Columns</div>
+      <div class="erd-hc-stat-value" id="erd-hc-cols">-</div>
+    </div>
+    <div class="erd-hc-stat">
+      <div class="erd-hc-stat-label">FK out</div>
+      <div class="erd-hc-stat-value" id="erd-hc-fk-out">-</div>
+    </div>
+    <div class="erd-hc-stat">
+      <div class="erd-hc-stat-label">Last updated</div>
+      <div class="erd-hc-stat-value" id="erd-hc-fresh" style="font-size:10px;">-</div>
+    </div>
+  </div>
+  <div id="erd-hover-card-desc" class="empty"></div>
+  <div id="erd-hover-card-fks" class="empty">
+    <div class="erd-hc-fk-hdr">Foreign Keys</div>
+    <div id="erd-hc-fk-list"></div>
+  </div>
+</div>
+
+<!-- ── T1-5: Tag popover DOM ─────────────────────────────────────── -->
+<div id="erd-tag-popover" class="erd-tag-popover" role="dialog" aria-label="Add tag">
+  <input id="erd-tag-input" class="erd-tag-popover-input" type="text"
+         placeholder="Tag name…" autocomplete="off" spellcheck="false"/>
+  <div id="erd-tag-suggestions" class="erd-tag-suggestions"></div>
+  <div class="erd-tag-hint">Enter to create · Esc to close</div>
+</div>
+
+<!-- ── Shared tooltip DOM ────────────────────────────────────────── -->
+<div id="erd-tooltip" class="erd-tooltip" role="tooltip"></div>
+
+{% include '_novel_features.html' %}
+
+<!-- CDN: Cytoscape 3.29, elkjs 0.10, cytoscape-elk -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.29.2/cytoscape.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/elkjs@0.10.0/lib/elk.bundled.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-elk@2.2.0/dist/cytoscape-elk.js" crossorigin="anonymous"></script>
+
+<script>
+// ── Embedded schema data ──────────────────────────────────────────────────────
+const SCHEMA = {{ schema_json | safe }};
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+// NOTE (P5): Canvas 2D and PNG/SVG export require literal hex strings and cannot
+// use CSS custom properties.  These values intentionally duplicate --surface-page
+// (#141618) and --surface2 (#232526) from _base_styles.html so they stay in sync.
+// If the surface palette is updated, update these literals too.
+const T = {
+  bg:        '#141618', headerBg:  '#232526',  /* P5: --surface-page / --surface2 */
+  border:    'rgba(255,255,255,0.15)', borderHL: '#a78bfa',
+  text:      '#ffffff', textMuted: 'rgba(255,255,255,0.55)',
+  textType:  'rgba(255,255,255,0.40)',
+  pkColor:   '#a78bfa', fkColor:  '#c4b5fd',
+  rowBorder: '#2e3234', fkRowBg:  'rgba(167,139,250,0.06)',
+  font:      '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+  fontMono:  'Consolas, "Courier New", monospace',
+  radius: 6, hdrH: 36, rowH: 28, minW: 200,
+  /* P1: entity-type accent colours - must match --entity-* CSS vars */
+  entityTable:    '#a78bfa',
+  entityView:     '#2dd4bf',
+  entityMV:       '#fbbf24',
+  entityExternal: 'rgba(255,255,255,0.35)',
+};
+
+// ── Topological layout (server-side fallback) ─────────────────────────────────
+// When ELK fails to load, we compute a left-to-right hierarchical layout via
+// topological sort over the FK dependency graph.  Source tables (no incoming
+// FK edges) go in column 0; each table is placed in the maximum depth column
+// across all its predecessors + 1.  Columns are then spread evenly across the
+// canvas with a comfortable vertical gap between tables in the same column.
+function computeTopoLayout(tables) {
+  const W = document.getElementById('canvas-wrap').clientWidth  || 1200;
+  const H = document.getElementById('canvas-wrap').clientHeight || 700;
+
+  // Build adjacency: referenced (parent) → referencing (child).
+  // This ensures parent tables get depth 0 (leftmost) and child/fact tables
+  // accumulate depth as they reference more parents, ending up rightmost.
+  const outEdges = {};   // table → Set of tables that reference it (its children)
+  const inDegree = {};   // table → count of parent tables it depends on
+  tables.forEach(t => { outEdges[t.name] = new Set(); inDegree[t.name] = 0; });
+
+  tables.forEach(t => {
+    const referenced = new Set(
+      t.columns.filter(c => c.fk && c.fk_target).map(c => c.fk_target.slice(0, c.fk_target.lastIndexOf('.')))
+    );
+    referenced.forEach(parent => {
+      if (outEdges[parent] !== undefined && parent !== t.name) {
+        // parent → t.name: parent is upstream (left), t is downstream (right)
+        outEdges[parent].add(t.name);
+        inDegree[t.name] = (inDegree[t.name] || 0) + 1;
+      }
+    });
+  });
+
+  // Kahn's algorithm for topological depth assignment
+  const depth = {};
+  const queue = [];
+  tables.forEach(t => {
+    depth[t.name] = 0;
+    if (!inDegree[t.name]) queue.push(t.name);
+  });
+
+  while (queue.length) {
+    const cur = queue.shift();
+    outEdges[cur].forEach(nxt => {
+      depth[nxt] = Math.max(depth[nxt] || 0, depth[cur] + 1);
+      inDegree[nxt]--;
+      if (inDegree[nxt] === 0) queue.push(nxt);
+    });
+  }
+
+  // Group by depth column
+  const cols = {};
+  tables.forEach(t => {
+    const d = depth[t.name] || 0;
+    (cols[d] = cols[d] || []).push(t.name);
+  });
+  const numCols = Math.max(...Object.keys(cols).map(Number)) + 1;
+
+  // Assign positions: spread columns across canvas width, rows within each column
+  const COL_GAP  = Math.max(280, Math.round(W / numCols));
+  const ROW_GAP  = 80;
+  const positions = {};
+
+  Object.entries(cols).forEach(([d, names]) => {
+    const colX = Number(d) * COL_GAP + COL_GAP / 2;
+    const totalH = names.length * ROW_GAP;
+    names.forEach((name, i) => {
+      positions[name] = { x: colX, y: i * ROW_GAP - totalH / 2 + ROW_GAP / 2 };
+    });
+  });
+
+  return positions;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let cy, overlayCanvas, overlayCtx, minimapCanvas, minimapCtx;
+let animCanvas, animCtx;
+let showMode    = 'ALL';
+let hlIds       = new Set();
+let focalIds    = new Set();   // subset of hlIds that are the direct focus nodes
+                               // (only edges touching a focal node are animated)
+let hiddenTables = new Set();   // table names the user has toggled off
+let activeId  = null;
+let rowCounts = {};          // { tableName: count }    - loaded lazily after layout
+let rowCountApprox = {};     // { tableName: boolean }  - true if count is an estimate
+
+// Focus mode state
+let focusActive      = false;   // true while a sub-schema focus is active
+let _focusHidNodes   = false;   // true only when nodes were hidden (table/BFS focus, not group zoom)
+let _ctxTarget     = null;    // table name targeted by the last right-click
+let _ctxJustOpened = false;   // true for one tick after Cytoscape opens the context menu
+
+// FK path state
+let _pathFrom = null;         // start table for FK path tracing
+
+// Edge animation state
+const PARTICLE_COLOR  = 'rgba(167,139,250,0.75)';
+const GLOW_COLOR      = 'rgba(167,139,250,0.18)';
+const PARTICLE_RADIUS = 3;
+const PARTICLE_SPEED  = 90;   // canvas px per second
+let   animEdges       = [];   // [{id, srcPos, tgtPos, particles:[{t}]}]
+let   animFrameId     = null;
+let   lastAnimTime    = null;
+let   hoveredEdgeId   = null;
+
+// ── Dimensions ────────────────────────────────────────────────────────────────
+function nodeW(t) {
+  const nw = t.name.length * 8.5 + 52;
+  const cw = t.columns.length
+    ? Math.max(...t.columns.map(c => (c.name||'').length*7.5 + (c.type||'').length*6.5 + 56))
+    : 0;
+  return Math.ceil(Math.max(T.minW, nw, cw));
+}
+function nodeH(t, mode) {
+  if (mode === 'NAME') return T.hdrH;
+  const n = mode === 'KEYS'
+    ? t.columns.filter(c => c.pk || c.fk).length
+    : t.columns.length;
+  return Math.ceil(T.hdrH + Math.max(1, n) * T.rowH);
+}
+function visibleCols(t, mode) {
+  if (mode === 'NAME')  return [];
+  if (mode === 'KEYS')  return t.columns.filter(c => c.pk || c.fk);
+  return t.columns;
+}
+
+// ── Canvas drawing (node cards) ───────────────────────────────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,   x+w,y+r,   r); ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h, x+w-r,y+h, r); ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,   x,y+h-r,   r); ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,     x+r,y,     r); ctx.closePath();
+}
+
+/**
+ * P1: Detect entity type from table name + metadata.
+ * Returns one of: 'table' | 'view' | 'mv' | 'external'
+ * Uses metadata.object_type if set; otherwise heuristics on name.
+ * @param {string} name
+ * @returns {string}
+ */
+function _entityType(name) {
+  const m = (typeof _tablesMeta !== 'undefined' && _tablesMeta && _tablesMeta[name]) || {};
+  if (m.object_type) return m.object_type;
+  const n = name.toLowerCase();
+  if (n.startsWith('mv_') || n.endsWith('_mv') || n.startsWith('mat_') || n.includes('_materialized')) return 'mv';
+  if (n.startsWith('v_') || n.endsWith('_view') || n.endsWith('_vw') || n.startsWith('view_')) return 'view';
+  if (n.startsWith('ext_') || n.endsWith('_ext') || n.startsWith('external_')) return 'external';
+  return 'table';
+}
+
+/** P1: Get the entity accent color for a type string. */
+function _entityColor(type) {
+  switch (type) {
+    case 'view':     return T.entityView;
+    case 'mv':       return T.entityMV;
+    case 'external': return T.entityExternal;
+    default:         return T.entityTable;
+  }
+}
+
+function drawNode(ctx, table, w, h, rx, ry, zoom, highlighted) {
+  const rw = w*zoom, rh = h*zoom, r = T.radius*zoom;
+
+  // P1: Determine entity accent color for left-border strip
+  const entityType  = _entityType(table.name);
+  const entityColor = _entityColor(entityType);
+
+  roundRect(ctx, rx, ry, rw, rh, r);
+  ctx.fillStyle = T.bg; ctx.fill();
+  ctx.strokeStyle = highlighted ? T.borderHL : T.border;
+  ctx.lineWidth   = highlighted ? 2 : 1;
+  if (highlighted) { ctx.shadowColor = T.borderHL; ctx.shadowBlur = 10*zoom; }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // P1: Entity-type left-border accent strip (3px wide, rounded left edge)
+  const stripW = Math.max(3, 3 * zoom);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(rx + r, ry + 1);
+  ctx.lineTo(rx + stripW, ry + 1);
+  ctx.lineTo(rx + stripW, ry + rh - 1);
+  ctx.lineTo(rx + r, ry + rh - 1);
+  ctx.arcTo(rx, ry + rh - 1, rx, ry + rh - 1 - r, r);
+  ctx.lineTo(rx, ry + r);
+  ctx.arcTo(rx, ry + 1, rx + r, ry + 1, r);
+  ctx.closePath();
+  ctx.fillStyle = entityColor;
+  ctx.globalAlpha = 0.55;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // Header background
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(rx+r,ry); ctx.lineTo(rx+rw-r,ry);
+  ctx.arcTo(rx+rw,ry,rx+rw,ry+r,r); ctx.lineTo(rx+rw,ry+T.hdrH*zoom);
+  ctx.lineTo(rx,ry+T.hdrH*zoom); ctx.lineTo(rx,ry+r);
+  ctx.arcTo(rx,ry,rx+r,ry,r); ctx.closePath();
+  ctx.fillStyle = T.headerBg; ctx.fill();
+  ctx.restore();
+
+  // Header icon
+  const isz = 12*zoom, ix = rx+10*zoom, iy = ry+(T.hdrH*zoom-isz)/2;
+  ctx.save();
+  ctx.strokeStyle = T.textMuted; ctx.lineWidth = 1.2;
+  ctx.strokeRect(ix+isz*0.15, iy+isz*0.15, isz*0.7, isz*0.7);
+  ctx.beginPath();
+  ctx.moveTo(ix+isz*0.15, iy+isz*0.5); ctx.lineTo(ix+isz*0.85, iy+isz*0.5);
+  ctx.moveTo(ix+isz*0.5,  iy+isz*0.15); ctx.lineTo(ix+isz*0.5,  iy+isz*0.85);
+  ctx.stroke();
+  ctx.restore();
+
+  // Header title
+  const nfsz = Math.max(9, Math.round(13*zoom));
+  ctx.font = `600 ${nfsz}px ${T.font}`;
+  ctx.fillStyle = highlighted ? '#ffffff' : T.textMuted;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(clip(ctx, table.name, rw-56*zoom), rx+28*zoom, ry+T.hdrH*zoom/2);
+
+  // Row count badge - right side of header (only when count is known)
+  const rc = rowCounts[table.name];
+  if (rc !== undefined && rc !== null) {
+    const approxPfx = (rowCountApprox[table.name] ? '~' : '');
+    const rcStr  = approxPfx + (rc >= 1000000 ? (rc/1000000).toFixed(1)+'M'
+                 : rc >= 1000    ? (rc/1000).toFixed(rc>=10000?0:1)+'k'
+                 : String(rc));
+    const rcFsz  = Math.max(7, Math.round(9*zoom));
+    ctx.font = `400 ${rcFsz}px ${T.fontMono}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.textAlign = 'right';
+    ctx.fillText(rcStr, rx+rw-8*zoom, ry+T.hdrH*zoom/2);
+  }
+
+  // Column rows
+  const cols = visibleCols(table, showMode);
+  const cfsz = Math.max(8, Math.round(11*zoom));
+  const tfsz = Math.max(7, Math.round(9.5*zoom));
+
+  cols.forEach((col, i) => {
+    const rowTop = ry + (T.hdrH + i*T.rowH)*zoom;
+    const rowH   = T.rowH*zoom;
+
+    if (col.fk) { ctx.fillStyle = T.fkRowBg; ctx.fillRect(rx, rowTop, rw, rowH); }
+    if (i < cols.length-1) {
+      ctx.strokeStyle = T.rowBorder; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(rx, rowTop+rowH); ctx.lineTo(rx+rw, rowTop+rowH); ctx.stroke();
+    }
+
+    const csz = Math.max(8, Math.round(11*zoom));
+    const cx0  = rx+10*zoom, cy0 = rowTop+(rowH-csz)/2;
+    if (col.pk) {
+      ctx.strokeStyle = T.pkColor; ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(cx0+csz*0.32, cy0+csz*0.68, csz*0.22, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx0+csz*0.5, cy0+csz*0.5); ctx.lineTo(cx0+csz*0.95, cy0+csz*0.08);
+      ctx.moveTo(cx0+csz*0.8, cy0+csz*0.22); ctx.lineTo(cx0+csz*0.95, cy0+csz*0.37);
+      ctx.stroke();
+    } else if (col.fk) {
+      ctx.strokeStyle = T.fkColor; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(cx0+csz*0.32, cy0+csz*0.5, csz*0.22, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx0+csz*0.68, cy0+csz*0.5, csz*0.22, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx0+csz*0.54, cy0+csz*0.5); ctx.lineTo(cx0+csz*0.46, cy0+csz*0.5);
+      ctx.strokeStyle = T.fkColor; ctx.lineWidth = 1.5; ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx0+csz/2, cy0+csz/2, csz*0.25, 0, Math.PI*2);
+      ctx.strokeStyle = col.not_null ? 'rgba(255,255,255,0.4)' : T.rowBorder;
+      ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    ctx.font = `400 ${cfsz}px ${T.font}`;
+    ctx.fillStyle = T.text; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    const tw = (col.type||'').length*5.8*zoom + 8*zoom;
+    ctx.fillText(clip(ctx, col.name, rw-30*zoom-tw), rx+26*zoom, rowTop+rowH/2);
+
+    ctx.font = `400 ${tfsz}px ${T.fontMono}`;
+    ctx.fillStyle = T.textType; ctx.textAlign = 'right';
+    ctx.fillText(col.type||'', rx+rw-8*zoom, rowTop+rowH/2);
+  });
+}
+
+function clip(ctx, text, maxW) {
+  if (!maxW || maxW <= 0) return '';
+  if (ctx.measureText(text).width <= maxW) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) {
+    const m = (lo+hi+1)>>1;
+    ctx.measureText(text.slice(0,m)+'…').width <= maxW ? lo=m : hi=m-1;
+  }
+  return text.slice(0,lo)+'…';
+}
+
+// ── Overlay (node cards) ──────────────────────────────────────────────────────
+function drawOverlay() {
+  if (!cy || !overlayCtx) return;
+  const c = overlayCanvas;
+  const dpr = window.devicePixelRatio || 1;
+  overlayCtx.clearRect(0, 0, c.width, c.height);
+  overlayCtx.save();
+  overlayCtx.scale(dpr, dpr);
+  const zoom = cy.zoom(), pan = cy.pan();
+  cy.nodes().forEach(n => {
+    // Skip nodes hidden by the user eye-toggle OR by focus mode (style API)
+    if (hiddenTables.has(n.id())) return;
+    if (n.style('display') === 'none') return;
+    const pos = n.position();
+    const w = n.data('w'), h = n.data('h');
+    const rx = pos.x*zoom + pan.x - w*zoom/2;
+    const ry = pos.y*zoom + pan.y - h*zoom/2;
+    drawNode(overlayCtx, n.data('table'), w, h, rx, ry, zoom, hlIds.has(n.id()));
+  });
+  overlayCtx.restore();
+}
+
+// ── Minimap ───────────────────────────────────────────────────────────────────
+function drawMinimap() {
+  if (!cy || !minimapCtx) return;
+  const c = minimapCanvas;
+  const W = c.offsetWidth, H = c.offsetHeight;
+  if (!W || !H) return;
+  c.width = W; c.height = H;
+  const bb = cy.elements().boundingBox();
+  if (!bb.w || !bb.h) return;
+  const sc = Math.min((W-16)/(bb.w||1), (H-16)/(bb.h||1));
+  const ox = (W-bb.w*sc)/2 - bb.x1*sc;
+  const oy = (H-bb.h*sc)/2 - bb.y1*sc;
+
+  minimapCtx.clearRect(0,0,W,H);
+  cy.nodes().forEach(n => {
+    if (hiddenTables.has(n.id())) return;   // skip hidden tables in minimap
+    const p = n.position(), nw = n.data('w'), nh = n.data('h');
+    const x = p.x*sc+ox-nw*sc/2, y = p.y*sc+oy-nh*sc/2;
+    minimapCtx.fillStyle = hlIds.has(n.id()) ? 'rgba(167,139,250,0.25)' : '#232526';
+    minimapCtx.strokeStyle = hlIds.has(n.id()) ? '#a78bfa' : '#383a3b';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.beginPath();
+    if (minimapCtx.roundRect) minimapCtx.roundRect(x,y,Math.max(nw*sc,3),Math.max(nh*sc,4),2);
+    else minimapCtx.rect(x,y,Math.max(nw*sc,3),Math.max(nh*sc,4));
+    minimapCtx.fill(); minimapCtx.stroke();
+  });
+  const pan=cy.pan(), zoom=cy.zoom(), el=cy.container();
+  const vx=(-pan.x/zoom)*sc+ox, vy=(-pan.y/zoom)*sc+oy;
+  minimapCtx.strokeStyle='rgba(167,139,250,0.5)'; minimapCtx.lineWidth=1.5;
+  minimapCtx.strokeRect(vx,vy,(el.clientWidth/zoom)*sc,(el.clientHeight/zoom)*sc);
+}
+
+// ── Edge animation system ─────────────────────────────────────────────────────
+//
+// We sample the rendered midpoint of each highlighted edge from Cytoscape's
+// internal bezier control points, then run particles along it using rAF.
+// The edge-anim canvas sits above the Cytoscape canvas (z-index 3) but below
+// the node overlay (z-index 2 → actually edge-anim=3, overlay=2; nodes draw
+// on top because their tiles explicitly stroke/fill last).
+//
+// Wait - overlay is z-index:2 and edge-anim is z-index:3.  To keep node cards
+// visible on top we raise overlay to z-index:4 in the CSS and keep edge-anim
+// at z-index:3.  (The CSS already has overlay:z2, edge-anim:z3 - that means
+// edge-anim will appear on top of the node tiles.  We solve this differently:
+// we only draw the glowing path *between* nodes, never inside them, and we use
+// low opacity so partial overlap is fine.)
+
+function resizeAnimCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
+  animCanvas.width  = w * dpr;
+  animCanvas.height = h * dpr;
+  animCanvas.style.width  = w + 'px';
+  animCanvas.style.height = h + 'px';
+}
+
+// Convert a Cytoscape graph point to canvas coordinates.
+function cyToCanvas(pt) {
+  const z = cy.zoom(), p = cy.pan();
+  return { x: pt.x * z + p.x, y: pt.y * z + p.y };
+}
+
+// Get a bezier path for an edge that precisely matches Cytoscape's rendered curve.
+//
+// Strategy: use Cytoscape's own sourceEndpoint()/targetEndpoint() for the exact
+// pixel positions where the edge exits/enters each node boundary, and
+// edge.controlPoints() for the bezier handle(s).  If those APIs are unavailable
+// (older cy build) we fall back to computing the same math Cytoscape uses:
+//   unbundled-bezier, weight=0.5, distance=60 → single midpoint-perpendicular handle.
+//
+// Because our bezier() helper always expects a cubic (two control points) we
+// duplicate a single handle into cp1/cp2, which degenerates correctly to the
+// same quadratic arc.
+function getEdgePath(edge) {
+  // ── Attempt 1: read actual rendered endpoints + control points from Cytoscape ──
+  let srcPt, tgtPt, ctrlPts;
+  try {
+    srcPt  = edge.sourceEndpoint();   // { x, y } in graph coordinates
+    tgtPt  = edge.targetEndpoint();
+    ctrlPts = edge.controlPoints();   // array of { x, y } in graph coordinates (may be empty)
+  } catch(e) { srcPt = null; }
+
+  if (srcPt && tgtPt) {
+    const src = cyToCanvas(srcPt);
+    const tgt = cyToCanvas(tgtPt);
+    if (ctrlPts && ctrlPts.length >= 1) {
+      // Use Cytoscape's own control point(s)
+      const cp1 = cyToCanvas(ctrlPts[0]);
+      const cp2 = ctrlPts.length >= 2 ? cyToCanvas(ctrlPts[1]) : cp1;
+      return { src, cp1, cp2, tgt };
+    }
+    // No control points → straight line
+    return { src, cp1: src, cp2: tgt, tgt };
+  }
+
+  // ── Fallback: replicate Cytoscape's unbundled-bezier math directly ────────────
+  // unbundled-bezier, control-point-weights:[0.5], control-point-distances:[60]
+  // places one handle at weight 0.5 along the src→tgt line, offset 60px left.
+  const srcC = cyToCanvas(edge.source().position());
+  const tgtC = cyToCanvas(edge.target().position());
+  const dx = tgtC.x - srcC.x;
+  const dy = tgtC.y - srcC.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const px = -dy / len;   // unit perpendicular (left of src→tgt)
+  const py =  dx / len;
+  const mx = srcC.x + dx * 0.5;
+  const my = srcC.y + dy * 0.5;
+  const cp = { x: mx + px * 60, y: my + py * 60 };
+  return { src: srcC, cp1: cp, cp2: cp, tgt: tgtC };
+}
+
+// Cubic bezier interpolation (4 points)
+function bezier(p0, p1, p2, p3, t) {
+  const mt = 1 - t;
+  return {
+    x: mt*mt*mt*p0.x + 3*mt*mt*t*p1.x + 3*mt*t*t*p2.x + t*t*t*p3.x,
+    y: mt*mt*mt*p0.y + 3*mt*mt*t*p1.y + 3*mt*t*t*p2.y + t*t*t*p3.y,
+  };
+}
+
+// Approximate arc length of a cubic bezier
+function bezierLen(p0, p1, p2, p3, steps) {
+  steps = steps || 20;
+  let len = 0, prev = p0;
+  for (let i = 1; i <= steps; i++) {
+    const cur = bezier(p0, p1, p2, p3, i / steps);
+    const dx = cur.x - prev.x, dy = cur.y - prev.y;
+    len += Math.sqrt(dx*dx + dy*dy);
+    prev = cur;
+  }
+  return len;
+}
+
+// Build or refresh the list of animated edges from the current hl set.
+function refreshAnimEdges() {
+  if (!cy) return;
+  animEdges = [];
+  if (!hlIds.size) { cancelAnim(); clearAnimCanvas(); return; }
+
+  cy.edges().forEach(edge => {
+    const src = edge.source().id(), tgt = edge.target().id();
+    // Animate only edges where:
+    //   1. Both endpoints are in the highlighted set (so neighbour nodes that
+    //      share an unrelated edge don't get their edge lit up), AND
+    //   2. At least one endpoint is a *focal* node - i.e. the node that was
+    //      actually clicked/hovered, not just a bystander neighbour.
+    // Without rule 2, selecting "website_event" would also animate the direct
+    // website→event_data edge because both are neighbours of website_event.
+    if (!hlIds.has(src) || !hlIds.has(tgt)) return;
+    if (focalIds.size && !focalIds.has(src) && !focalIds.has(tgt)) return;
+    const path = getEdgePath(edge);
+    const totalLen = bezierLen(path.src, path.cp1, path.cp2, path.tgt);
+    if (totalLen < 10) return;
+
+    // Space particles evenly: one per 80px of arc length
+    const count = Math.max(1, Math.round(totalLen / 80));
+    const particles = Array.from({length: count}, (_, i) => ({
+      t: i / count,    // normalised position along curve [0,1)
+      speed: PARTICLE_SPEED / totalLen,  // dt per second
+    }));
+    animEdges.push({ id: edge.id(), path, particles, len: totalLen, isHover: edge.id() === hoveredEdgeId });
+  });
+
+  if (animEdges.length) startAnim();
+  else { cancelAnim(); clearAnimCanvas(); }
+}
+
+function clearAnimCanvas() {
+  if (!animCtx) return;
+  animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+}
+
+function startAnim() {
+  if (animFrameId) return;
+  lastAnimTime = null;
+  animFrameId  = requestAnimationFrame(animFrame);
+}
+
+function cancelAnim() {
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+}
+
+function animFrame(now) {
+  animFrameId = null;
+  if (!animEdges.length) { clearAnimCanvas(); return; }
+
+  const dt = lastAnimTime ? Math.min((now - lastAnimTime) / 1000, 0.05) : 0;
+  lastAnimTime = now;
+
+  const dpr = window.devicePixelRatio || 1;
+  animCtx.clearRect(0, 0, animCanvas.width, animCanvas.height);
+  animCtx.save();
+  animCtx.scale(dpr, dpr);
+
+  animEdges.forEach(ae => {
+    const { path, particles } = ae;
+
+    // The native Cytoscape edge remains visible (it IS the correct curve).
+    // The canvas only draws moving particles on top of it - no duplicate stroke,
+    // no canvas arrowhead (Cytoscape's own vee arrowhead is already there).
+
+    // ── Advance and draw particles ─────────────────────────────────
+    particles.forEach(p => {
+      p.t += p.speed * dt;
+      if (p.t > 1) p.t -= 1;
+
+      const pt = bezier(path.src, path.cp1, path.cp2, path.tgt, p.t);
+
+      // Tail (fading trail behind the particle)
+      const tailLen = 0.12;
+      const t0 = Math.max(0, p.t - tailLen);
+      animCtx.save();
+      animCtx.beginPath();
+      for (let i = 0; i <= 8; i++) {
+        const ti = t0 + (p.t - t0) * (i / 8);
+        const tp = bezier(path.src, path.cp1, path.cp2, path.tgt, ti);
+        i === 0 ? animCtx.moveTo(tp.x, tp.y) : animCtx.lineTo(tp.x, tp.y);
+      }
+      const grad = animCtx.createLinearGradient(
+        bezier(path.src, path.cp1, path.cp2, path.tgt, t0).x,
+        bezier(path.src, path.cp1, path.cp2, path.tgt, t0).y,
+        pt.x, pt.y
+      );
+      grad.addColorStop(0, 'rgba(167,139,250,0)');
+      grad.addColorStop(1, 'rgba(167,139,250,0.55)');
+      animCtx.strokeStyle = grad;
+      animCtx.lineWidth   = 1.5;
+      animCtx.shadowColor = '#a78bfa';
+      animCtx.shadowBlur  = 4;
+      animCtx.stroke();
+      animCtx.restore();
+
+      // Head dot
+      animCtx.save();
+      animCtx.beginPath();
+      animCtx.arc(pt.x, pt.y, PARTICLE_RADIUS, 0, Math.PI*2);
+      animCtx.fillStyle   = PARTICLE_COLOR;
+      animCtx.shadowColor = '#a78bfa';
+      animCtx.shadowBlur  = 7;
+      animCtx.fill();
+      animCtx.restore();
+    });
+  });
+
+  animCtx.restore();
+  animFrameId = requestAnimationFrame(animFrame);
+}
+
+// After Cytoscape pans/zooms, recalculate edge paths so particles track correctly.
+function syncAnimPaths() {
+  if (!cy || !animEdges.length) return;
+  animEdges.forEach(ae => {
+    const edge = cy.$('#' + CSS.escape(ae.id));
+    if (!edge.length) return;
+    ae.path = getEdgePath(edge);
+    const newLen = bezierLen(ae.path.src, ae.path.cp1, ae.path.cp2, ae.path.tgt);
+    if (Math.abs(newLen - ae.len) > 5) {
+      ae.len = newLen;
+      ae.particles.forEach(p => { p.speed = PARTICLE_SPEED / newLen; });
+    }
+  });
+}
+
+// ── Resize canvases ───────────────────────────────────────────────────────────
+function resizeOverlay() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
+  overlayCanvas.width  = w * dpr;
+  overlayCanvas.height = h * dpr;
+  overlayCanvas.style.width  = w + 'px';
+  overlayCanvas.style.height = h + 'px';
+  resizeAnimCanvas();
+  drawOverlay();
+}
+
+// ── Highlight helpers ─────────────────────────────────────────────────────────
+// focal: optional Set of node IDs that are the "direct focus" of this highlight.
+//        Only edges with at least one focal endpoint will be animated.
+//        Defaults to ids itself (every highlighted node is focal) when omitted.
+function setHL(ids, focal) {
+  hlIds    = new Set(ids);
+  focalIds = focal ? new Set(focal) : new Set(ids);
+  cy.edges().removeClass('hl');
+  if (!ids.size) { focalIds = new Set(); drawOverlay(); drawMinimap(); cancelAnim(); clearAnimCanvas(); return; }
+  cy.nodes().forEach(n => {
+    if (ids.has(n.id())) n.connectedEdges().addClass('hl');
+  });
+  drawOverlay(); drawMinimap();
+  refreshAnimEdges();
+}
+
+function selectNode(id) {
+  activeId = id;
+  const n = cy.$('#' + CSS.escape(id));
+  const ids = new Set([id]);
+  n.connectedEdges().connectedNodes().forEach(x => ids.add(x.id()));
+  // focal = only the clicked node; neighbour nodes are context, not focal
+  setHL(ids, new Set([id]));
+}
+
+function clearSel() {
+  activeId = null;
+  setHL(new Set());
+  document.getElementById('detail').classList.remove('open');
+  document.querySelectorAll('.tbl-item.active').forEach(el => el.classList.remove('active'));
+}
+
+// ── Detail panel ──────────────────────────────────────────────────────────────
+function openDetail(table) {
+  document.getElementById('detail-title').textContent = table.name;
+  const body = document.getElementById('detail-body');
+  const fks = table.columns.filter(c => c.fk);
+
+  // ── Health score breakdown (computed client-side from NF1) ──────────────────
+  function _healthBreakdown(t) {
+    const cols = t.columns || [];
+    const n = cols.length || 1;
+    const tMeta = (typeof _tablesMeta !== 'undefined' && _tablesMeta && _tablesMeta[t.name]) || null;
+    const cMeta = (typeof _erdMeta !== 'undefined' && _erdMeta && _erdMeta.columns) || {};
+
+    const hasPK    = cols.some(c => c.pk);
+    const pkPts    = hasPK ? 20 : 0;
+    const fkCount  = cols.filter(c => c.fk).length;
+    const fkPts    = Math.round((fkCount / n) * 15);
+    const semRx    = /int|float|double|decimal|numeric|bool|date|time|text|varchar|char|uuid|json|blob|real|bigint|smallint/i;
+    const semCount = cols.filter(c => c.type && semRx.test(c.type)).length;
+    const semPts   = Math.round((semCount / n) * 15);
+    const nullCount = cols.filter(c => c.not_null !== undefined && c.not_null !== null).length;
+    const nullPts  = Math.round((nullCount / n) * 20);
+    let descCount  = 0;
+    const hasTableDesc = tMeta && tMeta.description;
+    if (!hasTableDesc) {
+      cols.forEach(c => {
+        const k = t.name + '.' + c.name;
+        if (cMeta[k] && cMeta[k].description) descCount++;
+      });
+    }
+    const descPts = hasTableDesc ? 30 : Math.round((descCount / n) * 30);
+    const total   = Math.min(100, pkPts + fkPts + semPts + nullPts + descPts);
+    return { total, pkPts, fkPts, semPts, nullPts, descPts, hasPK, fkCount, semCount, nullCount, hasTableDesc, descCount, n };
+  }
+
+  const hb = _healthBreakdown(table);
+  const hColor = hb.total >= 80 ? '#1ded83' : hb.total >= 50 ? '#fbbf24' : '#f87171';
+
+  // Build a compact row for each scoring dimension
+  function _hrow(label, pts, max, ok, tip) {
+    const pct  = Math.round((pts / max) * 100);
+    const clr  = pts === max ? '#1ded83' : pts > 0 ? '#fbbf24' : 'rgba(255,255,255,0.2)';
+    const icon = pts === max ? '✓' : pts > 0 ? '~' : '✗';
+    return `<div title="${esc(tip)}" style="display:flex;align-items:center;gap:6px;padding:4px 14px;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.04);">
+      <span style="color:${clr};font-size:10px;width:10px;flex-shrink:0;">${icon}</span>
+      <span style="flex:1;color:rgba(255,255,255,0.6);">${label}</span>
+      <span style="font-family:Consolas,monospace;font-size:10px;color:${clr};">${pts}/${max}</span>
+    </div>`;
+  }
+
+  body.innerHTML = `
+    <div class="dsec">Columns (${table.columns.length})</div>
+    ${table.columns.map(c => `
+      <div class="dcol">
+        ${c.pk ? '<span class="badge badge-pk">PK</span>' : c.fk ? '<span class="badge badge-fk">FK</span>' : ''}
+        <span class="dname">${esc(c.name)}</span>
+        <span class="dtype">${esc(c.type)}</span>
+      </div>`).join('')}
+    ${fks.length ? `<div class="dsec">Foreign Keys</div>
+      ${fks.map(c => `<div class="dfk" data-fk="${esc(c.fk_target||'')}">&#8599; ${esc(c.name)} &rarr; ${esc(c.fk_target||'')}</div>`).join('')}
+    ` : ''}
+
+    <div class="dsec" style="margin-top:4px;">Health Score</div>
+    <div style="padding:8px 14px 4px;display:flex;align-items:center;gap:10px;">
+      <svg width="36" height="36" viewBox="0 0 36 36" style="flex-shrink:0;transform:rotate(-90deg);">
+        <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="4"/>
+        <circle cx="18" cy="18" r="14" fill="none" stroke="${hColor}" stroke-width="4"
+          stroke-dasharray="${(hb.total/100*87.96).toFixed(1)} 87.96"
+          stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div style="font-size:22px;font-weight:700;color:${hColor};line-height:1;">${hb.total}<span style="font-size:12px;font-weight:400;color:rgba(255,255,255,0.3);">/100</span></div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:2px;">${hb.total>=80?'Well-defined':hb.total>=50?'Partially defined':'Needs attention'}</div>
+      </div>
+    </div>
+    ${_hrow('Primary key', hb.pkPts, 20, hb.hasPK,
+        hb.hasPK ? 'Table has a primary key column.' : 'No PK found - add a primary key to earn 20 pts.')}
+    ${_hrow('FK relationships', hb.fkPts, 15, hb.fkCount > 0,
+        hb.fkCount > 0 ? `${hb.fkCount} of ${hb.n} columns are foreign keys.` : 'No FK columns - define relationships to earn up to 15 pts.')}
+    ${_hrow('Column types', hb.semPts, 15, hb.semCount === hb.n,
+        `${hb.semCount}/${hb.n} columns have recognised semantic types (int, varchar, date…).`)}
+    ${_hrow('Nullability', hb.nullPts, 20, hb.nullCount === hb.n,
+        `${hb.nullCount}/${hb.n} columns have explicit NOT NULL constraints defined.`)}
+    ${_hrow('Descriptions', hb.descPts, 30, hb.descPts === 30,
+        hb.hasTableDesc ? 'Table has a description in the metadata sidecar.' :
+        hb.descCount > 0 ? `${hb.descCount}/${hb.n} columns have descriptions. Add a table-level description for full 30 pts.` :
+        'No descriptions - add a table description (30 pts) or per-column descriptions.')}
+
+    <div id="detail-extra" style="padding:8px 14px 4px;"></div>`;
+
+  body.querySelectorAll('.dfk[data-fk]').forEach(el => {
+    el.addEventListener('click', () => {
+      const ft = el.dataset.fk;
+      const lastDot = ft.lastIndexOf('.');
+      const target = lastDot >= 0 ? ft.slice(0, lastDot) : ft;
+      focusTable(target);
+    });
+  });
+  document.getElementById('detail').classList.add('open');
+
+  // Fetch extended detail asynchronously (index count, virtual flag, DDL)
+  const bp = window.BASE_PATH || '';
+  fetch(`${bp}/api/erd/table-detail/${encodeURIComponent(KEY)}/${encodeURIComponent(table.name)}`)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d) return;
+      const extra = document.getElementById('detail-extra');
+      if (!extra) return;
+      let html = '';
+
+      // ── Indexes & DDL section header ─────────────────────────────
+      html += `<div class="dsec" style="padding-left:0;margin-bottom:4px;">Indexes &amp; DDL</div>`;
+
+      if (d.is_virtual) {
+        html += `<div style="padding:2px 0 6px;"><span class="badge" style="background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);font-size:10px;padding:1px 6px;border-radius:3px;">VIEW</span></div>`;
+      }
+
+      if (d.index_count !== null && d.index_count !== undefined) {
+        if (d.index_count > 0) {
+          html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0 6px;font-size:11px;color:rgba(255,255,255,0.55);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1ded83" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span><strong style="color:#1ded83;">${d.index_count}</strong> index${d.index_count !== 1 ? 'es' : ''} defined</span>
+          </div>`;
+        } else if (!d.is_virtual) {
+          html += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0 6px;font-size:11px;color:rgba(255,255,255,0.3);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            No indexes - consider adding indexes on FK and frequently queried columns
+          </div>`;
+        }
+      }
+
+      if (d.ddl) {
+        html += `<details style="margin-top:2px;">
+          <summary style="font-size:11px;color:rgba(255,255,255,0.4);cursor:pointer;user-select:none;padding:3px 0;list-style:none;display:flex;align-items:center;gap:5px;">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
+            Show DDL
+          </summary>
+          <pre style="margin-top:6px;font-size:10px;white-space:pre-wrap;word-break:break-all;background:#0d0f10;padding:8px;border-radius:4px;color:rgba(255,255,255,0.6);border:1px solid #2e3234;line-height:1.5;">${esc(d.ddl)}</pre>
+        </details>`;
+      }
+
+      extra.innerHTML = html;
+    })
+    .catch(() => {});
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Eye-icon SVG helpers ──────────────────────────────────────────────────────
+const _EYE_ON  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const _EYE_OFF = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function buildSidebar(tables) {
+  const list = document.getElementById('table-list');
+  list.innerHTML = tables.map(t => `
+    <div class="tbl-item" data-name="${esc(t.name)}">
+      <span class="n">
+        <span class="tbl-name">${esc(t.name)}</span>
+        <span class="tbl-meta"><span id="sb-cols-${esc(t.name)}">${t.columns.length} col${t.columns.length !== 1 ? 's' : ''}</span> &middot; <span id="sb-rc-${esc(t.name)}">…</span></span>
+      </span>
+      <span class="tbl-freshness-indicator" id="sb-fresh-${esc(t.name)}" title="Freshness: unknown"></span>
+      <button class="tbl-eye" title="Hide/show table" data-eye="${esc(t.name)}">${_EYE_ON}</button>
+    </div>`).join('');
+  list.querySelectorAll('.tbl-item').forEach(el => {
+    // Click on the row focuses; click on the eye toggles visibility
+    el.addEventListener('click', e => {
+      if (e.target.closest('.tbl-eye')) return;   // handled below
+      focusTable(el.dataset.name);
+    });
+  });
+  list.querySelectorAll('.tbl-eye').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleTableVisibility(btn.dataset.eye);
+    });
+  });
+}
+
+// Toggle a single table visible/hidden on the canvas
+function toggleTableVisibility(name) {
+  if (!cy) return;
+  if (hiddenTables.has(name)) {
+    hiddenTables.delete(name);
+    cy.$('#' + CSS.escape(name)).style('display', '');
+  } else {
+    hiddenTables.add(name);
+    cy.$('#' + CSS.escape(name)).style('display', 'none');
+  }
+  // Sync sidebar row appearance
+  const row = document.querySelector(`.tbl-item[data-name="${CSS.escape(name)}"]`);
+  const btn = document.querySelector(`.tbl-eye[data-eye="${CSS.escape(name)}"]`);
+  if (row) row.classList.toggle('tbl-hidden', hiddenTables.has(name));
+  if (btn) btn.innerHTML = hiddenTables.has(name) ? _EYE_OFF : _EYE_ON;
+  drawOverlay();
+  drawMinimap();
+  cancelAnim();
+  clearAnimCanvas();
+}
+
+// Show / hide all tables at once
+function showAllTables() {
+  if (!cy) return;
+  hiddenTables.clear();
+  cy.nodes().style('display', '');
+  document.querySelectorAll('.tbl-item').forEach(el => el.classList.remove('tbl-hidden'));
+  document.querySelectorAll('.tbl-eye').forEach(btn => btn.innerHTML = _EYE_ON);
+  drawOverlay(); drawMinimap();
+}
+function hideAllTables() {
+  if (!cy) return;
+  cy.nodes().forEach(n => { hiddenTables.add(n.id()); n.style('display', 'none'); });
+  document.querySelectorAll('.tbl-item').forEach(el => el.classList.add('tbl-hidden'));
+  document.querySelectorAll('.tbl-eye').forEach(btn => btn.innerHTML = _EYE_OFF);
+  drawOverlay(); drawMinimap();
+  cancelAnim(); clearAnimCanvas();
+}
+
+function updateSidebarRowCounts() {
+  for (const [tname, rc] of Object.entries(rowCounts)) {
+    const el = document.getElementById('sb-rc-' + tname);
+    if (!el) continue;
+    if (rc === null || rc === undefined) continue;
+    const isApprox = rowCountApprox[tname] || false;
+    const prefix   = isApprox ? '~' : '';
+    const display  = rc >= 1000000 ? prefix+(rc/1000000).toFixed(1)+'M rows'
+                   : rc >= 1000    ? prefix+(rc/1000).toFixed(rc>=10000?0:1)+'k rows'
+                   : prefix+rc + ' row' + (rc !== 1 ? 's' : '');
+    el.textContent = display;
+    el.title = (isApprox ? '≈ ' : '') + rc.toLocaleString() + ' rows' + (isApprox ? ' (estimated)' : '');
+    el.parentElement.title = el.title;
+  }
+}
+
+function highlightSidebarItem(name) {
+  document.querySelectorAll('.tbl-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.name === name);
+  });
+}
+
+// ── Focus / navigate ──────────────────────────────────────────────────────────
+function focusTable(name) {
+  if (!cy) return;
+  const n = cy.$('#' + CSS.escape(name));
+  if (!n.length) return;
+  cy.animate({ center: { eles: n }, zoom: Math.min(1.5, 2.5) }, { duration: 300 });
+  selectNode(name);
+  const u = new URL(location.href);
+  u.searchParams.set('table', name);
+  u.searchParams.delete('tables');
+  u.searchParams.delete('hidden');
+  history.replaceState(null, '', u.toString());
+  highlightSidebarItem(name);
+  const t = SCHEMA.find(x => x.name === name);
+  if (t) openDetail(t);
+  closeSearch();
+  // Update ctx-info zone with selected table name
+  if (typeof updateCtxInfo === 'function') updateCtxInfo(name);
+}
+
+// ── Focus mode: sub-schema N-hop neighbourhood ────────────────────────────────
+//
+// Collects the N-hop closed neighbourhood of `tableName` using Cytoscape BFS,
+// hides all nodes/edges outside it, re-runs ELK on the reduced graph, and
+// shows the focus chip in the topbar.  Double-click a node triggers 2-hop.
+// The context menu offers 2-hop and 3-hop.
+//
+async function enterFocusMode(tableName, hops) {
+  if (!cy) return;
+  hops = hops || 2;
+
+  const root = cy.$('#' + CSS.escape(tableName));
+  if (!root.length) return;
+
+  // BFS up to `hops` layers in both edge directions to collect neighbourhood.
+  // We walk edges in both directions (ignoring direction flag) so that both
+  // parent and child tables are included regardless of edge orientation.
+  let neighbourhood = root;
+  let frontier = root;
+  for (let i = 0; i < hops; i++) {
+    const next = frontier.connectedEdges().connectedNodes();
+    neighbourhood = neighbourhood.union(next).union(frontier.connectedEdges());
+    frontier = next.difference(neighbourhood.nodes());
+  }
+  // Always include the edges between collected nodes
+  neighbourhood = neighbourhood.union(
+    cy.edges().filter(e =>
+      neighbourhood.has(e.source()) && neighbourhood.has(e.target())
+    )
+  );
+
+  // Hide everything outside the neighbourhood
+  const outside = cy.elements().difference(neighbourhood);
+  outside.style('display', 'none');
+  // Redraw immediately so hidden nodes vanish before the layout runs
+  drawOverlay();
+  drawMinimap();
+
+  // Re-run ELK layout on only the visible subgraph
+  document.getElementById('loading').classList.remove('hidden');
+  await runLayout();
+  document.getElementById('loading').classList.add('hidden');
+
+  focusActive = true;
+  _focusHidNodes = true;
+
+  // Show the focus chip (now inside ctx-info zone, uses style.display)
+  const chip = document.getElementById('focus-chip');
+  document.getElementById('focus-chip-label').textContent = `${tableName} ±${hops}`;
+  if (chip) chip.style.display = 'flex';
+
+  // Clear any existing highlight and select the focal node
+  selectNode(tableName);
+  highlightSidebarItem(tableName);
+
+  cy.fit(neighbourhood.nodes(), 64);
+}
+
+function enterGroupFocusMode(groupId) {
+  if (!cy) return;
+  const grp = _bboxGroups.find(g => g.id === groupId);
+  if (!grp) return;
+
+  // Collect all visible member nodes - do NOT hide anything else;
+  // boundaries must remain visible.  Just pan+zoom the camera to fit.
+  const groupNodes = cy.nodes().filter(n =>
+    grp.tableNames.includes(n.id()) && n.style('display') !== 'none'
+  );
+  if (!groupNodes.length) return;
+
+  // Fit camera to the group with padding, animated
+  cy.animate({ fit: { eles: groupNodes, padding: 60 } }, { duration: 350 });
+
+  // Show the focus chip so the user knows which group is "focused"
+  const chip = document.getElementById('focus-chip');
+  document.getElementById('focus-chip-label').textContent = `Group: ${grp.label}`;
+  if (chip) chip.style.display = 'flex';
+  // Mark focus active so Escape clears the chip (but does NOT re-run layout
+  // since nothing was hidden - just hide the chip on Escape)
+  focusActive = true;
+}
+
+async function exitFocusMode() {
+  if (!cy) return;
+
+  if (_focusHidNodes) {
+    // Restore all hidden elements and re-run layout
+    cy.elements().style('display', '');
+    document.getElementById('loading').classList.remove('hidden');
+    if (_groupsEnabled && _bboxGroups.length) {
+      await runGroupedLayout();
+    } else {
+      await runLayout();
+    }
+    document.getElementById('loading').classList.add('hidden');
+    _focusHidNodes = false;
+  }
+
+  focusActive = false;
+
+  // Hide the focus chip
+  const _chip = document.getElementById('focus-chip');
+  if (_chip) _chip.style.display = 'none';
+
+  // Keep the last selected node highlighted after exit
+  if (activeId) selectNode(activeId);
+}
+
+// ── Sidebar search (inline filter) ───────────────────────────────────────────
+// The search input lives permanently in the left panel above the table list.
+// Typing filters .tbl-item visibility and highlights matching nodes on canvas.
+
+function filterSidebar(q) {
+  const lo = q.toLowerCase();
+  document.querySelectorAll('.tbl-item').forEach(el => {
+    const name = el.dataset.name;
+    const t    = SCHEMA.find(x => x.name === name);
+    const hit  = !q
+      || name.toLowerCase().includes(lo)
+      || (t && t.columns.some(c => c.name.toLowerCase().includes(lo)));
+    el.style.display = hit ? '' : 'none';
+  });
+  if (q && cy) {
+    const hits = new Set(
+      SCHEMA
+        .filter(t => t.name.toLowerCase().includes(lo)
+                  || t.columns.some(c => c.name.toLowerCase().includes(lo)))
+        .map(t => t.name)
+    );
+    setHL(hits);
+  } else if (!q && !activeId) {
+    setHL(new Set());
+  }
+}
+
+// No open/close state needed - the input is always visible.
+function closeSearch() {
+  // Called by focusTable/Escape to clear the search field and reset filter
+  const input = document.getElementById('nav-search');
+  if (input && input.value) {
+    input.value = '';
+    filterSidebar('');
+  }
+}
+
+// ── Build Cytoscape graph ─────────────────────────────────────────────────────
+function buildCy() {
+  if (window.cytoscapeElk) cytoscape.use(window.cytoscapeElk);
+
+  const nodes = SCHEMA.map(t => ({
+    group: 'nodes',
+    data: { id: t.name, table: t, w: nodeW(t), h: nodeH(t, showMode) },
+  }));
+
+  const seenEdges = new Set();
+  const edges = [];
+  SCHEMA.forEach(t => {
+    t.columns.filter(c => c.fk && c.fk_target).forEach(c => {
+      // fk_target = "RefTable.col"  OR  "alias.RefTable.col" for joined schemas.
+      // Use lastIndexOf to split: everything before the last dot is the table name.
+      const lastDot  = c.fk_target.lastIndexOf('.');
+      const referenced = lastDot >= 0 ? c.fk_target.slice(0, lastDot) : c.fk_target;
+      const refCol     = lastDot >= 0 ? c.fk_target.slice(lastDot + 1) : '';
+      const key = `${t.name}→${referenced}`;
+      if (seenEdges.has(key) || !SCHEMA.find(x=>x.name===referenced)) return;
+      seenEdges.add(key);
+      // Layout edge direction: referenced table (foundation) → referencing table (child).
+      // This places foundational tables on the LEFT and child/fact tables on the RIGHT,
+      // matching the conventional ERD reading direction (parents left, children right).
+      // Arrows are drawn source→target so the visual arrowhead points at the child,
+      // but we swap source/target compared to the FK ownership so ELK layers correctly.
+      edges.push({ group:'edges', data:{
+        id:      `${t.name}__${c.name}__${referenced}`,
+        source:  referenced,   // referenced (parent) table → goes LEFT
+        target:  t.name,       // referencing (child) table  → goes RIGHT
+        srcCol:  refCol,
+        tgtCol:  c.name,
+        fkOwner: t.name,       // kept for tooltip / detail panel
+      }});
+    });
+  });
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: [...nodes, ...edges],
+    style: [
+      { selector: 'node', style: {
+        'shape': 'rectangle', 'width': 'data(w)', 'height': 'data(h)',
+        'background-opacity': 0, 'border-width': 0, 'label': '', 'padding': 0,
+      }},
+      { selector: 'edge', style: {
+        'width': 1.5, 'line-color': '#3a3d3e',
+        'target-arrow-color': '#3a3d3e', 'source-arrow-color': '#3a3d3e',
+        // unbundled-bezier renders clean s-curves; control-point-distances sets
+        // the bow depth relative to the edge midpoint (positive = right/down bow)
+        'curve-style': 'unbundled-bezier',
+        'control-point-distances': [60],
+        'control-point-weights':   [0.5],
+        // source = referenced/parent table (left), target = referencing/child table (right).
+        // target-arrow points INTO the child (FK owner) - vee arrowhead.
+        // source-arrow shows the "one" end on the parent - circle-one or none.
+        'target-arrow-shape': 'vee',
+        'source-arrow-shape': 'none', 'arrow-scale': 1.2, 'opacity': 0.6,
+        'transition-property': 'line-color,opacity,width',
+        'transition-duration': '200ms',
+      }},
+      { selector: 'edge.hl', style: {
+        // Keep the native Cytoscape curve visible and brighten it on highlight.
+        // The animation canvas overlays particles + glow on top - no need to hide
+        // the original line (which would cause the wrong-path canvas line to be
+        // the only thing shown).
+        'line-color': 'rgba(167,139,250,0.55)',
+        'target-arrow-color': 'rgba(167,139,250,0.55)',
+        'opacity': 1,
+        'width': 1.8,
+      }},
+    ],
+    minZoom: 0.05, maxZoom: 3, wheelSensitivity: 0.15,
+    layout: { name: 'preset' },
+    pixelRatio: window.devicePixelRatio || 1,
+  });
+
+  overlayCanvas = document.getElementById('overlay');
+  overlayCtx    = overlayCanvas.getContext('2d');
+  minimapCanvas = document.getElementById('minimap-canvas');
+  minimapCtx    = minimapCanvas.getContext('2d');
+  animCanvas    = document.getElementById('edge-anim');
+  animCtx       = animCanvas.getContext('2d');
+
+  const ro = new ResizeObserver(() => { resizeOverlay(); resizeAnimCanvas(); syncAnimPaths(); });
+  ro.observe(document.getElementById('canvas-wrap'));
+
+  cy.on('render', () => { drawOverlay(); drawMinimap(); syncAnimPaths(); });
+
+  cy.on('tap', 'node', e => {
+    const t = e.target.data('table');
+    selectNode(t.name);
+    highlightSidebarItem(t.name);
+    openDetail(t);
+  });
+  cy.on('tap', e => { if (e.target===cy) clearSel(); });
+
+  // Double-click on a node → enter 2-hop focus mode
+  cy.on('dbltap', 'node', e => {
+    enterFocusMode(e.target.data('table').name, 2);
+  });
+
+  // Right-click on a node → open context menu
+  cy.on('cxttap', 'node', e => {
+    _ctxTarget = e.target.data('table').name;
+    _ctxJustOpened = true;  // suppress the document contextmenu close handler
+    showCtxMenu(e.originalEvent, _ctxTarget);
+  });
+
+  cy.on('mouseover', 'node', e => {
+    document.getElementById('cy').style.cursor = 'pointer';
+    const id = e.target.id();
+    if (!activeId) {
+      const ids = new Set([id]);
+      e.target.connectedEdges().connectedNodes().forEach(x => ids.add(x.id()));
+      // focal = only the hovered node itself; its neighbours are just context
+      setHL(ids, new Set([id]));
+    }
+  });
+  cy.on('mouseout', 'node', () => {
+    document.getElementById('cy').style.cursor = '';
+    if (!activeId) setHL(new Set());
+    else selectNode(activeId);
+  });
+
+  // Edge hover glow
+  cy.on('mouseover', 'edge', e => {
+    hoveredEdgeId = e.target.id();
+    if (!activeId) {
+      const ids = new Set([e.target.source().id(), e.target.target().id()]);
+      setHL(ids);
+    } else {
+      // Just flag it as hovered so the animation draws brighter
+      animEdges.forEach(ae => { ae.isHover = (ae.id === hoveredEdgeId); });
+    }
+    document.getElementById('cy').style.cursor = 'pointer';
+  });
+  cy.on('mouseout', 'edge', () => {
+    hoveredEdgeId = null;
+    if (!activeId) setHL(new Set());
+    else selectNode(activeId);
+    animEdges.forEach(ae => { ae.isHover = false; });
+    document.getElementById('cy').style.cursor = '';
+  });
+
+  return runLayout();
+}
+
+function runLayout() {
+  // Determine which elements to lay out: only visible ones (respects focus mode).
+  const visibleEles = cy.elements(':visible');
+
+  // ── ELK layered (best quality, loads from CDN) ────────────────────────────
+  if (window.cytoscapeElk) {
+    const elkOpts = {
+      name: 'elk',
+      // Scope layout to visible elements only so focus mode doesn't collapse
+      // the entire graph into a pile when hidden nodes are included.
+      eles: visibleEles,
+      elk: {
+        algorithm: 'layered',
+        // LEFT → RIGHT: parent/referenced tables on the left, child/FK-owner tables on the right.
+        // Edges run source(parent) → target(child), so ELK naturally layers parents leftmost.
+        'elk.direction': 'RIGHT',
+        // Inter-layer (column) spacing - generous to avoid card overlap
+        'elk.layered.spacing.nodeNodeBetweenLayers': '100',
+        // Intra-layer (row) spacing between cards in the same column
+        'elk.spacing.nodeNode': '48',
+        // Edge-edge spacing between layers (reduces crossing clutter)
+        'elk.layered.spacing.edgeEdgeBetweenLayers': '20',
+        // Edge-node spacing
+        'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+        // Brandes-Koepf node placement minimises vertical movement
+        'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+        // Minimise total edge crossings across all layers
+        'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+        // Orthogonal edge routing keeps lines clean in dense graphs
+        'elk.edgeRouting': 'ORTHOGONAL',
+        // Merge edges that share start/end ports to reduce visual clutter
+        'elk.layered.mergeEdges': 'true',
+      },
+      animate: false,
+      fit: true,
+      padding: 64,
+    };
+    return new Promise(resolve => {
+      const l = cy.layout(elkOpts);
+      l.on('layoutstop', resolve);
+      l.run();
+    });
+  }
+
+  // ── Fallback: topological left-to-right layout (pure JS, no CDN dep) ─────
+  const visNodes = visibleEles.nodes();
+  const visSchema = SCHEMA.filter(t => visNodes.some(n => n.id() === t.name));
+  const positions = computeTopoLayout(visSchema.length ? visSchema : SCHEMA);
+  cy.nodes().forEach(n => {
+    const pos = positions[n.id()];
+    if (pos) n.position(pos);
+  });
+  cy.fit(visibleEles.nodes().length ? visibleEles.nodes() : undefined, 64);
+  return Promise.resolve();
+}
+
+/**
+ * Lay out each group's tables independently, then pack the resulting
+ * group blocks on a grid so their bounding boxes never overlap.
+ *
+ * Algorithm (two passes):
+ *   Pass 1 - per-group sub-layout
+ *     For each group (+ one synthetic "ungrouped" block):
+ *       • Run ELK layered (or topo fallback) on just that group's nodes,
+ *         treating cross-group FK edges as absent.  Record the resulting
+ *         positions relative to the group's own centre.
+ *
+ *   Pass 2 - block packing
+ *     Sort blocks roughly by total node count (largest first so big groups
+ *     anchor the layout).  Arrange in a grid: estimate grid cols from sqrt
+ *     of block count, keep rows balanced.  Place each block with generous
+ *     padding (GROUP_GAP) so bounding boxes have clear breathing room.
+ *     Apply absolute positions back to Cytoscape nodes.
+ */
+async function runGroupedLayout() {
+  if (!cy || !_bboxGroups.length) { await runLayout(); return; }
+
+  document.getElementById('loading').classList.remove('hidden');
+
+  const GROUP_GAP = 120;   // pixels between group bounding boxes (model space)
+  const NODE_PAD  = 40;    // padding inside each group's own bounding box
+
+  // ── Build group → tables map (visible only, skip hidden) ──────────────────
+  const groupedTables = (_bboxGroups).map(grp => ({
+    grp,
+    tables: grp.tableNames
+      .filter(n => !hiddenTables.has(n) && cy.$('#' + CSS.escape(n)).length > 0),
+  })).filter(g => g.tables.length > 0);
+
+  // Collect ungrouped visible table names
+  const allGrouped = new Set(groupedTables.flatMap(g => g.tables));
+  const ungrouped  = cy.nodes(':visible')
+    .map(n => n.id()).filter(id => !allGrouped.has(id));
+  if (ungrouped.length) {
+    groupedTables.push({ grp: { id: '__ungrouped__', label: '' }, tables: ungrouped });
+  }
+
+  // ── Helper: sub-layout a set of table names, return {name: {x,y}} relative ─
+  async function subLayout(tableNames) {
+    if (tableNames.length === 1) {
+      return { [tableNames[0]]: { x: 0, y: 0 } };
+    }
+    const nameSet = new Set(tableNames);
+    const subSchema = SCHEMA.filter(t => nameSet.has(t.name));
+
+    // Build sub-nodes and sub-edges (only intra-group FK edges)
+    const subNodes = subSchema.map(t => ({
+      group: 'nodes',
+      data: { id: t.name, w: cy.$('#' + CSS.escape(t.name)).data('w'),
+                          h: cy.$('#' + CSS.escape(t.name)).data('h') },
+    }));
+    const seenE = new Set();
+    const subEdges = [];
+    subSchema.forEach(t => {
+      t.columns.filter(c => c.fk && c.fk_target).forEach(c => {
+        const lastDot  = c.fk_target.lastIndexOf('.');
+        const ref = lastDot >= 0 ? c.fk_target.slice(0, lastDot) : c.fk_target;
+        if (!nameSet.has(ref) || ref === t.name) return;
+        const key = `${ref}__${t.name}`;
+        if (seenE.has(key)) return;
+        seenE.add(key);
+        subEdges.push({ group: 'edges', data: { id: key, source: ref, target: t.name } });
+      });
+    });
+
+    // Spin up a throwaway Cytoscape instance with preset layout
+    const tmpEl = document.createElement('div');
+    tmpEl.style.cssText = 'position:absolute;left:-9999px;width:2000px;height:2000px;';
+    document.body.appendChild(tmpEl);
+
+    const result = {};
+    await new Promise(resolveInner => {
+      let tmpCy;
+      try {
+        tmpCy = cytoscape({
+          container: tmpEl,
+          elements: [...subNodes, ...subEdges],
+          style: [{ selector: 'node', style: { width: 'data(w)', height: 'data(h)' } }],
+          layout: { name: 'preset' },
+          headless: false,
+        });
+
+        const doLayout = () => {
+          if (window.cytoscapeElk) {
+            const l = tmpCy.layout({
+              name: 'elk', eles: tmpCy.elements(),
+              elk: {
+                algorithm: 'layered', 'elk.direction': 'RIGHT',
+                'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+                'elk.spacing.nodeNode': '40',
+                'elk.edgeRouting': 'ORTHOGONAL',
+                'elk.layered.mergeEdges': 'true',
+              },
+              animate: false, fit: false, padding: 20,
+            });
+            l.on('layoutstop', () => {
+              tmpCy.nodes().forEach(n => { result[n.id()] = { ...n.position() }; });
+              tmpCy.destroy();
+              tmpEl.remove();
+              resolveInner();
+            });
+            l.run();
+          } else {
+            // Fallback: topo layout on subschema
+            const pos = computeTopoLayout(subSchema);
+            Object.assign(result, pos);
+            tmpCy.destroy();
+            tmpEl.remove();
+            resolveInner();
+          }
+        };
+        // Wait one tick so the container is registered
+        setTimeout(doLayout, 0);
+      } catch (_) {
+        if (tmpCy) try { tmpCy.destroy(); } catch (_2) {}
+        tmpEl.remove();
+        // Fallback: topo layout
+        const pos = computeTopoLayout(subSchema);
+        Object.assign(result, pos);
+        resolveInner();
+      }
+    });
+    return result;
+  }
+
+  // ── Pass 1: lay out each group independently ────────────────────────────────
+  const blocks = [];   // { tables, relPos: {name:{x,y}}, w, h }
+
+  for (const { grp, tables } of groupedTables) {
+    const relPos = await subLayout(tables);
+
+    // Compute bounding box of relative positions (using node dimensions)
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    tables.forEach(n => {
+      const p  = relPos[n] || { x: 0, y: 0 };
+      const nw = (cy.$('#' + CSS.escape(n)).data('w') || 200);
+      const nh = (cy.$('#' + CSS.escape(n)).data('h') || 100);
+      minX = Math.min(minX, p.x - nw / 2);
+      minY = Math.min(minY, p.y - nh / 2);
+      maxX = Math.max(maxX, p.x + nw / 2);
+      maxY = Math.max(maxY, p.y + nh / 2);
+    });
+
+    // Re-centre positions around (0,0)
+    const cx = (minX + maxX) / 2, cy_ = (minY + maxY) / 2;
+    const centred = {};
+    tables.forEach(n => {
+      const p = relPos[n] || { x: 0, y: 0 };
+      centred[n] = { x: p.x - cx, y: p.y - cy_ };
+    });
+
+    blocks.push({
+      tables,
+      relPos: centred,
+      w: (maxX - minX) + NODE_PAD * 2,
+      h: (maxY - minY) + NODE_PAD * 2,
+    });
+  }
+
+  // ── Pass 2: pack blocks on a grid ──────────────────────────────────────────
+  // Sort largest-area block first so the heaviest group anchors top-left
+  blocks.sort((a, b) => b.w * b.h - a.w * a.h);
+
+  const numBlocks = blocks.length;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(numBlocks)));
+  const rows = Math.ceil(numBlocks / cols);
+
+  // Compute column widths and row heights
+  const colWidths  = new Array(cols).fill(0);
+  const rowHeights = new Array(rows).fill(0);
+  blocks.forEach((blk, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    colWidths[col]  = Math.max(colWidths[col],  blk.w);
+    rowHeights[row] = Math.max(rowHeights[row], blk.h);
+  });
+
+  // Prefix sums → absolute column/row offsets
+  const colX = [0], rowY = [0];
+  for (let c = 1; c < cols; c++) colX.push(colX[c - 1] + colWidths[c - 1] + GROUP_GAP);
+  for (let r = 1; r < rows; r++) rowY.push(rowY[r - 1] + rowHeights[r - 1] + GROUP_GAP);
+
+  // Apply positions to Cytoscape nodes
+  blocks.forEach((blk, i) => {
+    const col    = i % cols, row = Math.floor(i / cols);
+    // Block centre in model space
+    const blockCx = colX[col] + colWidths[col]  / 2;
+    const blockCy = rowY[row] + rowHeights[row] / 2;
+    blk.tables.forEach(n => {
+      const rel = blk.relPos[n] || { x: 0, y: 0 };
+      cy.$('#' + CSS.escape(n)).position({ x: blockCx + rel.x, y: blockCy + rel.y });
+    });
+  });
+
+  cy.fit(cy.nodes(':visible'), 80);
+  document.getElementById('loading').classList.add('hidden');
+  drawOverlay();
+  drawMinimap();
+  drawBBoxGroups();
+  if (typeof NF3 !== 'undefined' && NF3.drawClusters) NF3.drawClusters();
+  drawFreshnessBadges();
+}
+
+// ── Show-mode change ──────────────────────────────────────────────────────────
+async function changeMode(mode) {
+  showMode = mode;
+  if (!cy) return;
+  document.getElementById('loading').classList.remove('hidden');
+  cy.nodes().forEach(n => {
+    const t = n.data('table');
+    n.data('w', nodeW(t));
+    n.data('h', nodeH(t, mode));
+  });
+  // When groups are active, keep them separated after every mode change
+  if (_groupsEnabled && _bboxGroups.length) {
+    await runGroupedLayout();
+  } else {
+    await runLayout();
+  }
+  document.getElementById('loading').classList.add('hidden');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function boot() {
+  buildSidebar(SCHEMA);
+
+  const wrap = document.getElementById('canvas-wrap');
+  await new Promise(resolve => {
+    if (wrap.clientWidth > 0 && wrap.clientHeight > 0) { resolve(); return; }
+    const ro = new ResizeObserver(entries => {
+      const e = entries[0];
+      if (e.contentRect.width > 0 && e.contentRect.height > 0) { ro.disconnect(); resolve(); }
+    });
+    ro.observe(wrap);
+  });
+
+  await buildCy();
+  document.getElementById('loading').classList.add('hidden');
+  resizeOverlay();
+  resizeAnimCanvas();
+  drawMinimap();
+
+  // Deep-link: parse query params (?table=, ?tables=, ?hidden=)
+  // with fallback to legacy #table= hash for backward compat
+  _applyUrlParams();
+
+  // Load row counts lazily (non-blocking) - updates cards + sidebar when ready.
+  // Backend returns {tableName: {count, approximate}} for new clients; normalise
+  // to a flat {tableName: number} map so all downstream rendering stays unchanged.
+  fetch(`/api/rowcounts/{{ key }}`)
+    .then(r => r.ok ? r.json() : {})
+    .then(raw => {
+      if (!raw || raw.error) return;
+      const counts = {};
+      const approx = {};
+      for (const [tname, val] of Object.entries(raw)) {
+        if (val && typeof val === 'object' && 'count' in val) {
+          counts[tname] = val.count;
+          approx[tname] = val.approximate || false;
+        } else {
+          // Legacy scalar shape (fallback)
+          counts[tname] = val;
+          approx[tname] = false;
+        }
+      }
+      rowCounts = counts;
+      rowCountApprox = approx;
+      drawOverlay();
+      updateSidebarRowCounts();
+    })
+    .catch(() => {});
+}
+
+// ── UI wiring ─────────────────────────────────────────────────────────────────
+// NOTE: pill-button wiring is handled below by the event-delegation handler
+// at the end of this file, which also covers sidebar filter pills added later.
+
+document.getElementById('btn-zoomin').addEventListener('click', () => {
+  cy.zoom({ level: Math.min(cy.zoom()*1.3, 3), renderedPosition:{ x:document.getElementById('cy').clientWidth/2, y:document.getElementById('cy').clientHeight/2 }});
+});
+document.getElementById('btn-zoomout').addEventListener('click', () => {
+  cy.zoom({ level: Math.max(cy.zoom()/1.3, 0.05), renderedPosition:{ x:document.getElementById('cy').clientWidth/2, y:document.getElementById('cy').clientHeight/2 }});
+});
+document.getElementById('btn-fit').addEventListener('click', () => cy.fit(undefined, 56));
+
+let minimapVisible = true;
+document.getElementById('btn-minimap').addEventListener('click', () => {
+  minimapVisible = !minimapVisible;
+  document.getElementById('minimap').classList.toggle('hidden', !minimapVisible);
+  document.getElementById('btn-minimap').classList.toggle('on', minimapVisible);
+});
+
+// Search input (sidebar) - live filter as user types
+document.getElementById('nav-search').addEventListener('input', e => {
+  filterSidebar(e.target.value.trim());
+});
+
+// Clear button - wipe field and reset all filters
+document.getElementById('search-clear').addEventListener('click', () => {
+  const input = document.getElementById('nav-search');
+  input.value = '';
+  filterSidebar('');
+  input.focus();
+});
+
+document.getElementById('detail-close').addEventListener('click', clearSel);
+
+// ── Share: URL params ─────────────────────────────────────────────────────────
+
+function _applyUrlParams() {
+  const sp = new URLSearchParams(location.search);
+  if (sp.has('table')) {
+    const t = decodeURIComponent(sp.get('table'));
+    if (t) focusTable(t);
+  } else if (sp.has('tables')) {
+    const allowed = new Set(sp.get('tables').split(',').map(s => s.trim()).filter(Boolean));
+    cy.nodes().forEach(n => {
+      if (!allowed.has(n.id())) {
+        hiddenTables.add(n.id());
+        n.style('display', 'none');
+      }
+    });
+    drawOverlay(); drawMinimap();
+    _syncSidebarHiddenState();
+  } else if (sp.has('hidden')) {
+    const toHide = sp.get('hidden').split(',').map(s => s.trim()).filter(Boolean);
+    toHide.forEach(name => {
+      hiddenTables.add(name);
+      const nd = cy.$('#' + CSS.escape(name));
+      if (nd.length) nd.style('display', 'none');
+    });
+    drawOverlay(); drawMinimap();
+    _syncSidebarHiddenState();
+  } else {
+    // Fallback: legacy #table= hash
+    const hash = location.hash;
+    if (hash.startsWith('#table=')) {
+      const tname = decodeURIComponent(hash.slice(7));
+      if (tname) focusTable(tname);
+    }
+  }
+}
+
+// Sync sidebar eye-toggle icons after bulk hidden-state changes
+function _syncSidebarHiddenState() {
+  cy.nodes().forEach(n => {
+    const name = n.id();
+    const row = document.querySelector(`.tbl-row[data-name="${CSS.escape(name)}"]`);
+    const btn = document.querySelector(`.tbl-eye[data-name="${CSS.escape(name)}"]`);
+    if (row) row.classList.toggle('tbl-hidden', hiddenTables.has(name));
+    if (btn) btn.innerHTML = hiddenTables.has(name) ? _EYE_OFF : _EYE_ON;
+  });
+}
+
+// ── Share: modal ──────────────────────────────────────────────────────────────
+
+let _shareScope = 'full';
+let _shareCustomSet = new Set();
+
+function _buildShareUrl(scope, customTables) {
+  const base = location.origin + location.pathname;
+  if (scope === 'full')   return base;
+  if (scope === 'table')  return activeId ? `${base}?table=${encodeURIComponent(activeId)}` : base;
+  if (scope === 'custom') {
+    const list = [...customTables].join(',');
+    return list ? `${base}?tables=${encodeURIComponent(list)}` : base;
+  }
+  return base;
+}
+
+function openShareModal() {
+  // Determine default scope
+  _shareScope = activeId ? 'table' : 'full';
+  _shareCustomSet = new Set(SCHEMA.map(t => t.name).filter(n => !hiddenTables.has(n)));
+
+  // Set active scope button
+  document.querySelectorAll('.share-scope-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.scope === _shareScope);
+  });
+
+  // Populate custom table checkboxes
+  const wrap = document.getElementById('share-custom-wrap');
+  wrap.innerHTML = '';
+  SCHEMA.forEach(t => {
+    const checked = _shareCustomSet.has(t.name);
+    const row = document.createElement('label');
+    row.className = 'share-chk-row';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = checked;
+    chk.dataset.name = t.name;
+    chk.addEventListener('change', () => {
+      if (chk.checked) _shareCustomSet.add(t.name);
+      else             _shareCustomSet.delete(t.name);
+      _refreshShareUrl();
+    });
+    row.appendChild(chk);
+    row.appendChild(document.createTextNode(t.name));
+    wrap.appendChild(row);
+  });
+
+  // Show/hide custom panel
+  wrap.classList.toggle('visible', _shareScope === 'custom');
+
+  _refreshShareUrl();
+  document.getElementById('share-modal').classList.add('visible');
+}
+
+function setShareScope(scope) {
+  _shareScope = scope;
+  document.querySelectorAll('.share-scope-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.scope === scope);
+  });
+  document.getElementById('share-custom-wrap').classList.toggle('visible', scope === 'custom');
+  _refreshShareUrl();
+}
+
+function _refreshShareUrl() {
+  const url = _buildShareUrl(_shareScope, _shareCustomSet);
+  document.getElementById('share-url-input').value = url;
+}
+
+function copyShareUrl() {
+  const url = document.getElementById('share-url-input').value;
+  navigator.clipboard.writeText(url).then(() => {
+    const copyBtn = document.getElementById('share-copy-btn');
+    const shareBtn = document.getElementById('btn-share');
+    copyBtn.textContent = 'Copied!';
+    copyBtn.classList.add('copied');
+    shareBtn.classList.add('copied');
+    setTimeout(() => {
+      copyBtn.textContent = 'Copy';
+      copyBtn.classList.remove('copied');
+      shareBtn.classList.remove('copied');
+    }, 1800);
+  }).catch(() => {
+    // Fallback for non-HTTPS contexts
+    const inp = document.getElementById('share-url-input');
+    inp.select();
+    document.execCommand('copy');
+  });
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').classList.remove('visible');
+}
+
+// ── Export: dropdown toggle ───────────────────────────────────────────────────
+function toggleExportMenu() {
+  document.getElementById('export-wrap').classList.toggle('open');
+}
+function closeExportMenu() {
+  document.getElementById('export-wrap').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('export-wrap').contains(e.target)) closeExportMenu();
+});
+
+// ── Export: composite render ──────────────────────────────────────────────────
+// Architecture:
+//   Layer 1 - Cytoscape canvas   : only edges (node shapes are transparent)
+//   Layer 2 - overlayCanvas      : node card graphics (drawn via Canvas 2D)
+//
+// Blur root-cause: the overlay is painted at W*dpr × H*dpr physical pixels.
+// Previously we drew it into an outW×outH (W*scale logical) offscreen canvas,
+// which upscaled the DPR-resolution source → bilinear stretch → blur.
+//
+// Fix: make the offscreen canvas W*scale*dpr × H*scale*dpr physical pixels,
+// draw each layer at its correct native resolution with imageSmoothingEnabled=false,
+// then export that full-resolution canvas directly.
+function _compositeExport(scale, callback) {
+  if (!cy) return;
+  const wrap  = document.getElementById('canvas-wrap');
+  const W     = wrap.clientWidth;
+  const H     = wrap.clientHeight;
+  const dpr   = window.devicePixelRatio || 1;
+
+  // Physical pixel dimensions of the output image
+  const physW = Math.round(W * scale * dpr);
+  const physH = Math.round(H * scale * dpr);
+
+  // Ask Cytoscape for the edge canvas at the exact physical output size.
+  // scale=scale*dpr gives us physW pixels across (Cytoscape uses the viewport
+  // width as its base, so scale * dpr maps 1 CSS px → scale*dpr output px).
+  const cyDataUrl = cy.png({
+    output: 'base64uri',
+    scale: scale * dpr,
+    bg: T.bg,  /* P5: keep in sync with --surface-page */
+    full: false,
+  });
+
+  const cyImg = new Image();
+  cyImg.onload = () => {
+    const off = document.createElement('canvas');
+    off.width  = physW;
+    off.height = physH;
+    const ctx  = off.getContext('2d');
+
+    // Crisp pixel rendering - no interpolation on the node card layer
+    ctx.imageSmoothingEnabled = false;
+
+    // 1. Solid background (P5: keep in sync with T.bg / --surface-page)
+    ctx.fillStyle = T.bg;
+    ctx.fillRect(0, 0, physW, physH);
+
+    // 2. Cytoscape edge layer - already physW × physH pixels
+    ctx.drawImage(cyImg, 0, 0, physW, physH);
+
+    // 3. Overlay (node cards) - painted at W*dpr × H*dpr physical pixels.
+    //    We must scale it up by `scale` to fill the output canvas.
+    //    Drawing at destination size physW×physH = W*dpr*scale × H*dpr*scale
+    //    means each source pixel maps to exactly `scale` output pixels - crisp.
+    ctx.imageSmoothingEnabled = true;          // use bilinear for the upscale
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(overlayCanvas, 0, 0, physW, physH);
+
+    off.toBlob(blob => callback(blob, W, H), 'image/png');
+  };
+  cyImg.src = cyDataUrl;
+}
+
+function exportPNG(scale) {
+  const name = {{ name | tojson }};
+  const s = scale || 2;
+  _compositeExport(s, blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${name}_${s}x.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  });
+}
+
+function exportSVG() {
+  // Export as PNG-inside-SVG at 4× physical resolution.
+  // This gives crisp rendering at any viewport zoom in browsers/Figma/Inkscape
+  // while keeping full viewBox metadata for layout-aware tools.
+  const name = {{ name | tojson }};
+  _compositeExport(4, (blob, W, H) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const svg = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"`,
+        `     width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
+        `  <rect width="${W}" height="${H}" fill="${T.bg}"/>`,  /* P5 */
+        `  <image x="0" y="0" width="${W}" height="${H}" xlink:href="${reader.result}"`,
+        `         image-rendering="crisp-edges" preserveAspectRatio="none"/>`,
+        `</svg>`,
+      ].join('\n');
+      const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(svgBlob);
+      a.download = `${name}.svg`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ── Context menu wiring ───────────────────────────────────────────────────────
+const KEY = {{ key | tojson }};
+window.BASE_PATH = {{ base_path | tojson }};
+
+function showCtxMenu(evt, tableName) {
+  const menu = document.getElementById('ctx-menu');
+  document.getElementById('ctx-menu-title').textContent = tableName;
+  // Position near the cursor, nudging away from viewport edges
+  const mw = 172, mh = 148;
+  let x = evt.clientX + 4, y = evt.clientY + 4;
+  if (x + mw > window.innerWidth)  x = evt.clientX - mw - 4;
+  if (y + mh > window.innerHeight) y = evt.clientY - mh - 4;
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+  menu.classList.add('visible');
+}
+
+function closeCtxMenu() {
+  document.getElementById('ctx-menu').classList.remove('visible');
+}
+
+document.getElementById('ctx-focus2').addEventListener('click', () => {
+  closeCtxMenu();
+  if (_ctxTarget) enterFocusMode(_ctxTarget, 2);
+});
+document.getElementById('ctx-focus3').addEventListener('click', () => {
+  closeCtxMenu();
+  if (_ctxTarget) enterFocusMode(_ctxTarget, 3);
+});
+document.getElementById('ctx-browse').addEventListener('click', () => {
+  closeCtxMenu();
+  if (_ctxTarget) window.location.href = `/browse/${KEY}#table=${encodeURIComponent(_ctxTarget)}`;
+});
+document.getElementById('ctx-query').addEventListener('click', () => {
+  closeCtxMenu();
+  if (_ctxTarget) window.location.href = `/query/${KEY}?table=${encodeURIComponent(_ctxTarget)}`;
+});
+
+// Close context menu on any click outside it
+document.addEventListener('click', e => {
+  if (!document.getElementById('ctx-menu').contains(e.target)) closeCtxMenu();
+  // Close help popover on outside click
+  const helpWrap = document.getElementById('help-wrap');
+  const helpPop  = document.getElementById('help-popover');
+  if (helpPop && helpPop.style.display === 'block' &&
+      helpWrap && !helpWrap.contains(e.target)) {
+    helpPop.style.display = 'none';
+  }
+});
+// Suppress the native browser context menu on the canvas entirely -
+// Cytoscape fires cxttap instead, which calls showCtxMenu() directly.
+document.getElementById('cy').addEventListener('contextmenu', e => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+// Close ctx menu on right-click anywhere outside both menu and canvas
+document.addEventListener('contextmenu', e => {
+  const cy_el = document.getElementById('cy');
+  if (cy_el && cy_el.contains(e.target)) return; // canvas handled above
+  if (!document.getElementById('ctx-menu').contains(e.target)) closeCtxMenu();
+});
+
+// ── FK path tracing ───────────────────────────────────────────────────────────
+//
+// BFS over the undirected FK graph: each edge (source↔target) is treated as
+// bidirectional so the path can traverse FK relationships in either direction.
+// Returns the shortest node-name array from `from` to `to`, or null if no path.
+function _fkBFS(from, to) {
+  if (from === to) return [from];
+  // Build adjacency list from Cytoscape edges (undirected)
+  const adj = {};
+  SCHEMA.forEach(t => { adj[t.name] = []; });
+  cy.edges().forEach(edge => {
+    const s = edge.source().id(), t = edge.target().id();
+    if (adj[s]) adj[s].push(t);
+    if (adj[t]) adj[t].push(s);
+  });
+
+  const visited = new Set([from]);
+  const queue   = [[from]];  // each entry is the path so far
+  while (queue.length) {
+    const path = queue.shift();
+    const cur  = path[path.length - 1];
+    for (const nb of (adj[cur] || [])) {
+      if (nb === to) return [...path, nb];
+      if (!visited.has(nb)) {
+        visited.add(nb);
+        queue.push([...path, nb]);
+      }
+    }
+  }
+  return null;
+}
+
+// Given a path array of table names, build the JOIN clause string.
+// Each adjacent pair a→b needs the FK column that connects them.
+function _buildJoinSQL(path) {
+  if (!path || path.length < 2) return '';
+  const joins = [];
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i-1], b = path[i];
+    // Find FK between a and b (either direction)
+    let edge = cy.$(`edge[source="${a}"][target="${b}"]`);
+    if (!edge.length) edge = cy.$(`edge[source="${b}"][target="${a}"]`);
+    if (edge.length) {
+      const d = edge[0].data();
+      // d.fkOwner owns the FK column d.tgtCol referencing d.srcCol in the other table
+      if (d.fkOwner === b) {
+        joins.push(`  JOIN ${b} ON ${b}.${d.tgtCol} = ${a}.${d.srcCol}`);
+      } else {
+        joins.push(`  JOIN ${b} ON ${a}.${d.tgtCol} = ${b}.${d.srcCol}`);
+      }
+    } else {
+      joins.push(`  JOIN ${b} ON /* FK */ 1=1`);
+    }
+  }
+  return `SELECT *\nFROM ${path[0]}\n${joins.join('\n')}`;
+}
+
+function showFKPath(from, to) {
+  const path = _fkBFS(from, to);
+  const panel = document.getElementById('fkpath-panel');
+  const body  = document.getElementById('fkpath-body');
+  const title = document.getElementById('fkpath-title');
+  if (!path) {
+    title.textContent = 'No FK path found';
+    body.innerHTML = `<span id="fkpath-status" style="color:rgba(255,100,100,0.7)">No FK join path between <b>${esc(from)}</b> and <b>${esc(to)}</b> - they may not be connected via foreign keys.</span>`;
+    panel.classList.add('visible');
+    return;
+  }
+  title.textContent = `FK path (${path.length} table${path.length>1?'s':''})`;
+  const stepHtml = path.map((name, i) =>
+    `<span class="fkpath-tbl" data-tbl="${esc(name)}">${esc(name)}</span>` +
+    (i < path.length-1 ? `<span class="fkpath-arrow">&#8594;</span>` : '')
+  ).join('');
+  const joinSQL = _buildJoinSQL(path);
+  body.innerHTML = `
+    <div class="fkpath-step">${stepHtml}</div>
+    ${joinSQL ? `<code class="fkpath-join">${esc(joinSQL)}</code>` : ''}`;
+  // Click a table badge → navigate to it
+  body.querySelectorAll('.fkpath-tbl').forEach(el => {
+    el.addEventListener('click', () => focusTable(el.dataset.tbl));
+  });
+  // Highlight the path
+  setHL(new Set(path));
+  panel.classList.add('visible');
+}
+
+document.getElementById('fkpath-close').addEventListener('click', () => {
+  document.getElementById('fkpath-panel').classList.remove('visible');
+  _pathFrom = null;
+  if (!activeId) setHL(new Set());
+});
+
+// ── Context menu: FK path items ───────────────────────────────────────────────
+// Lineage overlay (highlighting ERD nodes from saved queries) was removed from
+// the ERD topbar. Lineage is now per-saved-query inside the Query editor pane.
+
+document.getElementById('ctx-path-from').addEventListener('click', () => {
+  closeCtxMenu();
+  if (!_ctxTarget) return;
+  _pathFrom = _ctxTarget;
+  // Highlight just the start node so the user knows it's selected
+  setHL(new Set([_pathFrom]));
+});
+
+document.getElementById('ctx-path-to').addEventListener('click', () => {
+  closeCtxMenu();
+  if (!_ctxTarget) return;
+  if (!_pathFrom) {
+    // No start set yet - treat this table as the start
+    _pathFrom = _ctxTarget;
+    return;
+  }
+  showFKPath(_pathFrom, _ctxTarget);
+  _pathFrom = null;
+});
+
+// Focus chip exit button
+document.getElementById('focus-chip-exit').addEventListener('click', exitFocusMode);
+
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement.tagName;
+  if (e.key === 'Escape') {
+    const helpPop = document.getElementById('help-popover');
+    if (helpPop && helpPop.style.display === 'block') { helpPop.style.display = 'none'; return; }
+    if (focusActive) { exitFocusMode(); return; }
+    closeShareModal();
+    document.getElementById('fkpath-panel').classList.remove('visible');
+    _pathFrom = null;
+    clearSel();
+    closeSearch();
+    closeExportMenu();
+    closeCtxMenu();
+  }
+  if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+      e.preventDefault();
+      document.getElementById('nav-search').focus();
+    }
+  }
+  // Press "e" to open export dropdown
+  if (e.key === 'e' && !e.ctrlKey && !e.metaKey) {
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+      toggleExportMenu();
+    }
+  }
+  if ((e.ctrlKey||e.metaKey) && e.key==='0') { e.preventDefault(); cy && cy.fit(undefined,56); }
+  if ((e.ctrlKey||e.metaKey) && e.key==='+') { e.preventDefault(); document.getElementById('btn-zoomin').click(); }
+  if ((e.ctrlKey||e.metaKey) && e.key==='-') { e.preventDefault(); document.getElementById('btn-zoomout').click(); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-8: Collapsible Sidebar Sections
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Initialise accordion behaviour for all .sb-section elements.
+ * Restores per-section collapse state from localStorage.
+ * @returns {void}
+ */
+function initSidebarAccordion() {
+  const sections = document.querySelectorAll('.sb-section');
+  sections.forEach(sec => {
+    // Static sections (Filters, Stats, Recent) are always open - skip wiring
+    if (sec.classList.contains('sb-section-static')) return;
+
+    const hdr  = sec.querySelector('.sb-section-hdr');
+    const body = sec.querySelector('.sb-section-body');
+    const id   = hdr && hdr.dataset.section;
+    if (!hdr || !body || !id) return;
+
+    // Restore from localStorage; Recent defaults collapsed, all others default open
+    const stored = localStorage.getItem(ERD_CONST.LS_SIDEBAR_PREFIX + id);
+    const defaultClosed = (id === 'recent');
+    const startClosed = stored === 'closed' || (stored === null && defaultClosed);
+    if (startClosed) {
+      sec.classList.add('collapsed');
+      hdr.setAttribute('aria-expanded', 'false');
+    } else {
+      sec.classList.remove('collapsed');
+      hdr.setAttribute('aria-expanded', 'true');
+    }
+
+    const toggle = () => {
+      const isCollapsed = sec.classList.toggle('collapsed');
+      hdr.setAttribute('aria-expanded', String(!isCollapsed));
+      localStorage.setItem(
+        ERD_CONST.LS_SIDEBAR_PREFIX + id,
+        isCollapsed ? 'closed' : 'open'
+      );
+    };
+
+    hdr.addEventListener('click', toggle);
+    hdr.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-7: Context Path Breadcrumb
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** SVG icons for each entity type (compact, 10×10 viewBox). */
+const _ICON_SCHEMA = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`;
+const _ICON_TABLE  = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`;
+const _ICON_COL    = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+
+/**
+ * Build a context-path breadcrumb HTML string.
+ * @param {Object} parts  - { schema?, table?, column? }
+ * @param {number} [maxChars] - per-segment truncation (default: ERD_CONST.BREADCRUMB_MAX_SEG_CHARS)
+ * @returns {string} HTML string
+ */
+function erdBreadcrumbHTML(parts, maxChars) {
+  const mx = maxChars || ERD_CONST.BREADCRUMB_MAX_SEG_CHARS;
+  const segs = [];
+  if (parts.schema) {
+    const label = erdTrunc(parts.schema, mx);
+    const full  = erdEsc(parts.schema);
+    segs.push(`<span class="erd-ctx-seg" title="${full}">${_ICON_SCHEMA}<span>${erdEsc(label)}</span></span>`);
+  }
+  if (parts.table) {
+    if (segs.length) segs.push(`<span class="erd-ctx-sep">›</span>`);
+    const label = erdTrunc(parts.table, mx);
+    const full  = erdEsc(parts.table);
+    segs.push(`<span class="erd-ctx-seg" title="${full}">${_ICON_TABLE}<span>${erdEsc(label)}</span></span>`);
+  }
+  if (parts.column) {
+    if (segs.length) segs.push(`<span class="erd-ctx-sep">›</span>`);
+    const label = erdTrunc(parts.column, mx);
+    const full  = erdEsc(parts.column);
+    segs.push(`<span class="erd-ctx-seg" title="${full}">${_ICON_COL}<span>${erdEsc(label)}</span></span>`);
+  }
+  return `<span class="erd-ctx-path">${segs.join('')}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-4: Lineage Badges on Sidebar Table List
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Precompute FK-in / FK-out counts for every table from SCHEMA.
+ * FK-out: count of FK columns on this table pointing elsewhere.
+ * FK-in:  count of FK columns on OTHER tables pointing to this table.
+ * @param {Array<{name:string, columns:Array<{fk:boolean, fk_target:string}>}>} schema
+ * @returns {Object<string, {out:number, in:number}>}
+ */
+function buildFkCounts(schema) {
+  /** @type {Object<string, {out:number, in:number}>} */
+  const counts = {};
+  schema.forEach(t => { counts[t.name] = { out: 0, in: 0 }; });
+
+  schema.forEach(t => {
+    t.columns.forEach(c => {
+      if (!c.fk || !c.fk_target) return;
+      const lastDot = c.fk_target.lastIndexOf('.');
+      const refTable = lastDot >= 0 ? c.fk_target.slice(0, lastDot) : c.fk_target;
+      if (counts[t.name])     counts[t.name].out++;
+      if (counts[refTable])   counts[refTable].in++;
+    });
+  });
+  return counts;
+}
+
+/** Cached FK counts; populated during buildSidebarWithFeatures(). */
+let _fkCounts = {};
+
+/**
+ * Check if the sidebar is narrow and badges should show icon-only.
+ * @returns {boolean}
+ */
+function _sidebarIsNarrow() {
+  const sb = document.getElementById('sidebar');
+  return sb ? sb.clientWidth < ERD_CONST.LINEAGE_BADGE_ICON_ONLY_WIDTH : false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-3: Freshness Badges - metadata loading
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** @type {Object<string, number|null>} tableName → last-updated timestamp ms or null */
+let _tableFreshness = {};
+
+/**
+ * Load metadata sidecar and extract per-table last_updated timestamps.
+ * Stores results in _tableFreshness.
+ * @returns {Promise<void>}
+ */
+async function loadFreshnessData() {
+  const bp = window.BASE_PATH || '';
+
+  // Layer 1: metadata sidecar - explicit last_updated set by user or PATCH API
+  try {
+    const r = await fetch(`${bp}/api/metadata/${encodeURIComponent(KEY)}`);
+    if (r.ok) {
+      const meta = await r.json();
+      const tables = meta.tables || {};
+      Object.entries(tables).forEach(([tname, tmeta]) => {
+        if (tmeta && tmeta.last_updated != null) {
+          const ts = typeof tmeta.last_updated === 'number'
+            ? tmeta.last_updated
+            : new Date(tmeta.last_updated).getTime();
+          if (!isNaN(ts)) _tableFreshness[tname] = ts;
+        }
+      });
+    }
+  } catch (_) {}
+
+  // Layer 2: automatic detection - /api/freshness/<key> derives timestamps
+  // from SQLite timestamp-named columns; only fills in tables not already set
+  try {
+    const r2 = await fetch(`${bp}/api/freshness/${encodeURIComponent(KEY)}`);
+    if (r2.ok) {
+      const auto = await r2.json();
+      Object.entries(auto).forEach(([tname, ts]) => {
+        // Only use auto-detected value if no explicit value was found
+        if (ts != null && _tableFreshness[tname] == null) {
+          _tableFreshness[tname] = ts;
+        }
+      });
+    }
+  } catch (_) {}
+}
+
+/**
+ * Render freshness dot badges in the #erd-badges-layer overlay.
+ * Called after layout (so node positions are known) and on every zoom/pan.
+ * @returns {void}
+ */
+/**
+ * Update sidebar freshness indicator dots after freshness data is loaded.
+ * Called from drawFreshnessBadges so the sidebar stays in sync.
+ */
+function _updateSidebarFreshnessDots() {
+  SCHEMA.forEach(t => {
+    const el = document.getElementById('sb-fresh-' + t.name);
+    if (!el) return;
+    const ts = _tableFreshness[t.name];
+    el.classList.remove('fresh', 'warn', 'stale');
+    if (ts == null) {
+      el.title = 'Freshness: unknown';
+    } else {
+      const now = Date.now();
+      const age = now - ts;
+      const GREEN_MS = 24 * 3600 * 1000, AMBER_MS = 7 * 24 * 3600 * 1000;
+      if (age <= GREEN_MS) {
+        el.classList.add('fresh'); el.title = 'Fresh - updated today';
+      } else if (age <= AMBER_MS) {
+        el.classList.add('warn');  el.title = 'Stale - updated this week';
+      } else {
+        el.classList.add('stale'); el.title = 'Old - older than 7 days';
+      }
+    }
+  });
+}
+
+function drawFreshnessBadges() {
+  if (!cy) return;
+  const layer  = document.getElementById('erd-badges-layer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  _updateSidebarFreshnessDots();
+
+  const zoom = cy.zoom(), pan = cy.pan();
+
+  cy.nodes().forEach(n => {
+    if (hiddenTables.has(n.id())) return;
+    if (n.style('display') === 'none') return;
+
+    const tname = n.id();
+    const ts    = _tableFreshness[tname];  // may be undefined → grey
+    const color = erdFreshnessColor(ts != null ? ts : null);
+
+    const pos  = n.position();
+    const w    = n.data('w'), h = n.data('h');
+    // Convert model-space node top-right corner to screen space
+    const screenX2 = pos.x * zoom + pan.x + (w * zoom / 2);
+    const screenY1 = pos.y * zoom + pan.y - (h * zoom / 2);
+    const DOT_SIZE = 8, INSET = 6;
+    // Place dot fully inside the node's top-right corner (6 px inset).
+    // Clamp left so it never escapes the node's own left boundary.
+    const screenX1 = pos.x * zoom + pan.x - (w * zoom / 2);
+    const dotLeft  = Math.max(screenX1, screenX2 - INSET - DOT_SIZE / 2);
+    const dotTop   = screenY1 + INSET - DOT_SIZE / 2;
+
+    const dot  = document.createElement('div');
+    dot.className = 'erd-freshness-dot';
+    dot.style.cssText = `
+      left: ${dotLeft}px;
+      top:  ${dotTop}px;
+      background: ${color};
+    `;
+    dot.setAttribute('title', erdFreshnessLabel(ts != null ? ts : null));
+    dot.setAttribute('aria-label', 'Freshness: ' + erdFreshnessLabel(ts != null ? ts : null));
+
+    // Show tooltip on hover
+    dot.addEventListener('mouseenter', e => {
+      showErdTooltip(e, erdFreshnessLabel(ts != null ? ts : null));
+    });
+    dot.addEventListener('mouseleave', hideErdTooltip);
+
+    layer.appendChild(dot);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Shared tooltip helper
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Show the shared ERD tooltip near a mouse event.
+ * @param {MouseEvent} e
+ * @param {string} text
+ */
+function showErdTooltip(e, text) {
+  const tip = document.getElementById('erd-tooltip');
+  if (!tip) return;
+  tip.textContent = text;
+  tip.classList.add('visible');
+  _positionErdTooltip(e.clientX, e.clientY);
+}
+
+function _positionErdTooltip(x, y) {
+  const tip = document.getElementById('erd-tooltip');
+  if (!tip) return;
+  const tw = tip.offsetWidth || 180, th = tip.offsetHeight || 28;
+  let lx = x + 12, ly = y - th - 6;
+  if (lx + tw > window.innerWidth)  lx = x - tw - 6;
+  if (ly < 6)                        ly = y + 12;
+  tip.style.left = lx + 'px';
+  tip.style.top  = ly + 'px';
+}
+
+function hideErdTooltip() {
+  const tip = document.getElementById('erd-tooltip');
+  if (tip) tip.classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-1: Entity Preview Hover Card
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** @type {number|null} */
+let _hoverCardShowTimer  = null;
+/** @type {number|null} */
+let _hoverCardHideTimer  = null;
+/** @type {string|null} */
+let _hoverCardCurrentId  = null;
+
+/**
+ * Show the hover card for a named table.
+ * @param {string} tableName
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+function showHoverCard(tableName, clientX, clientY) {
+  _hoverCardCurrentId = tableName;
+  const table = SCHEMA.find(t => t.name === tableName);
+  if (!table) return;
+
+  const card  = document.getElementById('erd-hover-card');
+
+  // -- Stats --
+  document.getElementById('erd-hover-card-title').textContent = tableName;
+  document.getElementById('erd-hc-rows').textContent = erdFormatRows(rowCounts[tableName]);
+  document.getElementById('erd-hc-cols').textContent = String(table.columns.length);
+  document.getElementById('erd-hc-fk-out').textContent =
+    String(table.columns.filter(c => c.fk).length);
+
+  const ts = _tableFreshness[tableName];
+  document.getElementById('erd-hc-fresh').textContent =
+    ts != null ? erdTimeAgo(ts) : '-';
+
+  // -- Description --
+  const descEl = document.getElementById('erd-hover-card-desc');
+  const desc   = (_tablesMeta && _tablesMeta[tableName] && _tablesMeta[tableName].description) || '';
+  if (desc) {
+    descEl.textContent = erdTrunc(desc, ERD_CONST.HOVER_CARD_DESC_MAX_CHARS);
+    descEl.classList.remove('empty');
+  } else {
+    descEl.classList.add('empty');
+  }
+
+  // -- FK list --
+  const fksEl  = document.getElementById('erd-hover-card-fks');
+  const fkList = document.getElementById('erd-hc-fk-list');
+  const fks    = table.columns.filter(c => c.fk && c.fk_target)
+    .slice(0, ERD_CONST.HOVER_CARD_MAX_FK_ROWS);
+  if (fks.length) {
+    fkList.innerHTML = fks.map(c => {
+      const lastDot = c.fk_target.lastIndexOf('.');
+      const refTbl  = lastDot >= 0 ? c.fk_target.slice(0, lastDot) : c.fk_target;
+      const refCol  = lastDot >= 0 ? c.fk_target.slice(lastDot + 1) : '';
+      return `<div class="erd-hc-fk-row">
+        <span>${erdEsc(c.name)}</span>
+        <span class="erd-hc-fk-arrow">→</span>
+        <span>${erdEsc(refTbl)}${refCol ? '.' + erdEsc(refCol) : ''}</span>
+      </div>`;
+    }).join('');
+    fksEl.classList.remove('empty');
+  } else {
+    fksEl.classList.add('empty');
+  }
+
+  // -- Position card near cursor --
+  card.classList.add('visible');
+  _positionHoverCard(clientX, clientY);
+}
+
+/**
+ * Position the hover card near a cursor position, avoiding viewport edges.
+ * @param {number} cx client x
+ * @param {number} cy client y
+ */
+function _positionHoverCard(cx, cy) {
+  const card = document.getElementById('erd-hover-card');
+  const cw   = card.offsetWidth  || 260;
+  const ch   = card.offsetHeight || 160;
+  let lx = cx + 14, ly = cy + 14;
+  if (lx + cw > window.innerWidth  - 8) lx = cx - cw - 10;
+  if (ly + ch > window.innerHeight - 8) ly = cy - ch - 10;
+  lx = Math.max(8, lx);
+  ly = Math.max(8, ly);
+  card.style.left = lx + 'px';
+  card.style.top  = ly + 'px';
+}
+
+function hideHoverCard() {
+  _hoverCardCurrentId = null;
+  clearTimeout(_hoverCardShowTimer);
+  clearTimeout(_hoverCardHideTimer);
+  const card = document.getElementById('erd-hover-card');
+  if (card) card.classList.remove('visible');
+}
+
+/**
+ * Wire hover-card behaviour into Cytoscape node events.
+ * Called once after buildCy().
+ */
+function wireHoverCard() {
+  if (!cy) return;
+  cy.on('mouseover', 'node', e => {
+    clearTimeout(_hoverCardHideTimer);
+    const name = e.target.id();
+    const pos  = e.originalEvent;
+    _hoverCardShowTimer = setTimeout(() => {
+      if (_hoverCardCurrentId !== name) {
+        showHoverCard(name, pos.clientX, pos.clientY);
+      }
+    }, ERD_CONST.HOVER_CARD_SHOW_DELAY_MS);
+  });
+
+  cy.on('mousemove', 'node', e => {
+    if (_hoverCardCurrentId) {
+      _positionHoverCard(e.originalEvent.clientX, e.originalEvent.clientY);
+    }
+  });
+
+  cy.on('mouseout', 'node', () => {
+    clearTimeout(_hoverCardShowTimer);
+    _hoverCardHideTimer = setTimeout(hideHoverCard, ERD_CONST.HOVER_CARD_HIDE_DELAY_MS);
+  });
+
+  cy.on('tap', 'node', hideHoverCard);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-2: Bounding Box Groups on ERD Canvas
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * @typedef {Object} BBoxGroup
+ * @property {string}   id
+ * @property {string}   label
+ * @property {string}   color
+ * @property {string[]} tableNames
+ * @property {boolean}  collapsed     - boundary hidden (bbox rect/label not drawn)
+ * @property {boolean}  tablesHidden  - member tables hidden on canvas
+ */
+
+/** @type {BBoxGroup[]} */
+let _bboxGroups = [];
+
+/** @type {Object<string, boolean>} tableName → currently collapsed into its group */
+let _bboxCollapsed = {};
+
+let _dragStartPositions = {};  // { tableName: {x,y} } snapshot at grab time
+let _dragGrabbedId = null;     // which node was grabbed during group co-move
+
+/**
+ * Whether group overlays are globally enabled.
+ * Persisted in localStorage under ERD_CONST.LS_SIDEBAR_PREFIX + 'groups_enabled'.
+ * @type {boolean}
+ */
+let _groupsEnabled = true;
+const _LS_GROUPS_ENABLED = () =>
+  (ERD_CONST.LS_SIDEBAR_PREFIX || 'erd_sb_') + 'groups_enabled';
+
+/**
+ * Detect groups from SCHEMA by shared prefix patterns.
+ * Groups tables that share a common underscore prefix (e.g. "orders_*").
+ * Also groups by explicit tags from _tablesMeta if present.
+ * @returns {BBoxGroup[]}
+ */
+function detectBBoxGroups() {
+  /** @type {Object<string, string[]>} prefix → table names */
+  const prefixMap = {};
+
+  SCHEMA.forEach(t => {
+    const parts = t.name.split('_');
+    if (parts.length >= 2) {
+      const prefix = parts[0];
+      if (!prefixMap[prefix]) prefixMap[prefix] = [];
+      prefixMap[prefix].push(t.name);
+    }
+  });
+
+  // Tag-based grouping from metadata sidecar
+  if (_tablesMeta) {
+    Object.entries(_tablesMeta).forEach(([tname, tmeta]) => {
+      if (!tmeta || !tmeta.group) return;
+      const grpLabel = tmeta.group;
+      if (!prefixMap[grpLabel]) prefixMap[grpLabel] = [];
+      if (!prefixMap[grpLabel].includes(tname)) prefixMap[grpLabel].push(tname);
+    });
+  }
+
+  const groups = [];
+  const palette = ['#a78bfa', '#1ded83', '#60a5fa', '#fbbf24', '#f87171',
+                   '#34d399', '#fb923c', '#e879f9', '#38bdf8', '#a3e635'];
+  let ci = 0;
+
+  Object.entries(prefixMap).forEach(([prefix, tables]) => {
+    // Only create a group for 2+ tables sharing the prefix
+    if (tables.length < 2) return;
+    const collapsed     = localStorage.getItem(ERD_CONST.BBOX_COLLAPSE_PREFIX + prefix) === '1';
+    const tablesHidden  = localStorage.getItem(ERD_CONST.BBOX_COLLAPSE_PREFIX + prefix + '_tables') === '1';
+    groups.push({
+      id:          prefix,
+      label:       prefix,
+      color:       palette[ci++ % palette.length],
+      tableNames:  tables,
+      collapsed,       // boundary show/hide
+      tablesHidden,    // table nodes show/hide
+    });
+  });
+
+  return groups;
+}
+
+/**
+ * Draw all bounding boxes on the #bbox-svg element.
+ * Called after layout and on every zoom/pan render event.
+ */
+function drawBBoxGroups() {
+  if (!cy) return;
+  const svg = document.getElementById('bbox-svg');
+  if (!svg) return;
+  svg.innerHTML = '';
+
+  // Groups globally disabled - SVG stays clear
+  if (!_groupsEnabled) return;
+
+  if (!_bboxGroups.length) return;
+
+  const zoom = cy.zoom(), pan = cy.pan();
+  const PAD  = ERD_CONST.BBOX_PADDING;
+  const LH   = ERD_CONST.BBOX_LABEL_HEIGHT;
+  const R    = ERD_CONST.BBOX_RADIUS;
+
+  _bboxGroups.forEach(grp => {
+    // Boundary hidden for this group - skip drawing it entirely
+    if (grp.collapsed) return;
+
+    // Collect visible member nodes
+    const nodes = grp.tableNames
+      .map(n => cy.$('#' + CSS.escape(n)))
+      .filter(n => n.length && !hiddenTables.has(n.id()) && n.style('display') !== 'none');
+
+    if (!nodes.length) return;
+
+    // Compute bounding rect in canvas coordinates
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(n => {
+      const p  = n.position();
+      const nw = n.data('w'), nh = n.data('h');
+      const rx = p.x * zoom + pan.x - nw * zoom / 2;
+      const ry = p.y * zoom + pan.y - nh * zoom / 2;
+      const rw = nw * zoom, rh = nh * zoom;
+      minX = Math.min(minX, rx);
+      minY = Math.min(minY, ry);
+      maxX = Math.max(maxX, rx + rw);
+      maxY = Math.max(maxY, ry + rh);
+    });
+
+    const bx = minX - PAD, by = minY - PAD - LH;
+    const bw = maxX - minX + PAD * 2;
+    const bh = maxY - minY + PAD * 2 + LH;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'bbox-group');
+    g.dataset.groupId = grp.id;
+
+    // Background rect
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('class', 'bbox-rect');
+    rect.setAttribute('x', String(bx));
+    rect.setAttribute('y', String(by));
+    rect.setAttribute('width', String(bw));
+    rect.setAttribute('height', String(bh));
+    rect.setAttribute('rx', String(R));
+    rect.setAttribute('fill', grp.color);
+    rect.setAttribute('stroke', grp.color);
+    g.appendChild(rect);
+
+    // ── Label strip ──────────────────────────────────────────────────
+    // The label sits ABOVE the tables (by PAD+LH) so it is never
+    // covered by the Cytoscape canvas nodes.  All interactions live here:
+    //   double-click  → group focus mode
+    //   mousedown+drag → move all group members together
+    const labelG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    labelG.setAttribute('class', 'bbox-label-strip');
+    labelG.setAttribute('role', 'button');
+    labelG.setAttribute('tabindex', '0');
+    labelG.setAttribute('aria-label',
+      `Group: ${grp.label}. Double-click to focus; drag to move group`);
+
+    const lbg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    lbg.setAttribute('class', 'bbox-label-bg');
+    lbg.setAttribute('x', String(bx + 4));
+    lbg.setAttribute('y', String(by + 3));
+    lbg.setAttribute('width', String(Math.min(160, bw - 8)));
+    lbg.setAttribute('height', String(LH - 4));
+    lbg.setAttribute('rx', '3');
+    lbg.setAttribute('fill', grp.color);
+    labelG.appendChild(lbg);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('class', 'bbox-label-text');
+    txt.setAttribute('x', String(bx + 10));
+    txt.setAttribute('y', String(by + LH - 6));
+    txt.setAttribute('fill', '#fff');
+    txt.textContent = '⠿ ' + grp.label;   // drag handle hint
+    labelG.appendChild(txt);
+
+    // Double-click label → focus all tables in this group
+    labelG.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      enterGroupFocusMode(grp.id);
+    });
+
+    // Mousedown on label → drag all group members (delta-move).
+    // We only intercept if the mouse actually moves (>4px) so single-click still fires.
+    labelG.addEventListener('mousedown', e => {
+      if (!_groupsEnabled) return;
+      if (e.button !== 0) return;
+      e.stopPropagation(); // prevent Cytoscape pan on label area
+
+      const startX = e.clientX, startY = e.clientY;
+      const curZoom = cy.zoom();
+      let lastX = startX, lastY = startY;
+      let dragging = false;
+
+      const onMove = ev => {
+        const totalDx = ev.clientX - startX, totalDy = ev.clientY - startY;
+        if (!dragging && Math.sqrt(totalDx*totalDx + totalDy*totalDy) < 4) return;
+        if (!dragging) {
+          dragging = true;
+          document.body.style.cursor = 'grabbing';
+        }
+        const dx = (ev.clientX - lastX) / curZoom;
+        const dy = (ev.clientY - lastY) / curZoom;
+        lastX = ev.clientX;
+        lastY = ev.clientY;
+        grp.tableNames.forEach(n => {
+          const nd = cy.$('#' + CSS.escape(n));
+          if (nd.length) {
+            const p = nd.position();
+            nd.position({ x: p.x + dx, y: p.y + dy });
+          }
+        });
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor = '';
+        if (dragging) drawBBoxGroups();
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    g.appendChild(labelG);
+    svg.appendChild(g);
+  });
+}
+
+/**
+ * Toggle boundary visibility of a bounding box group (right eye / canvas label click).
+ * Only affects whether the coloured rect+label is drawn - table nodes are NOT hidden.
+ * @param {string} groupId
+ */
+function toggleBBoxGroup(groupId) {
+  const grp = _bboxGroups.find(g => g.id === groupId);
+  if (!grp) return;
+  grp.collapsed = !grp.collapsed;
+  localStorage.setItem(
+    ERD_CONST.BBOX_COLLAPSE_PREFIX + groupId,
+    grp.collapsed ? '1' : '0'
+  );
+  drawBBoxGroups();
+  renderGroupsSection();
+}
+
+/**
+ * Toggle table-node visibility for all members of a group (left eye).
+ * Does NOT affect the bounding-box boundary rendering.
+ * @param {string} groupId
+ */
+function toggleGroupTables(groupId) {
+  const grp = _bboxGroups.find(g => g.id === groupId);
+  if (!grp) return;
+  grp.tablesHidden = !grp.tablesHidden;
+  localStorage.setItem(
+    ERD_CONST.BBOX_COLLAPSE_PREFIX + groupId + '_tables',
+    grp.tablesHidden ? '1' : '0'
+  );
+
+  grp.tableNames.forEach(tname => {
+    if (!cy) return;
+    const n   = cy.$('#' + CSS.escape(tname));
+    const row = document.querySelector(`.tbl-item[data-name="${CSS.escape(tname)}"]`);
+    const eye = document.querySelector(`.tbl-eye[data-eye="${CSS.escape(tname)}"]`);
+    if (!n.length) return;
+    if (grp.tablesHidden) {
+      hiddenTables.add(tname);
+      n.style('display', 'none');
+      if (row) row.classList.add('tbl-hidden');
+      if (eye) eye.innerHTML = _EYE_OFF;
+    } else {
+      hiddenTables.delete(tname);
+      n.style('display', '');
+      if (row) row.classList.remove('tbl-hidden');
+      if (eye) eye.innerHTML = _EYE_ON;
+    }
+  });
+
+  drawOverlay();
+  drawMinimap();
+  drawBBoxGroups();
+  drawFreshnessBadges();
+  renderGroupsSection();
+  cancelAnim();
+  clearAnimCanvas();
+}
+
+/**
+ * Initialise bounding box groups and wire into the render cycle.
+ */
+function initBBoxGroups() {
+  _bboxGroups = detectBBoxGroups();
+  if (!_bboxGroups.length) return;
+
+  // Restore groups-enabled preference
+  const stored = localStorage.getItem(_LS_GROUPS_ENABLED());
+  _groupsEnabled = stored !== '0'; // default: enabled
+
+  // Restore persisted table-hide states (only if globally enabled)
+  if (_groupsEnabled) {
+    _bboxGroups.forEach(grp => {
+      if (grp.tablesHidden) {
+        grp.tableNames.forEach(tname => {
+          const n = cy && cy.$('#' + CSS.escape(tname));
+          if (n && n.length) {
+            hiddenTables.add(tname);
+            n.style('display', 'none');
+          }
+        });
+      }
+    });
+  }
+
+  // Hook into the Cytoscape render event (already fires on pan/zoom)
+  if (cy) {
+    cy.on('render', () => { drawBBoxGroups(); drawFreshnessBadges(); });
+  }
+
+  drawBBoxGroups();
+}
+
+/**
+ * Toggle the global groups-enabled flag.
+ * When disabled: clears the SVG overlay and shows all group-hidden tables.
+ * When re-enabled: reapplies each group's collapsed state.
+ * @param {boolean} enabled
+ */
+async function setGroupsEnabled(enabled) {
+  _groupsEnabled = enabled;
+  localStorage.setItem(_LS_GROUPS_ENABLED(), enabled ? '1' : '0');
+
+  // When globally disabled: reveal all group-hidden tables; when re-enabled: re-apply tablesHidden state
+  _bboxGroups.forEach(grp => {
+    if (!grp.tablesHidden) return;
+    grp.tableNames.forEach(tname => {
+      const row = document.querySelector(`.tbl-item[data-name="${CSS.escape(tname)}"]`);
+      const eye = document.querySelector(`.tbl-eye[data-eye="${CSS.escape(tname)}"]`);
+      if (enabled) {
+        hiddenTables.add(tname);
+        if (cy) cy.$('#' + CSS.escape(tname)).style('display', 'none');
+        if (row) row.classList.add('tbl-hidden');
+        if (eye) eye.innerHTML = _EYE_OFF;
+      } else {
+        hiddenTables.delete(tname);
+        if (cy) cy.$('#' + CSS.escape(tname)).style('display', '');
+        if (row) row.classList.remove('tbl-hidden');
+        if (eye) eye.innerHTML = _EYE_ON;
+      }
+    });
+  });
+
+  if (enabled && _bboxGroups.length) {
+    // Turning groups on → immediately separate the diagram by group
+    await runGroupedLayout();
+  } else {
+    drawOverlay();
+    drawMinimap();
+    drawBBoxGroups();
+    // Also clear/redraw NF3 cluster overlays which share the same bbox-svg layer
+    if (typeof NF3 !== 'undefined' && NF3.drawClusters) NF3.drawClusters();
+    drawFreshnessBadges();
+    cancelAnim();
+    clearAnimCanvas();
+  }
+  renderGroupsSection();
+}
+
+/**
+ * Render the Groups sidebar section.
+ * Each row shows: swatch · label · count · [tables eye] · [boundary eye]
+ *   Left eye  (data-grp-tables-eye) - hides/shows member table nodes on canvas
+ *   Right eye (data-grp-eye)        - hides/shows the coloured bounding-box boundary
+ * Also syncs the enable/disable toggle to the current _groupsEnabled state.
+ */
+function renderGroupsSection() {
+  const container = document.getElementById('groups-list');
+  if (!container) return;
+
+  // Sync the toggle checkbox to current state
+  const chk = document.getElementById('grp-enable-chk');
+  if (chk) chk.checked = _groupsEnabled;
+
+  if (!_bboxGroups.length) {
+    container.innerHTML = `<div style="padding:8px 12px;font-size:11px;color:rgba(255,255,255,0.2);font-style:italic;">No groups detected</div>`;
+    return;
+  }
+
+  // Mute the list when groups are globally off
+  container.classList.toggle('grp-disabled', !_groupsEnabled);
+
+  container.innerHTML = _bboxGroups.map(grp => {
+    const tablesOff   = grp.tablesHidden;
+    const boundaryOff = grp.collapsed;
+    return `<div class="grp-item${tablesOff ? ' grp-hidden' : ''}"
+      data-group-id="${erdEsc(grp.id)}" style="border-left-color:${grp.color}">
+      <span class="grp-swatch" style="background:${grp.color};"></span>
+      <span class="grp-label" title="${erdEsc(grp.label)}">${erdEsc(grp.label)}</span>
+      <span class="grp-count">${grp.tableNames.length}</span>
+      <button class="grp-eye" title="${tablesOff ? 'Show tables' : 'Hide tables'}"
+        data-grp-tables-eye="${erdEsc(grp.id)}"
+        aria-label="${tablesOff ? 'Show' : 'Hide'} tables in group ${erdEsc(grp.label)}">
+        ${tablesOff ? _EYE_OFF : _EYE_ON}
+      </button>
+      <button class="grp-eye grp-eye-boundary" title="${boundaryOff ? 'Show boundary' : 'Hide boundary'}"
+        data-grp-eye="${erdEsc(grp.id)}"
+        aria-label="${boundaryOff ? 'Show' : 'Hide'} boundary for group ${erdEsc(grp.label)}"
+        style="opacity:${boundaryOff ? 0.3 : 0.6};">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="${boundaryOff ? '4 3' : 'none'}"/>
+        </svg>
+      </button>
+    </div>`;
+  }).join('');
+
+  // Left eye: toggle table visibility
+  container.querySelectorAll('[data-grp-tables-eye]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleGroupTables(btn.dataset.grpTablesEye);
+    });
+  });
+
+  // Right eye (boundary): toggle bounding-box rect/label
+  container.querySelectorAll('[data-grp-eye]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleBBoxGroup(btn.dataset.grpEye);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-5: Tag Pills System
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * @typedef {Object} ErdMeta
+ * @property {Object.<string, {tags?: string[], description?: string, group?: string}>} tables
+ * @property {Object.<string, {tags?: string[]}>} columns
+ */
+
+/** @type {ErdMeta|null} Loaded metadata for the current schema. */
+let _erdMeta = null;
+
+/**
+ * Convenience accessor: per-table metadata map.
+ * @type {Object<string, {tags?: string[], description?: string, group?: string}>}
+ */
+let _tablesMeta = {};
+
+/**
+ * Collect all unique tags across all tables and columns.
+ * @returns {string[]}
+ */
+function allExistingTags() {
+  const set = new Set();
+  if (!_erdMeta) return [];
+  Object.values(_erdMeta.tables || {}).forEach(tm => (tm.tags || []).forEach(t => set.add(t)));
+  Object.values(_erdMeta.columns || {}).forEach(cm => (cm.tags || []).forEach(t => set.add(t)));
+  return [...set].sort();
+}
+
+/**
+ * Render the pill list for a table or column.
+ * @param {string[]} tags
+ * @param {boolean} editMode  - show remove buttons
+ * @param {function(string):void} onRemove
+ * @param {function(MouseEvent):void} onAdd  - called when "+" button clicked
+ * @returns {string} HTML
+ */
+function erdTagPillsHTML(tags, editMode, onRemove, onAdd) {
+  const visible  = tags.slice(0, ERD_CONST.TAG_MAX_DISPLAY);
+  const overflow = tags.length - visible.length;
+  let html = '<div class="erd-tags-wrap">';
+  visible.forEach(tag => {
+    const c = erdTagColor(tag);
+    const rmBtn = editMode
+      ? `<button class="erd-tag-rm" data-tag="${erdEsc(tag)}" title="Remove tag" style="color:${c.text}">×</button>`
+      : '';
+    html += `<span class="erd-tag-pill" style="background:${c.bg};color:${c.text};border-color:${c.border}"
+      title="${erdEsc(tag)}">${erdEsc(erdTrunc(tag, 16))}${rmBtn}</span>`;
+  });
+  if (overflow > 0) {
+    html += `<span class="erd-tag-more">+${overflow}</span>`;
+  }
+  if (editMode) {
+    html += `<button class="erd-add-tag-btn" title="Add tag">+ tag</button>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+/**
+ * Persist a tag mutation back to the metadata sidecar via PATCH.
+ * @param {string} scope  'table' | 'column'
+ * @param {string} key    tableName or "tableName.colName"
+ * @param {string[]} tags  new tag array
+ * @returns {Promise<void>}
+ */
+async function persistTags(scope, key, tags) {
+  const bp = window.BASE_PATH || '';
+  const body = scope === 'table'
+    ? { tables: { [key]: { tags } } }
+    : { columns: { [key]: { tags } } };
+  try {
+    const r = await fetch(`${bp}/api/metadata/${encodeURIComponent(KEY)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      _erdMeta = updated;
+      _tablesMeta = updated.tables || {};
+    }
+  } catch (_) {}
+}
+
+// ── Tag Popover ──────────────────────────────────────────────────────────────
+
+/** @type {Object|null} - { scope: string, key: string } */
+let _tagPopoverTarget = null;
+
+/**
+ * Open the tag-add popover anchored near a button element.
+ * @param {HTMLElement} anchorEl
+ * @param {string} scope  'table' | 'column'
+ * @param {string} tagKey  tableName or "tableName.colName"
+ */
+function openTagPopover(anchorEl, scope, tagKey) {
+  _tagPopoverTarget = { scope, key: tagKey };
+  const pop  = document.getElementById('erd-tag-popover');
+  const inp  = document.getElementById('erd-tag-input');
+  const sugs = document.getElementById('erd-tag-suggestions');
+  pop.classList.add('open');
+  inp.value = '';
+  _renderTagSuggestions('');
+
+  // Position near anchor
+  const rect = anchorEl.getBoundingClientRect();
+  let lx = rect.left, ly = rect.bottom + 4;
+  if (lx + 200 > window.innerWidth) lx = rect.right - 200;
+  pop.style.left = Math.max(4, lx) + 'px';
+  pop.style.top  = ly + 'px';
+
+  inp.focus();
+}
+
+function closeTagPopover() {
+  _tagPopoverTarget = null;
+  const pop = document.getElementById('erd-tag-popover');
+  if (pop) pop.classList.remove('open');
+}
+
+function _renderTagSuggestions(query) {
+  const sugs  = document.getElementById('erd-tag-suggestions');
+  const all   = allExistingTags();
+  const lo    = query.toLowerCase();
+  const matches = query
+    ? all.filter(t => t.toLowerCase().includes(lo))
+    : all.slice(0, 10);
+  sugs.innerHTML = matches.map(t => {
+    const c = erdTagColor(t);
+    return `<div class="erd-tag-sug-item" data-tag="${erdEsc(t)}">
+      <span class="erd-tag-sug-dot" style="background:${c.text};"></span>
+      ${erdEsc(t)}
+    </div>`;
+  }).join('');
+  sugs.querySelectorAll('.erd-tag-sug-item').forEach(el => {
+    el.addEventListener('click', () => applyTagFromPopover(el.dataset.tag));
+  });
+}
+
+/**
+ * Apply (add) a tag from the popover to the current target.
+ * @param {string} tag
+ */
+async function applyTagFromPopover(tag) {
+  if (!_tagPopoverTarget || !tag.trim()) return;
+  const { scope, key } = _tagPopoverTarget;
+  let existing = [];
+  if (scope === 'table') {
+    existing = (_tablesMeta[key] && _tablesMeta[key].tags) || [];
+  } else {
+    existing = (_erdMeta && _erdMeta.columns && _erdMeta.columns[key] &&
+                _erdMeta.columns[key].tags) || [];
+  }
+  const newTags = [...new Set([...existing, tag.trim()])];
+  await persistTags(scope, key, newTags);
+  closeTagPopover();
+  // Re-render any tag pill containers that reference this key
+  document.querySelectorAll(`[data-tag-scope="${scope}"][data-tag-key="${CSS.escape(key)}"]`).forEach(el => {
+    renderTagPillContainer(el, scope, key);
+  });
+}
+
+/**
+ * Remove a tag from a target entity.
+ * @param {string} scope
+ * @param {string} key
+ * @param {string} tag
+ */
+async function removeTag(scope, key, tag) {
+  let existing = [];
+  if (scope === 'table') {
+    existing = (_tablesMeta[key] && _tablesMeta[key].tags) || [];
+  } else {
+    existing = (_erdMeta && _erdMeta.columns && _erdMeta.columns[key] &&
+                _erdMeta.columns[key].tags) || [];
+  }
+  const newTags = existing.filter(t => t !== tag);
+  await persistTags(scope, key, newTags);
+  document.querySelectorAll(`[data-tag-scope="${scope}"][data-tag-key="${CSS.escape(key)}"]`).forEach(el => {
+    renderTagPillContainer(el, scope, key);
+  });
+}
+
+/**
+ * Render (or re-render) a tag pill container element.
+ * @param {HTMLElement} el  container with data-tag-scope and data-tag-key
+ * @param {string} scope
+ * @param {string} key
+ */
+function renderTagPillContainer(el, scope, key) {
+  let tags = [];
+  if (scope === 'table') {
+    tags = (_tablesMeta[key] && _tablesMeta[key].tags) || [];
+  } else {
+    tags = (_erdMeta && _erdMeta.columns && _erdMeta.columns[key] &&
+            _erdMeta.columns[key].tags) || [];
+  }
+  const editMode = true; // always show edit affordance on ERD
+  el.innerHTML = erdTagPillsHTML(tags, editMode,
+    (tag) => removeTag(scope, key, tag),
+    (e)   => openTagPopover(e.target, scope, key)
+  );
+  // Wire remove buttons
+  el.querySelectorAll('.erd-tag-rm').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      removeTag(scope, key, btn.dataset.tag);
+    });
+  });
+  // Wire add button
+  const addBtn = el.querySelector('.erd-add-tag-btn');
+  if (addBtn) {
+    addBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      openTagPopover(addBtn, scope, key);
+    });
+  }
+}
+
+// Wire tag input events
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('erd-tag-input');
+  if (!inp) return;
+  inp.addEventListener('input', () => _renderTagSuggestions(inp.value));
+  inp.addEventListener('keydown', async e => {
+    if (e.key === 'Escape') { closeTagPopover(); return; }
+    if (e.key === 'Enter')  { await applyTagFromPopover(inp.value.trim()); return; }
+  });
+});
+
+// Close popover on outside click
+document.addEventListener('click', e => {
+  const pop = document.getElementById('erd-tag-popover');
+  if (pop && !pop.contains(e.target) && !e.target.classList.contains('erd-add-tag-btn')) {
+    closeTagPopover();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-4: Enhanced buildSidebar with lineage badges + T1-7 breadcrumb + T1-5 tags
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Rebuild the sidebar table list with T1-4 lineage badges and T1-7 breadcrumbs.
+ * Replaces / augments the original buildSidebar() after SCHEMA is available.
+ * @param {Array<{name:string, columns:Array}>} tables
+ */
+function buildSidebarWithFeatures(tables) {
+  _fkCounts = buildFkCounts(tables);
+  const list = document.getElementById('table-list');
+  const schemaName = (document.getElementById('ctx-schema-name')
+    ? document.getElementById('ctx-schema-name').textContent
+    : null)
+    || (document.title ? document.title.replace(' - ERD', '').trim() : '');
+
+  list.innerHTML = tables.map(t => {
+    // P1: entity-type CSS class for sidebar left-border accent
+    const etype = _entityType(t.name);
+    return `<div class="tbl-item etype-${etype}" data-name="${erdEsc(t.name)}">
+      <span class="n">
+        <span class="tbl-name">${erdEsc(t.name)}</span>
+        <span class="tbl-meta">
+          <span id="sb-cols-${erdEsc(t.name)}">${t.columns.length} col${t.columns.length !== 1 ? 's' : ''}</span> &middot; <span id="sb-rc-${erdEsc(t.name)}">…</span>
+        </span>
+      </span>
+      <button class="tbl-eye" title="Hide/show table" data-eye="${erdEsc(t.name)}">${_EYE_ON}</button>
+    </div>`;
+  }).join('');
+
+  // Wire click: row → focus table + track recent
+  list.querySelectorAll('.tbl-item').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.tbl-eye')) return;
+      focusTable(el.dataset.name);
+      trackRecentTable(el.dataset.name);
+    });
+  });
+
+  // Wire eye-toggle
+  list.querySelectorAll('.tbl-eye').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleTableVisibility(btn.dataset.eye);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sidebar Stats & Recent sections (T1-8 bodies)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function initSidebarStats() {
+  const el = document.getElementById('sb-stats-body');
+  if (!el) return;
+  const totalCols = SCHEMA.reduce((s, t) => s + t.columns.length, 0);
+  const totalFks  = SCHEMA.reduce((s, t) => s + t.columns.filter(c => c.fk).length, 0);
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <div style="background:rgba(255,255,255,0.04);border-radius:4px;padding:7px 9px;">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,0.25);margin-bottom:2px;">Tables</div>
+        <div style="font-size:16px;font-weight:700;color:#a78bfa;font-family:Consolas,monospace;">${SCHEMA.length}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border-radius:4px;padding:7px 9px;">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,0.25);margin-bottom:2px;">Columns</div>
+        <div style="font-size:16px;font-weight:700;color:#60a5fa;font-family:Consolas,monospace;">${totalCols}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border-radius:4px;padding:7px 9px;">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,0.25);margin-bottom:2px;">FK Edges</div>
+        <div style="font-size:16px;font-weight:700;color:#1ded83;font-family:Consolas,monospace;">${totalFks}</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.04);border-radius:4px;padding:7px 9px;">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,0.25);margin-bottom:2px;">Groups</div>
+        <div style="font-size:16px;font-weight:700;color:#fbbf24;font-family:Consolas,monospace;">${_bboxGroups.length}</div>
+      </div>
+    </div>`;
+}
+
+const _LS_RECENT_KEY = 'erd_recent_tables_' + (typeof KEY !== 'undefined' ? KEY : '');
+
+function trackRecentTable(name) {
+  try {
+    let arr = JSON.parse(localStorage.getItem(_LS_RECENT_KEY) || '[]');
+    arr = [name, ...arr.filter(n => n !== name)].slice(0, 5);
+    localStorage.setItem(_LS_RECENT_KEY, JSON.stringify(arr));
+    renderRecentSection();
+  } catch (_) {}
+}
+
+function renderRecentSection() {
+  const el = document.getElementById('sb-recent-body');
+  if (!el) return;
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(_LS_RECENT_KEY) || '[]'); } catch (_) {}
+  // Clamp display to 5 even if older localStorage had more
+  arr = arr.slice(0, 5);
+  if (!arr.length) {
+    el.innerHTML = `<div style="padding:8px 12px;font-size:11px;color:rgba(255,255,255,0.2);font-style:italic;">No recently viewed tables</div>`;
+    return;
+  }
+  el.innerHTML = arr.map(name => {
+    const t = SCHEMA.find(x => x.name === name);
+    if (!t) return '';
+    return `<div class="tbl-item" data-name="${erdEsc(name)}" style="border-left-color:transparent;">
+      <span class="n">${erdEsc(name)}</span>
+      <span class="c" style="font-size:9px;">${t.columns.length}c</span>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.tbl-item').forEach(el => {
+    el.addEventListener('click', () => focusTable(el.dataset.name));
+  });
+}
+
+// focusTable is already declared above; we hook recents tracking in bootFeatures
+// by wrapping trackRecentTable directly in the sidebar click handlers (no redeclaration needed).
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T1-8: Pill-group wiring (sidebar filters section duplicates topbar pills)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Wire ALL pill buttons (both topbar and sidebar Filters section)
+// using event delegation on the document so newly-rendered pills are caught.
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.pill[data-mode]');
+  if (!btn) return;
+  document.querySelectorAll('.pill[data-mode]').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`.pill[data-mode="${btn.dataset.mode}"]`).forEach(b => b.classList.add('active'));
+  changeMode(btn.dataset.mode);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Feature boot - called once after the original boot() completes layout
+// ═══════════════════════════════════════════════════════════════════════════════
+
+async function bootFeatures() {
+  // T1-8: Accordion (must be first so sidebar is usable)
+  initSidebarAccordion();
+
+  // Load metadata (needed by T1-3, T1-1, T1-5)
+  const bp = window.BASE_PATH || '';
+  try {
+    const r = await fetch(`${bp}/api/metadata/${encodeURIComponent(KEY)}`);
+    if (r.ok) {
+      _erdMeta = await r.json();
+      _tablesMeta = _erdMeta.tables || {};
+    }
+  } catch (_) {}
+
+  // T1-3: Load freshness data
+  await loadFreshnessData();
+
+  // T1-4 + T1-7: Rebuild sidebar with features
+  buildSidebarWithFeatures(SCHEMA);
+
+  // T1-8: Restore row counts in new sidebar (if already loaded)
+  updateSidebarRowCounts();
+
+  // T1-1: Wire hover card
+  wireHoverCard();
+
+  // T1-2: Init bounding boxes - detect groups, then run grouped layout.
+  // Always run grouped layout when groups exist, regardless of overlay toggle.
+  // (_groupsEnabled only controls the visual bounding-box overlay, not node positions.)
+  initBBoxGroups();
+  if (_bboxGroups.length) {
+    await runGroupedLayout();
+  }
+  renderGroupsSection();
+
+  // Wire the groups enable/disable toggle
+  const _grpChk = document.getElementById('grp-enable-chk');
+  if (_grpChk) {
+    _grpChk.addEventListener('change', () => setGroupsEnabled(_grpChk.checked));
+  }
+
+  // Wire the tables show-all/hide-all toggle
+  const _tblChk = document.getElementById('tbl-enable-chk');
+  if (_tblChk) {
+    _tblChk.addEventListener('change', () => {
+      if (_tblChk.checked) showAllTables(); else hideAllTables();
+    });
+  }
+
+  // T1-3: Draw initial freshness badges
+  drawFreshnessBadges();
+
+  // T1-8: Sidebar stats and recent
+  initSidebarStats();
+  renderRecentSection();
+
+  // T1-3: Wire freshness badge redraws on Cytoscape render (also done in initBBoxGroups)
+  if (cy) {
+    cy.on('render', () => {
+      drawFreshnessBadges();
+    });
+  }
+
+  // ── Novel features N1-N5 ───────────────────────────────────────────────────
+  // Pass the already-loaded metadata so N1 can compute description coverage.
+  bootNovelFeatures(_erdMeta);
+}
+
+// ── Sidebar toggle ────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  const sb  = document.getElementById('sidebar');
+  const btn = document.getElementById('sidebar-toggle-btn');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('sb-collapsed');
+  if (btn) btn.innerHTML = collapsed ? '&#8250;' : '&#8249;';
+  // Redraw canvas after animation settles
+  setTimeout(() => { if (typeof drawOverlay === 'function') drawOverlay(); if (cy) cy.resize(); }, 220);
+}
+
+// ── Contextual info zone: update schema name + focused table ──────────────────
+function updateCtxInfo(tableName) {
+  const nameEl  = document.getElementById('ctx-schema-name');
+  const statsEl = document.getElementById('ctx-schema-stats');
+  const chip    = document.getElementById('focus-chip');
+  const chipLbl = document.getElementById('focus-chip-label');
+  if (tableName) {
+    if (chip) { chip.style.display = 'flex'; }
+    if (chipLbl) chipLbl.textContent = tableName;
+  } else {
+    if (chip) chip.style.display = 'none';
+  }
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+// boot() is an async function and always returns a Promise.
+boot().then(bootFeatures).catch(console.error);
+</script>
+{% include '_erd_cmdpalette.html' %}
+</body>
+</html>

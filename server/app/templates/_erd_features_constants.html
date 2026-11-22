@@ -1,0 +1,196 @@
+{#
+  _erd_features_constants.html
+  ─────────────────────────────────────────────────────────────────────────────
+  Shared constants and utilities for all T1 ERD features.
+  Include ONCE per page that uses any T1 feature, inside a <script> block.
+
+  Provides:
+    ERD_CONST          - all thresholds, timing values, colours, localStorage keys
+    erdTagColor(str)   - deterministic HSL colour from a tag string (HSL hashing)
+    erdEsc(str)        - HTML-escape helper
+    erdTrunc(str, n)   - truncate with ellipsis at n characters
+    erdFormatRows(n)   - friendly row count (1.2k, 3.4M, etc.)
+    erdTimeAgo(ms)     - "2 hours ago" / "5 days ago" relative time string
+#}
+<script>
+{% raw %}
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED FEATURE CONSTANTS
+   All thresholds, timings, colours and localStorage keys live here.
+   Never reference raw literals inside component code - always use ERD_CONST.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const ERD_CONST = Object.freeze({
+
+  /* ── T1-1: Hover card ─────────────────────────────────────────── */
+  HOVER_CARD_SHOW_DELAY_MS:   120,   // debounce before card appears
+  HOVER_CARD_HIDE_DELAY_MS:    80,   // grace delay before card hides
+  HOVER_CARD_MAX_FK_ROWS:       3,   // max FK relationships shown
+  HOVER_CARD_DESC_MAX_CHARS:  120,   // description truncation threshold
+  HOVER_CARD_Z_INDEX:         600,   // above context menu (500) and minimap (10)
+
+  /* ── T1-2: Bounding boxes ─────────────────────────────────────── */
+  BBOX_PADDING:                18,   // canvas units of padding inside each box
+  BBOX_LABEL_HEIGHT:           20,   // height of the label strip
+  BBOX_RADIUS:                  6,   // corner radius of the box rect
+  BBOX_OPACITY:               0.18,  // fill opacity of the background rect
+  BBOX_COLLAPSE_PREFIX:  'erd_bbox_collapsed_',  // localStorage key prefix
+
+  /* ── T1-3: Freshness thresholds (milliseconds) ───────────────── */
+  FRESHNESS_GREEN_MS:  24 * 60 * 60 * 1000,   // <  1 day  → green
+  FRESHNESS_AMBER_MS:   7 * 24 * 60 * 60 * 1000,  // 1-7 days → amber
+  // > FRESHNESS_AMBER_MS                          //  > 7 days → red
+  // missing/null                                  // → grey
+  FRESHNESS_COLOR_GREEN:  '#1ded83',
+  FRESHNESS_COLOR_AMBER:  '#fbbf24',
+  FRESHNESS_COLOR_RED:    '#f87171',
+  FRESHNESS_COLOR_GREY:   'rgba(255,255,255,0.2)',
+  FRESHNESS_DOT_SIZE:       8,   // diameter in px (CSS, not canvas)
+
+  /* ── T1-4: Lineage badge ──────────────────────────────────────── */
+  LINEAGE_BADGE_ICON_ONLY_WIDTH:  140,   // sidebar px below which badge goes icon-only
+  LINEAGE_BADGE_Z_INDEX:          10,
+
+  /* ── T1-5: Tag pills ──────────────────────────────────────────── */
+  TAG_SATURATION:      68,   // HSL saturation for auto-colour
+  TAG_LIGHTNESS:       68,   // HSL lightness for auto-colour
+  TAG_BG_ALPHA:      0.14,
+  TAG_MAX_DISPLAY:     8,    // show +N badge after this many pills
+  LS_TAG_EDIT_MODE:  'erd_tag_edit_mode',
+
+  /* ── T1-6: Command palette ────────────────────────────────────── */
+  CMD_K_MAX_PER_GROUP:    5,   // max results per entity-type group
+  CMD_K_Z_INDEX:       9000,   // above everything
+  CMD_K_BACKDROP_BG: 'rgba(0,0,0,0.55)',
+
+  /* ── T1-7: Breadcrumb ─────────────────────────────────────────── */
+  BREADCRUMB_MAX_SEG_CHARS:  24,   // truncate individual segment at this length
+
+  /* ── T1-8: Collapsible sidebar ────────────────────────────────── */
+  LS_SIDEBAR_PREFIX:  'erd_sidebar_section_',  // + sectionId → 'open' | 'closed'
+  SIDEBAR_TRANSITION: '220ms',
+
+  /* ── N1: Health score ─────────────────────────────────────────── */
+  HEALTH_SCORE_GREEN:   80,   // ≥80 → green
+  HEALTH_SCORE_AMBER:   50,   // 50-79 → amber; <50 → red
+  HEALTH_RING_RADIUS:   14,   // outer ring radius at zoom=1 (px)
+  HEALTH_RING_STROKE:    3,   // stroke width of ring arc
+
+  /* ── N2: FK Neighbourhood Lens ────────────────────────────────── */
+  LENS_DEFAULT_HOPS:     1,
+
+  /* ── N3: Auto-detected clusters ───────────────────────────────── */
+  CLUSTER_MIN_SIZE:      2,   // minimum tables to form a cluster group
+  CLUSTER_PADDING:      22,   // px padding around cluster bounding box
+
+  /* ── N4: Column Similarity Heatmap ────────────────────────────── */
+  HEATMAP_DEFAULT_THRESHOLD: 0.6,   // cells ≥ this show "FK?" badge
+  HEATMAP_NAME_WEIGHT:       0.6,   // weight for name similarity
+  HEATMAP_TYPE_WEIGHT:       0.4,   // weight for type similarity
+
+  /* ── N5: Query Bookmark Board ─────────────────────────────────── */
+  QBB_COLS: ['exploration', 'reports', 'debug'],
+  LS_QBB_PREFIX: 'erd_qbb_',   // localStorage fallback key prefix
+});
+
+/* ─── Utilities ──────────────────────────────────────────────────────────── */
+
+/**
+ * Deterministic HSL colour from a tag string.
+ * Returns { bg: string, text: string, border: string }
+ * @param {string} tag
+ * @returns {{ bg: string, text: string, border: string }}
+ */
+function erdTagColor(tag) {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = (hash * 31 + tag.charCodeAt(i)) >>> 0;
+  }
+  const h = hash % 360;
+  const s = ERD_CONST.TAG_SATURATION;
+  const l = ERD_CONST.TAG_LIGHTNESS;
+  const a = ERD_CONST.TAG_BG_ALPHA;
+  return {
+    bg:     `hsla(${h},${s}%,${l}%,${a})`,
+    text:   `hsl(${h},${s}%,${l}%)`,
+    border: `hsla(${h},${s}%,${l}%,0.35)`,
+  };
+}
+
+/**
+ * HTML-escape a string (same as erd.html's esc()).
+ * @param {unknown} s
+ * @returns {string}
+ */
+function erdEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Truncate text to maxChars with ellipsis.
+ * @param {string} text
+ * @param {number} maxChars
+ * @returns {string}
+ */
+function erdTrunc(text, maxChars) {
+  if (!text) return '';
+  return text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
+}
+
+/**
+ * Format a row count as a compact string (1.4k, 3.2M, etc.)
+ * @param {number|null|undefined} n
+ * @returns {string}
+ */
+function erdFormatRows(n) {
+  if (n == null) return '-';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return (n / 1_000).toFixed(n >= 10_000 ? 0 : 1) + 'k';
+  return String(n);
+}
+
+/**
+ * Convert a timestamp (ms since epoch) to a relative "X ago" string.
+ * @param {number|null|undefined} ms
+ * @returns {string}
+ */
+function erdTimeAgo(ms) {
+  if (ms == null) return 'Unknown';
+  const delta = Date.now() - ms;
+  if (delta < 60_000)               return 'Just now';
+  if (delta < 3_600_000)            return Math.floor(delta / 60_000) + ' min ago';
+  if (delta < 86_400_000)           return Math.floor(delta / 3_600_000) + ' hr ago';
+  if (delta < 7 * 86_400_000)       return Math.floor(delta / 86_400_000) + ' days ago';
+  if (delta < 30 * 86_400_000)      return Math.floor(delta / 7 / 86_400_000) + ' weeks ago';
+  return Math.floor(delta / 30 / 86_400_000) + ' months ago';
+}
+
+/**
+ * Freshness color for a timestamp (ms since epoch or null).
+ * Returns one of the ERD_CONST.FRESHNESS_COLOR_* values.
+ * @param {number|null|undefined} ms
+ * @returns {string}
+ */
+function erdFreshnessColor(ms) {
+  if (ms == null) return ERD_CONST.FRESHNESS_COLOR_GREY;
+  const age = Date.now() - ms;
+  if (age <= ERD_CONST.FRESHNESS_GREEN_MS) return ERD_CONST.FRESHNESS_COLOR_GREEN;
+  if (age <= ERD_CONST.FRESHNESS_AMBER_MS) return ERD_CONST.FRESHNESS_COLOR_AMBER;
+  return ERD_CONST.FRESHNESS_COLOR_RED;
+}
+
+/**
+ * Freshness label for a timestamp.
+ * @param {number|null|undefined} ms
+ * @returns {string}
+ */
+function erdFreshnessLabel(ms) {
+  if (ms == null) return 'Unknown freshness';
+  const d = new Date(ms);
+  return d.toLocaleString() + ' (' + erdTimeAgo(ms) + ')';
+}
+{% endraw %}
+</script>

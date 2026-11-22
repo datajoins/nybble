@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ report.title }} - {{ name }} - Nybble</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: #f5f6f8; }
+body {
+  font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+  font-size: 14px; line-height: 1.65; color: #1a1a1a;
+  background: #f5f6f8; padding: 0; margin: 0;
+}
+
+/* ── Toolbar (hidden when printing) ─────────────────────────────── */
+#toolbar {
+  position: sticky; top: 0; z-index: 100;
+  background: #1c1f20; border-bottom: 1px solid #2e3234;
+  display: flex; align-items: center; gap: 8px; padding: 0 20px; height: 44px;
+}
+.tb-title { font-size: 13px; font-weight: 600; color: #e2e6f0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-muted { font-size: 11px; color: rgba(255,255,255,0.3); flex-shrink: 0; }
+.tbtn {
+  height: 30px; padding: 0 12px; background: none; border: 1px solid #2e3234;
+  color: rgba(255,255,255,0.45); cursor: pointer; border-radius: 4px;
+  display: flex; align-items: center; gap: 5px; font-size: 11px;
+  transition: background .12s, color .12s; flex-shrink: 0; text-decoration: none;
+  white-space: nowrap;
+}
+.tbtn:hover { background: rgba(255,255,255,0.08); color: #e2e6f0; }
+.tbtn.accent { border-color: rgba(29,237,131,0.4); color: #1ded83; }
+.tbtn.accent:hover { background: rgba(29,237,131,0.08); }
+.tb-sep { width: 1px; height: 20px; background: #2e3234; margin: 0 2px; flex-shrink: 0; }
+
+/* ── Page wrapper ────────────────────────────────────────────────── */
+#page {
+  max-width: 860px; margin: 36px auto 60px; padding: 0 24px;
+}
+
+/* ── Report header ───────────────────────────────────────────────── */
+#report-header { margin-bottom: 32px; }
+.report-title { font-size: 26px; font-weight: 700; color: #111; line-height: 1.3; margin-bottom: 6px; }
+.report-meta  { font-size: 12px; color: #888; display: flex; gap: 16px; flex-wrap: wrap; }
+.report-schema-name { font-weight: 600; color: #555; }
+.report-divider { border: none; border-top: 2px solid #e8e9eb; margin: 0 0 28px; }
+
+/* ── Blocks ──────────────────────────────────────────────────────── */
+.report-block { margin-bottom: 28px; }
+
+/* Text block */
+.text-block { line-height: 1.75; }
+.text-block h1 { font-size: 22px; margin: 24px 0 10px; color: #111; }
+.text-block h2 { font-size: 17px; margin: 20px 0 8px; color: #1a1a1a; border-bottom: 1px solid #e8e9eb; padding-bottom: 5px; }
+.text-block h3 { font-size: 14px; margin: 16px 0 6px; color: #1a1a1a; }
+.text-block p  { margin-bottom: 10px; color: #2a2a2a; }
+.text-block ul, .text-block ol { padding-left: 22px; margin-bottom: 10px; }
+.text-block li { margin-bottom: 4px; }
+.text-block code { font-family: Consolas, monospace; font-size: 12px; background: #eef0f2; padding: 1px 5px; border-radius: 3px; }
+.text-block pre { background: #f0f2f4; border: 1px solid #dde1e5; border-radius: 5px; padding: 12px 14px; font-size: 12px; overflow-x: auto; margin-bottom: 10px; }
+.text-block pre code { background: none; padding: 0; }
+.text-block strong { font-weight: 700; }
+.text-block em     { font-style: italic; }
+.text-block blockquote { border-left: 3px solid #d0d4dc; padding-left: 14px; color: #666; margin: 10px 0; }
+.text-block hr { border: none; border-top: 1px solid #e0e2e6; margin: 16px 0; }
+
+/* GFM pipe table */
+.md-table { border-collapse: collapse; width: 100%; margin: 12px 0 16px; font-size: 13px; }
+.md-table th { background: #f0f2f5; font-weight: 600; padding: 7px 12px; border: 1px solid #d8dce4; color: #333; font-size: 12px; white-space: nowrap; }
+.md-table td { padding: 6px 12px; border: 1px solid #e0e4ea; color: #2a2a2a; }
+.md-table tbody tr:nth-child(even) td { background: #f8f9fb; }
+.md-table tbody tr:hover td { background: #eef0f4; }
+
+/* Query block */
+.query-block-title {
+  font-size: 15px; font-weight: 600; color: #111; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 8px;
+}
+.query-block-title svg { flex-shrink: 0; }
+.query-meta { font-size: 11px; color: #999; margin-bottom: 8px; }
+.query-truncated-notice {
+  font-size: 11px; color: #b45309; background: #fffbeb;
+  border: 1px solid #fde68a; border-radius: 4px; padding: 4px 10px;
+  margin-bottom: 8px; display: inline-block;
+}
+.query-error {
+  font-size: 12px; color: #991b1b; background: #fef2f2;
+  border: 1px solid #fecaca; border-radius: 4px; padding: 8px 12px;
+  font-family: Consolas, monospace; white-space: pre-wrap;
+}
+.table-wrap { overflow-x: auto; border: 1px solid #e0e4e8; border-radius: 6px; }
+.result-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.result-table th {
+  background: #f0f2f5; font-weight: 600; text-align: left;
+  padding: 8px 12px; border-bottom: 1px solid #d8dce2;
+  color: #333; font-size: 11.5px; white-space: nowrap;
+}
+.result-table td {
+  padding: 7px 12px; border-bottom: 1px solid #eeeff2;
+  color: #2a2a2a; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.result-table tbody tr:last-child td { border-bottom: none; }
+.result-table tbody tr:nth-child(even) td { background: #f8f9fb; }
+.result-table td.null-cell { color: #bbb; font-style: italic; font-size: 11px; }
+.no-data { padding: 16px; text-align: center; color: #999; font-size: 12px; }
+
+/* ── Chart block ─────────────────────────────────────────────────── */
+.chart-block-wrap { background: #f8f9fb; border: 1px solid #e0e4e8; border-radius: 6px; padding: 12px 16px; }
+.chart-block-title { font-size: 14px; font-weight: 600; color: #111; margin-bottom: 10px; }
+.chart-canvas-wrap { width: 100%; }
+.chart-canvas-wrap canvas { display: block; width: 100% !important; }
+
+/* ── Print styles ────────────────────────────────────────────────── */
+@media print {
+  #toolbar { display: none !important; }
+  html { background: #fff; }
+  body { font-size: 12px; }
+  #page { max-width: 100%; margin: 0; padding: 12mm 14mm; }
+  .report-block { page-break-inside: avoid; }
+  .table-wrap { overflow: visible; border: 1px solid #ccc; }
+  .result-table th { background: #eee !important; }
+  .tbtn { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <a class="tbtn" href="/report/{{ key }}" style="text-decoration:none;">&#8592; Builder</a>
+  <div class="tb-sep"></div>
+  <span class="tb-title">{{ report.title }}</span>
+  <span class="tb-muted">{{ name }}</span>
+  <div class="tb-sep"></div>
+  <button class="tbtn" onclick="window.print()">&#128424; Print</button>
+  <button class="tbtn accent" onclick="exportHTML()">&#8623; Export HTML</button>
+</div>
+
+<!-- Page content -->
+<div id="page">
+
+  <!-- Header -->
+  <div id="report-header">
+    <h1 class="report-title" id="report-title">{{ report.title }}</h1>
+    <div class="report-meta">
+      <span>Schema: <span class="report-schema-name">{{ name }}</span></span>
+      <span>Generated: {{ generated_at }}</span>
+    </div>
+  </div>
+  <hr class="report-divider"/>
+
+  <!-- Blocks -->
+  {% for block in blocks %}
+  <div class="report-block">
+    {% if block.type == 'text' %}
+    <div class="text-block" id="text-{{ loop.index }}">
+      {{ block.content | md_to_html | safe }}
+    </div>
+
+    {% elif block.type == 'query' %}
+    {% set dm = block.display_mode or 'table' %}
+    <div class="query-block-title">
+      {% if dm == 'chart' %}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><rect x="3" y="12" width="4" height="9"/><rect x="9" y="8" width="4" height="13"/><rect x="15" y="4" width="4" height="17"/></svg>
+      {% elif dm == 'both' %}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><rect x="13" y="13" width="9" height="9" rx="1"/></svg>
+      {% else %}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      {% endif %}
+      {{ block.title }}
+    </div>
+    {% if block.error %}
+    <div class="query-error">{{ block.error }}</div>
+    {% elif not block.columns %}
+    <div class="no-data">No data returned.</div>
+    {% else %}
+    {% if block.truncated %}
+    <div class="query-truncated-notice">&#9888; Results limited to 500 rows</div>
+    {% endif %}
+
+    {# ── Table view (shown for 'table' and 'both') ─────────────────── #}
+    {% if dm == 'table' or dm == 'both' %}
+    <div class="query-meta">{{ block.rows|length }} row{{ 's' if block.rows|length != 1 else '' }}, {{ block.columns|length }} column{{ 's' if block.columns|length != 1 else '' }}</div>
+    <div class="table-wrap">
+      <table class="result-table">
+        <thead>
+          <tr>{% for col in block.columns %}<th>{{ col }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in block.rows %}
+          <tr>
+            {% for cell in row %}
+            {% if cell is none %}
+            <td class="null-cell">null</td>
+            {% else %}
+            <td title="{{ cell | string | truncate(200) }}">{{ cell | string | truncate(80) }}</td>
+            {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {# ── Chart view (shown for 'chart' and 'both') ────────────────── #}
+    {% if dm == 'chart' or dm == 'both' %}
+    {% if not block.group_by_col %}
+    <div class="no-data" style="color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:8px 12px;font-size:12px;">
+      &#9888; No Group by column configured - open the report builder and set a Group by column for this chart.
+    </div>
+    {% else %}
+    <div class="chart-block-wrap" style="{% if dm == 'both' %}margin-top:16px;{% endif %}">
+      <div style="font-size:11px;color:#888;margin-bottom:6px;">
+        {{ block.agg_func }}{% if block.agg_col %}({{ block.agg_col }}){% else %}(*){% endif %} grouped by {{ block.group_by_col }}
+      </div>
+      <div class="chart-canvas-wrap">
+        <canvas class="chart-block-canvas"
+          data-rows='{{ block.rows | tojson }}'
+          data-cols='{{ block.columns | tojson }}'
+          data-ctype="{{ block.chart_type | e }}"
+          data-ylabel="{{ (block.value_label or '_value') | e }}"></canvas>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% endif %}{# end error/no-data #}
+
+    {% endif %}{# end block.type #}
+  </div>
+  {% endfor %}
+
+  {% if not blocks %}
+  <div style="text-align:center;padding:40px;color:#aaa;font-size:13px;">This report has no blocks yet. Open the builder to add content.</div>
+  {% endif %}
+
+</div>
+
+<!-- Chart.js for chart blocks -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script>
+function exportHTML() {
+  window.location.href = '/report/{{ key }}/{{ report.id }}?_format=html';
+}
+
+// ── Render chart blocks ───────────────────────────────────────────────────────
+// Data is always pre-aggregated: rows = [[label, value], ...]
+// Uses explicit pixel dimensions - no responsive mode - for reliable rendering.
+function _renderCharts() {
+  if (typeof Chart === 'undefined') {
+    // Chart.js CDN hasn't loaded (offline / blocked). Show a fallback message.
+    document.querySelectorAll('.chart-block-canvas').forEach(function(canvas) {
+      var msg = document.createElement('div');
+      msg.style.cssText = 'padding:16px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;font-size:12px;';
+      msg.textContent = 'Chart.js could not be loaded. Check your network connection.';
+      canvas.parentNode.replaceChild(msg, canvas);
+    });
+    return;
+  }
+
+  document.querySelectorAll('.chart-block-canvas').forEach(function(canvas) {
+    // Skip any canvas already initialised (e.g. double-fire guard)
+    if (canvas._chartInstance) return;
+
+    var rawRows = canvas.dataset.rows || '[]';
+    var rows, parseErr;
+    try { rows = JSON.parse(rawRows); } catch(e) { parseErr = e; rows = []; }
+
+    var ctype  = canvas.dataset.ctype  || 'bar';
+    var yLabel = canvas.dataset.ylabel || '_value';
+
+    // Surface parse errors visibly rather than silently skipping
+    if (parseErr || !rows.length) {
+      var errDiv = document.createElement('div');
+      errDiv.style.cssText = 'padding:10px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;font-size:12px;';
+      errDiv.textContent = parseErr ? 'Chart data parse error: ' + parseErr.message : 'No data rows returned for this chart.';
+      canvas.parentNode.replaceChild(errDiv, canvas);
+      return;
+    }
+
+    // Set concrete pixel dimensions before Chart.js init
+    var wrap = canvas.parentElement;
+    var W = (wrap && wrap.clientWidth > 0) ? wrap.clientWidth : 760;
+    var H = 300;
+    canvas.width  = W;
+    canvas.height = H;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+
+    var labels = rows.map(function(r) { return String(r[0] != null ? r[0] : ''); });
+    var data   = rows.map(function(r) { return Number(r[1]) || 0; });
+    var colorMap = { bar: '#6366f1', line: '#10b981' };
+    var borderColor = colorMap[ctype] || '#6366f1';
+    var bgColor = (ctype === 'pie')
+      ? labels.map(function(_, i) { return 'hsl(' + ((i * 47) % 360) + ',60%,55%)'; })
+      : borderColor + '55';
+
+    canvas._chartInstance = new Chart(canvas, {
+      type: ctype,
+      data: {
+        labels: labels,
+        datasets: [{
+          label: yLabel,
+          data: data,
+          backgroundColor: bgColor,
+          borderColor: ctype === 'pie' ? undefined : borderColor,
+          borderWidth: 1.5,
+        }],
+      },
+      options: {
+        responsive: false,
+        animation: false,
+        plugins: {
+          legend: { labels: { color: '#333', font: { size: 11 } }, position: 'bottom' },
+        },
+        scales: ctype === 'pie' ? {} : {
+          x: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+          y: { ticks: { color: '#666', font: { size: 10 } }, beginAtZero: true, grid: { color: 'rgba(0,0,0,0.06)' } },
+        },
+      },
+    });
+  });
+}
+
+// Chart.js is loaded synchronously above this script block, so it is always
+// available here. We still defer with requestAnimationFrame so the browser has
+// committed layout and canvas.parentElement.clientWidth is non-zero.
+if (typeof requestAnimationFrame !== 'undefined') {
+  requestAnimationFrame(function() { requestAnimationFrame(_renderCharts); });
+} else {
+  _renderCharts();
+}
+</script>
+</body>
+</html>

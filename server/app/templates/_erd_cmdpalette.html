@@ -1,0 +1,466 @@
+{#
+  _erd_cmdpalette.html
+  ─────────────────────────────────────────────────────────────────────────────
+  T1-6: Cmd-K Global Command Palette - shared partial.
+  Include ONCE per page, just before </body>.
+
+  Requires:
+    • ERD_CONST (from _erd_features_constants.html) - must be included first
+    • erdEsc(), erdTrunc(), erdBreadcrumbHTML()  - from _erd_features_constants.html
+      (erdBreadcrumbHTML is defined in erd.html; on browse pages it is defined
+       inline below as a fallback)
+    • window.CMD_PALETTE_DATA  - array of result objects (populated at page init)
+      Shape: [{ type: 'schema'|'table'|'column'|'query', key, schemaName, table, column, label, url }, ...]
+    • window.KEY  - current schema key (optional; used for schema-local searches)
+    • window.BASE_PATH  - reverse-proxy prefix (optional)
+
+  The palette loads data from:
+    1. window.CMD_PALETTE_DATA if pre-populated by the host page
+    2. GET /api/search?q=<term>  for cross-schema results
+    3. local SCHEMA variable on erd.html for instant local results
+
+  Dependencies: none (fuse.js is NOT required - uses substring matching).
+  Bundle cost: 0 KB added (pure inline JS).
+#}
+
+<!-- ── T1-6: Cmd-K Command Palette DOM ──────────────────────────── -->
+<style>
+/* Palette backdrop */
+#cmdpal-backdrop {
+  display: none;
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,0.55);
+  align-items: flex-start; justify-content: center;
+  padding-top: 80px;
+}
+#cmdpal-backdrop.open { display: flex; }
+
+/* Palette box */
+#cmdpal-box {
+  width: 540px; max-width: calc(100vw - 32px);
+  background: var(--surface-card);
+  border: 1px solid #3a3d3e;
+  border-radius: 9px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.85);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 140px);
+}
+
+/* Search input row */
+#cmdpal-input-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#cmdpal-input-row svg { flex-shrink: 0; color: rgba(255,255,255,0.4); }
+#cmdpal-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: #e2e6f0; font-size: 15px;
+  caret-color: #a78bfa; font-family: inherit;
+}
+#cmdpal-input::placeholder { color: rgba(255,255,255,0.2); }
+#cmdpal-shortcut-hint {
+  font-size: 10px; color: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.06); padding: 2px 6px;
+  border-radius: 4px; font-family: monospace; flex-shrink: 0;
+}
+
+/* Results list */
+#cmdpal-results {
+  flex: 1; overflow-y: auto;
+  padding: 4px 0 6px;
+}
+#cmdpal-results:empty::after {
+  content: 'No results';
+  display: block;
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.2);
+}
+
+/* Group header */
+.cmdpal-group-hdr {
+  padding: 6px 14px 3px;
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: rgba(255,255,255,0.25);
+  display: flex; align-items: center; gap: 6px;
+}
+.cmdpal-group-hdr svg { opacity: .5; }
+
+/* Result row */
+.cmdpal-result {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background .08s;
+  outline: none;
+}
+.cmdpal-result:hover,
+.cmdpal-result.selected {
+  background: rgba(167,139,250,0.1);
+}
+.cmdpal-result.selected { background: rgba(167,139,250,0.14); }
+.cmdpal-result-icon {
+  width: 28px; height: 28px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.4);
+}
+.cmdpal-result.type-schema  .cmdpal-result-icon { background: rgba(29,237,131,0.1);  color: #1ded83; }
+.cmdpal-result.type-table   .cmdpal-result-icon { background: rgba(167,139,250,0.12); color: #a78bfa; }
+.cmdpal-result.type-column  .cmdpal-result-icon { background: rgba(96,165,250,0.1);  color: #60a5fa; }
+.cmdpal-result.type-query   .cmdpal-result-icon { background: rgba(251,191,36,0.1);  color: #fbbf24; }
+.cmdpal-result-body { flex: 1; min-width: 0; }
+.cmdpal-result-label {
+  font-size: 13px; font-weight: 600; color: #e2e6f0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cmdpal-result-path {
+  font-size: 10px; color: rgba(255,255,255,0.3);
+  margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Highlight matching characters */
+.cmdpal-hl { color: #a78bfa; font-weight: 700; }
+
+/* Footer hint */
+#cmdpal-footer {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 10px; color: rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+.cmdpal-kbd {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 9px;
+}
+</style>
+
+<div id="cmdpal-backdrop" role="dialog" aria-modal="true" aria-label="Command palette">
+  <div id="cmdpal-box">
+    <div id="cmdpal-input-row">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input id="cmdpal-input" type="text" placeholder="Search tables, columns, queries…"
+             autocomplete="off" spellcheck="false" role="combobox"
+             aria-autocomplete="list" aria-controls="cmdpal-results" aria-expanded="false"/>
+      <span id="cmdpal-shortcut-hint">⌘K</span>
+    </div>
+    <div id="cmdpal-results" role="listbox" aria-label="Search results"></div>
+    <div id="cmdpal-footer">
+      <span><span class="cmdpal-kbd">↑↓</span> navigate</span>
+      <span><span class="cmdpal-kbd">↵</span> open</span>
+      <span><span class="cmdpal-kbd">Esc</span> close</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────────
+   T1-6: Command Palette Implementation
+   ───────────────────────────────────────────────────────────────────────────── */
+
+(function() {
+  'use strict';
+
+  /* -- Icons per type ------------------------------------------------------ */
+  const ICONS = {
+    schema: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+    table:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>`,
+    column: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg>`,
+    query:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+  };
+
+  /* -- State --------------------------------------------------------------- */
+  let _palOpen     = false;
+  let _selectedIdx = -1;
+  let _results     = [];   // flattened visible result objects
+  let _debounceTimer = null;
+
+  /** @type {Array<{type:string, key:string, schemaName:string, table:string, column:string, label:string, url:string}>} */
+  let _localData   = [];
+
+  /* -- Build local data from SCHEMA (erd.html) or window.CMD_PALETTE_DATA -- */
+  function buildLocalData() {
+    _localData = [];
+
+    // 1. From window.CMD_PALETTE_DATA (pre-populated by host page)
+    if (window.CMD_PALETTE_DATA && Array.isArray(window.CMD_PALETTE_DATA)) {
+      _localData = window.CMD_PALETTE_DATA.slice();
+    }
+
+    // 2. From SCHEMA global (erd.html only)
+    if (typeof SCHEMA !== 'undefined' && Array.isArray(SCHEMA)) {
+      const bp  = window.BASE_PATH || '';
+      const key = window.KEY || '';
+      const sName = (document.getElementById('topbar-title') || {}).textContent || key;
+
+      SCHEMA.forEach(t => {
+        // Table entry
+        _localData.push({
+          type: 'table', key, schemaName: sName,
+          table: t.name, column: '', label: t.name,
+          url: `${bp}/erd/${encodeURIComponent(key)}?table=${encodeURIComponent(t.name)}`,
+        });
+        // Column entries
+        t.columns.forEach(c => {
+          _localData.push({
+            type: 'column', key, schemaName: sName,
+            table: t.name, column: c.name,
+            label: c.name,
+            url: `${bp}/browse/${encodeURIComponent(key)}#table=${encodeURIComponent(t.name)}`,
+          });
+        });
+      });
+
+      // Saved queries from metadata (if available)
+      if (typeof _erdMeta !== 'undefined' && _erdMeta) {
+        const qs = (_erdMeta.saved_queries || []);
+        qs.forEach(q => {
+          _localData.push({
+            type: 'query', key, schemaName: sName,
+            table: '', column: '', label: q.name || q.title || 'Saved Query',
+            url: `${bp}/query/${encodeURIComponent(key)}`,
+          });
+        });
+      }
+    }
+  }
+
+  /**
+   * Simple inline substring highlight.
+   * @param {string} text
+   * @param {string} query
+   * @returns {string} HTML with .cmdpal-hl spans
+   */
+  function highlightMatch(text, query) {
+    if (!query) return _escHtml(text);
+    const lo = query.toLowerCase();
+    const idx = text.toLowerCase().indexOf(lo);
+    if (idx === -1) return _escHtml(text);
+    return (
+      _escHtml(text.slice(0, idx)) +
+      `<span class="cmdpal-hl">${_escHtml(text.slice(idx, idx + query.length))}</span>` +
+      _escHtml(text.slice(idx + query.length))
+    );
+  }
+
+  function _escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /**
+   * Run a search and render results.
+   * @param {string} query
+   */
+  function runSearch(query) {
+    const lo = query.trim().toLowerCase();
+    const MAX = ERD_CONST.CMD_K_MAX_PER_GROUP;
+
+    /** @type {Object<string, Array>} */
+    const grouped = { schema: [], table: [], column: [], query: [] };
+
+    if (!lo) {
+      // Empty query → show first tables
+      _localData.filter(d => d.type === 'table').slice(0, MAX).forEach(d => grouped.table.push(d));
+    } else {
+      _localData.forEach(d => {
+        const haystack = [d.label, d.table, d.column, d.schemaName]
+          .filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(lo)) return;
+        const bucket = grouped[d.type];
+        if (bucket && bucket.length < MAX) bucket.push(d);
+      });
+    }
+
+    _results = [];
+    renderResults(grouped, query.trim());
+  }
+
+  /**
+   * Render grouped results into #cmdpal-results.
+   * @param {Object<string, Array>} grouped
+   * @param {string} query
+   */
+  function renderResults(grouped, query) {
+    const container = document.getElementById('cmdpal-results');
+    container.innerHTML = '';
+    _results = [];
+
+    const ORDER = ['schema', 'table', 'column', 'query'];
+    const LABELS = { schema: 'Schemas', table: 'Tables', column: 'Columns', query: 'Saved Queries' };
+
+    ORDER.forEach(type => {
+      const items = grouped[type];
+      if (!items || !items.length) return;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'cmdpal-group-hdr';
+      hdr.innerHTML = (ICONS[type] || '') + LABELS[type];
+      container.appendChild(hdr);
+
+      items.forEach(item => {
+        const idx = _results.length;
+        _results.push(item);
+
+        const row = document.createElement('div');
+        row.className = `cmdpal-result type-${type}`;
+        row.setAttribute('role', 'option');
+        row.setAttribute('tabindex', '-1');
+        row.dataset.idx = String(idx);
+
+        // Build path string
+        const pathParts = [];
+        if (item.schemaName) pathParts.push(item.schemaName);
+        if (item.table && type !== 'table' && type !== 'schema') pathParts.push(item.table);
+        const path = pathParts.join(' › ');
+
+        row.innerHTML = `
+          <div class="cmdpal-result-icon">${ICONS[type] || ''}</div>
+          <div class="cmdpal-result-body">
+            <div class="cmdpal-result-label">${highlightMatch(item.label, query)}</div>
+            ${path ? `<div class="cmdpal-result-path">${_escHtml(path)}</div>` : ''}
+          </div>`;
+
+        row.addEventListener('click', () => activateResult(idx));
+        row.addEventListener('mouseenter', () => setSelected(idx));
+        container.appendChild(row);
+      });
+    });
+
+    // If completely empty
+    if (!_results.length && query) {
+      // Try cross-schema API search
+      _fetchRemote(query);
+    }
+
+    setSelected(0);
+  }
+
+  /**
+   * Fetch results from /api/search for cross-schema fallback.
+   * @param {string} query
+   */
+  function _fetchRemote(query) {
+    const bp = window.BASE_PATH || '';
+    fetch(`${bp}/api/search?q=${encodeURIComponent(query)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(items => {
+        if (!Array.isArray(items) || !items.length) return;
+        // Only add if the palette is still open with same query
+        const inp = document.getElementById('cmdpal-input');
+        if (!inp || inp.value.trim().toLowerCase() !== query.toLowerCase()) return;
+        const bp2 = window.BASE_PATH || '';
+        items.forEach(it => {
+          _localData.push({
+            type: it.type || 'table',
+            key: it.key, schemaName: it.schema_name || it.key,
+            table: it.table || '', column: it.column || '',
+            label: it.column || it.table || it.schema_name || it.key,
+            url: it.column
+              ? `${bp2}/browse/${encodeURIComponent(it.key)}#table=${encodeURIComponent(it.table)}`
+              : `${bp2}/erd/${encodeURIComponent(it.key)}?table=${encodeURIComponent(it.table || '')}`,
+          });
+        });
+        runSearch(query);
+      })
+      .catch(() => {});
+  }
+
+  /**
+   * Set the keyboard-selected result.
+   * @param {number} idx
+   */
+  function setSelected(idx) {
+    if (!_results.length) { _selectedIdx = -1; return; }
+    _selectedIdx = Math.max(0, Math.min(idx, _results.length - 1));
+    document.querySelectorAll('.cmdpal-result').forEach((el, i) => {
+      el.classList.toggle('selected', i === _selectedIdx);
+      if (i === _selectedIdx) el.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  /**
+   * Navigate to the selected result and close the palette.
+   * @param {number} idx
+   */
+  function activateResult(idx) {
+    const item = _results[idx];
+    if (!item) return;
+    closePalette();
+    if (item.url) {
+      window.location.href = item.url;
+    }
+  }
+
+  /* -- Open / close --------------------------------------------------------- */
+  function openPalette() {
+    buildLocalData();
+    _palOpen = true;
+    const bd = document.getElementById('cmdpal-backdrop');
+    const inp = document.getElementById('cmdpal-input');
+    bd.classList.add('open');
+    inp.value = '';
+    runSearch('');
+    inp.focus();
+  }
+
+  function closePalette() {
+    _palOpen = false;
+    document.getElementById('cmdpal-backdrop').classList.remove('open');
+    hideErdTooltip && hideErdTooltip();
+  }
+
+  /* -- Keyboard handling ---------------------------------------------------- */
+  document.addEventListener('keydown', e => {
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    const inField = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT');
+
+    // Open: Cmd+K / Ctrl+K (not inside an input unless it's the palette itself)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if (inField && document.activeElement.id !== 'cmdpal-input') return;
+      e.preventDefault();
+      if (_palOpen) closePalette();
+      else          openPalette();
+      return;
+    }
+
+    if (!_palOpen) return;
+
+    if (e.key === 'Escape') { e.preventDefault(); closePalette(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault(); setSelected(_selectedIdx + 1); return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault(); setSelected(_selectedIdx - 1); return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault(); activateResult(_selectedIdx); return;
+    }
+  });
+
+  /* -- Input handler -------------------------------------------------------- */
+  document.addEventListener('DOMContentLoaded', () => {
+    const inp = document.getElementById('cmdpal-input');
+    if (!inp) return;
+    inp.addEventListener('input', () => {
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(() => runSearch(inp.value), 80);
+    });
+  });
+
+  /* -- Click-outside to close ---------------------------------------------- */
+  document.getElementById('cmdpal-backdrop').addEventListener('click', e => {
+    if (e.target === document.getElementById('cmdpal-backdrop')) closePalette();
+  });
+
+  /* -- Expose open/close for host pages ------------------------------------ */
+  window.openCmdPalette  = openPalette;
+  window.closeCmdPalette = closePalette;
+
+})();
+</script>
